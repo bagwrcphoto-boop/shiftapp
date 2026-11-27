@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 9";
+const APP_VERSION = "27 พ.ย. 69 · 10";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -478,8 +478,8 @@ const APP_HTML = [
 ".tab{flex:1;border:0;background:none;font-size:12px;font-weight:500;color:var(--tabFg);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:22px}",
 ".tab i{font-size:24px}",
 ".tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}",
-".toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-90px);background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:.3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}",
-".toast.on{transform:translate(-50%,0)}",
+".toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}",
+".toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
 "@keyframes sp{to{transform:rotate(360deg)}}",
