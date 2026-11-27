@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 46";
+const APP_VERSION = "28 พ.ย. 69 · 47";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -325,8 +325,16 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
         if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); checks.glyphChanged.push(dd); } }
     }
   } catch (e) { console.log("glyph check: " + e); }
+  // หน้าที่ของแต่ละเวร จากสีพื้นครึ่งบน/ล่าง (ไม่ใช้ API) → { วันที่: ["ic","md"] } เรียงตามตัวเวร
+  const roles = {};
+  try {
+    const col = JSON.parse(await page(`halfColor(${+j.label}, ${days})`)), ink2 = JSON.parse(await page(`halfInk(${+j.label}, ${days})`));
+    for (let dd = 1; dd <= days; dd++){ const s = sortS(final[dd]), c = col[dd] || {}, h = ink2[dd] || {};
+      const r = s.length === 2 ? [c.top, c.bot] : s.length === 1 ? [h.bot && !h.top ? c.bot : h.top && !h.bot ? c.top : (c.top || c.bot)] : [];
+      if (r.some(Boolean)) roles[dd] = r.map(x => x || ""); }
+  } catch (e) { console.log("roles: " + e); }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, roles, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -335,10 +343,10 @@ async function readRosterClaude(b64, d, key, grid, page) {
     const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
       const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
-      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {};
+      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {}, roles = { [d.me]: tiles.roles || {} };
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, checks: tiles.checks, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, roles, checks: tiles.checks, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);

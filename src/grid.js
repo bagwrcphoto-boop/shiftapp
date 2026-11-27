@@ -202,6 +202,25 @@ window.halfInk = function(k, days){
     } }
   return JSON.stringify(out);
 };
+// สีพื้นของแต่ละครึ่งช่อง = หน้าที่: ฟ้า In charge (ic), ส้ม member (mb), เขียว med (md); เทา/ขาว = ไม่มี
+function roleOfRGB(r, g, b){
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0;
+  if (sat < 0.22) return "";
+  const h = mx === r ? ((g - b) / (mx - mn) * 60 + 360) % 360 : mx === g ? (b - r) / (mx - mn) * 60 + 120 : (r - g) / (mx - mn) * 60 + 240;
+  return h >= 180 && h < 260 ? "ic" : h >= 10 && h < 55 ? "mb" : h >= 70 && h < 170 ? "md" : "";
+}
+window.halfColor = function(k, days){
+  const out = {};
+  for (let d = 1; d <= days; d++){ out[d] = {};
+    for (const half of ["top", "bot"]){
+      const [sx, sy, sw, sh] = halfBox(k, d, half), c = gridCrop(sx + sw*0.1, sy + sh*0.1, sw*0.8, sh*0.8, 24, 16), p = c.getContext("2d").getImageData(0, 0, 24, 16).data, px = [];
+      for (let i = 0; i < p.length; i += 4) px.push([p[i], p[i+1], p[i+2]]);
+      px.sort((a, b) => Math.max(...b) - Math.max(...a));                 // เอาพิกเซลสว่าง (พื้น) ไม่เอาตัวหนังสือ
+      const bg = px.slice(0, Math.ceil(px.length * 0.5)), m = [0, 1, 2].map(j => bg.reduce((s, q) => s + q[j], 0) / bg.length);
+      out[d][half] = roleOfRGB(...m);
+    } }
+  return JSON.stringify(out);
+};
 // รูปตัวอย่าง (legend) + รูปตัวที่ต้องตรวจ แต่ละตัวขยายใหญ่ มีเลขกำกับ
 window.glyphSheet = function(k, items, legend){
   const S = 110, gap = 12, lab = 34;

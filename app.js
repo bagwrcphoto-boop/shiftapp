@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 46";
+const APP_VERSION = "28 พ.ย. 69 · 47";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -333,8 +333,16 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
         if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); checks.glyphChanged.push(dd); } }
     }
   } catch (e) { console.log("glyph check: " + e); }
+  // หน้าที่ของแต่ละเวร จากสีพื้นครึ่งบน/ล่าง (ไม่ใช้ API) → { วันที่: ["ic","md"] } เรียงตามตัวเวร
+  const roles = {};
+  try {
+    const col = JSON.parse(await page(`halfColor(${+j.label}, ${days})`)), ink2 = JSON.parse(await page(`halfInk(${+j.label}, ${days})`));
+    for (let dd = 1; dd <= days; dd++){ const s = sortS(final[dd]), c = col[dd] || {}, h = ink2[dd] || {};
+      const r = s.length === 2 ? [c.top, c.bot] : s.length === 1 ? [h.bot && !h.top ? c.bot : h.top && !h.bot ? c.top : (c.top || c.bot)] : [];
+      if (r.some(Boolean)) roles[dd] = r.map(x => x || ""); }
+  } catch (e) { console.log("roles: " + e); }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, roles, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -343,10 +351,10 @@ async function readRosterClaude(b64, d, key, grid, page) {
     const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
       const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
-      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {};
+      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {}, roles = { [d.me]: tiles.roles || {} };
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, checks: tiles.checks, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, roles, checks: tiles.checks, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);
@@ -586,7 +594,8 @@ const APP_HTML = [
 ".cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}",
 ".d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}",
 ".d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}",
-".d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .ab{font-size:11px;font-weight:700;letter-spacing:.5px;line-height:12px;margin-top:-1px;color:var(--title)}.d .ab.lvt{color:#C2477D}",
+".d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .ab{font-size:11px;font-weight:700;letter-spacing:.5px;line-height:12px;margin-top:-1px;color:var(--title)}.d .ab.lvt{color:#C2477D}.d .ab i{font-style:normal}.d .ab .ric{color:#2F7BE0}.d .ab .rmb{color:#E8742A}.d .ab .rmd{color:#23A05A}",
+".rolek{flex:0 0 100%;display:flex;gap:10px;justify-content:center;font-size:12px;font-weight:600;margin-top:8px;color:var(--sub)}.rolek b{font-weight:800}",
 ".lvb{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}.lvb button{border:1.5px solid var(--line);background:none;border-radius:12px;padding:6px 12px;font:inherit;font-size:14px;color:var(--text)}.lvb button.on{background:#FFE1EA;border-color:#F48FB1;color:#B23A68;font-weight:700}",
 ".d.hol .nn{color:#D9821A;font-weight:700}.d.hol.t .nn{color:var(--onAccent)}.d.hol:after{content:\"\";position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:#F2A23A}",
 ".holb{display:flex;align-items:center;gap:8px;background:#FFF1DC;color:#9A5A0C;border-radius:14px;padding:8px 12px;font-size:14px;font-weight:600;margin-bottom:10px}",
@@ -600,7 +609,7 @@ const APP_HTML = [
 ".tl{border-left:2.5px dashed var(--line);margin:8px 0 2px 8px;padding-left:14px}.tl p{position:relative;font-size:14px;margin-bottom:8px;color:var(--text)}.tl p:before{content:\"\";position:absolute;left:-20.5px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--c,var(--accent))}.tl b{color:var(--title)}",
 ".notecard{display:flex;gap:10px;align-items:flex-start}",
 ".notecard .t{font-size:15px;white-space:pre-wrap;flex:1}",
-".chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}",
+".chips{display:flex;flex-wrap:wrap;gap:4px;justify-content:space-between;margin-top:12px}",
 ".chip{display:inline-flex;align-items:center;gap:3px;border-radius:12px;padding:5px 7px;font-size:13px;font-weight:700;white-space:nowrap}",
 "/* sheet */",
 ".mask{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:.2s;z-index:20}",
@@ -1030,6 +1039,25 @@ const APP_HTML = [
 "    } }",
 "  return JSON.stringify(out);",
 "};",
+"// \u0e2a\u0e35\u0e1e\u0e37\u0e49\u0e19\u0e02\u0e2d\u0e07\u0e41\u0e15\u0e48\u0e25\u0e30\u0e04\u0e23\u0e36\u0e48\u0e07\u0e0a\u0e48\u0e2d\u0e07 = \u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48: \u0e1f\u0e49\u0e32 In charge (ic), \u0e2a\u0e49\u0e21 member (mb), \u0e40\u0e02\u0e35\u0e22\u0e27 med (md); \u0e40\u0e17\u0e32/\u0e02\u0e32\u0e27 = \u0e44\u0e21\u0e48\u0e21\u0e35",
+"function roleOfRGB(r, g, b){",
+"  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0;",
+"  if (sat < 0.22) return \"\";",
+"  const h = mx === r ? ((g - b) / (mx - mn) * 60 + 360) % 360 : mx === g ? (b - r) / (mx - mn) * 60 + 120 : (r - g) / (mx - mn) * 60 + 240;",
+"  return h >= 180 && h < 260 ? \"ic\" : h >= 10 && h < 55 ? \"mb\" : h >= 70 && h < 170 ? \"md\" : \"\";",
+"}",
+"window.halfColor = function(k, days){",
+"  const out = {};",
+"  for (let d = 1; d <= days; d++){ out[d] = {};",
+"    for (const half of [\"top\", \"bot\"]){",
+"      const [sx, sy, sw, sh] = halfBox(k, d, half), c = gridCrop(sx + sw*0.1, sy + sh*0.1, sw*0.8, sh*0.8, 24, 16), p = c.getContext(\"2d\").getImageData(0, 0, 24, 16).data, px = [];",
+"      for (let i = 0; i < p.length; i += 4) px.push([p[i], p[i+1], p[i+2]]);",
+"      px.sort((a, b) => Math.max(...b) - Math.max(...a));                 // \u0e40\u0e2d\u0e32\u0e1e\u0e34\u0e01\u0e40\u0e0b\u0e25\u0e2a\u0e27\u0e48\u0e32\u0e07 (\u0e1e\u0e37\u0e49\u0e19) \u0e44\u0e21\u0e48\u0e40\u0e2d\u0e32\u0e15\u0e31\u0e27\u0e2b\u0e19\u0e31\u0e07\u0e2a\u0e37\u0e2d",
+"      const bg = px.slice(0, Math.ceil(px.length * 0.5)), m = [0, 1, 2].map(j => bg.reduce((s, q) => s + q[j], 0) / bg.length);",
+"      out[d][half] = roleOfRGB(...m);",
+"    } }",
+"  return JSON.stringify(out);",
+"};",
 "// \u0e23\u0e39\u0e1b\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07 (legend) + \u0e23\u0e39\u0e1b\u0e15\u0e31\u0e27\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e15\u0e23\u0e27\u0e08 \u0e41\u0e15\u0e48\u0e25\u0e30\u0e15\u0e31\u0e27\u0e02\u0e22\u0e32\u0e22\u0e43\u0e2b\u0e0d\u0e48 \u0e21\u0e35\u0e40\u0e25\u0e02\u0e01\u0e33\u0e01\u0e31\u0e1a",
 "window.glyphSheet = function(k, items, legend){",
 "  const S = 110, gap = 12, lab = 34;",
@@ -1312,12 +1340,14 @@ const APP_HTML = [
 "    const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());",
 "    const ps = s.length ? `<div class=\"ics\">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join(\"\")}</div>` : (md ? `<div class=\"ics\" style=\"opacity:.75\">${cute(\"off\",17)}</div>` : \"\");",
 "    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class=\"pin\">${CUTE.note}</span>` : \"\";",
-"    const lvT = leaveOf(new Date(viewY, viewM, d)) ? \"\u0e25\u0e32\" : \"\", ab = s.join(\"\") + (s.length && lvT ? \" \" : \"\") + lvT;   // \u0e15\u0e31\u0e27\u0e22\u0e48\u0e2d\u0e40\u0e27\u0e23\u0e43\u0e15\u0e49\u0e44\u0e2d\u0e04\u0e2d\u0e19 \u0e40\u0e0a\u0e48\u0e19 \u0e0a\u0e14 \u0e1a\u0e14",
+"    const rl = ((md && md.roles && md.roles[DATA.me]) || {})[d] || [];   // \u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48: \u0e1f\u0e49\u0e32 In charge / \u0e2a\u0e49\u0e21 member / \u0e40\u0e02\u0e35\u0e22\u0e27 med",
+"    const lvT = leaveOf(new Date(viewY, viewM, d)) ? \"\u0e25\u0e32\" : \"\", ab = s.map((c, i) => rl[i] ? `<i class=\"r${rl[i]}\">${c}</i>` : c).join(\"\") + (s.length && lvT ? \" \" : \"\") + lvT;   // \u0e15\u0e31\u0e27\u0e22\u0e48\u0e2d\u0e40\u0e27\u0e23\u0e43\u0e15\u0e49\u0e44\u0e2d\u0e04\u0e2d\u0e19 \u0e40\u0e0a\u0e48\u0e19 \u0e0a\u0e14 \u0e1a\u0e14",
 "    const lb = LB.some(r => new Date(viewY, viewM, d) >= r.st && new Date(viewY, viewM, d) <= r.en);",
 "    h += `<div class=\"d ${s.length?\"h\":\"\"} ${lb?\"lb\":\"\"} ${holOf(viewY,viewM,d)?\"hol\":\"\"} ${isToday(d)?\"t\":\"\"} ${past&&!isToday(d)?\"past\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}${ab?`<span class=\"ab${lvT?\" lvt\":\"\"}\">${ab}</span>`:\"\"}${pin}</div>`;",
 "  }",
 "  $(\"days\").innerHTML = h;",
-"  $(\"chips\").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class=\"note\" style=\"width:100%\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49 \u0e01\u0e14 \"\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23\" \u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p>`;",
+"  const hasR = md && md.roles && Object.keys(md.roles[DATA.me]||{}).length;",
+"  $(\"chips\").innerHTML = md ? chipsHTML(countMonth(me, days)) + (hasR ? `<div class=\"rolek\" style=\"width:100%\"><span><b style=\"color:#2F7BE0\">\u0e1f\u0e49\u0e32</b> In charge</span><span><b style=\"color:#E8742A\">\u0e2a\u0e49\u0e21</b> member</span><span><b style=\"color:#23A05A\">\u0e40\u0e02\u0e35\u0e22\u0e27</b> med</span></div>` : \"\") : `<p class=\"note\" style=\"width:100%\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49 \u0e01\u0e14 \"\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23\" \u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p>`;",
 "}",
 "function moveMonth(n){ viewM += n; if (viewM<0){viewM=11;viewY--} if (viewM>11){viewM=0;viewY++} selDay=null; frDay=null; renderAll(); }",
 "let tx = null;",
@@ -1459,7 +1489,8 @@ const APP_HTML = [
 "  const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};",
 "  let v = [\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].filter(c=>editSet.includes(c));      // \u0e40\u0e23\u0e35\u0e22\u0e07\u0e15\u0e32\u0e21\u0e40\u0e27\u0e25\u0e32 \u0e14\u0e36\u0e01 00:00 \u0e01\u0e48\u0e2d\u0e19 \u0e40\u0e27\u0e49\u0e19\u0e41\u0e15\u0e48\u0e15\u0e34\u0e4a\u0e01 \"\u0e14\u0e36\u0e01\u0e15\u0e48\u0e2d\u0e17\u0e49\u0e32\u0e22\"",
 "  if ($(\"trailN\") && $(\"trailN\").checked && v.length > 1 && v[0] === \"\u0e14\") v = v.slice(1).concat(\"\u0e14\");",
-"  v = v.join(\"\"); if (v) me[d] = v; else delete me[d];",
+"  v = v.join(\"\"); if (v !== sortS(me[d]).join(\"\") && DATA.months[k].roles && DATA.months[k].roles[DATA.me]) delete DATA.months[k].roles[DATA.me][d];   // \u0e41\u0e01\u0e49\u0e40\u0e27\u0e23\u0e40\u0e2d\u0e07 \u2192 \u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48\u0e40\u0e14\u0e34\u0e21\u0e2d\u0e32\u0e08\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07",
+"  if (v) me[d] = v; else delete me[d];",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
 "  const date = dk(new Date(viewY, viewM, d)), text = ($(\"noteText\") ? $(\"noteText\").value : \"\").trim();",
 "  DATA.notes = DATA.notes || {};",
@@ -1847,7 +1878,7 @@ const APP_HTML = [
 "function confirmParsed(){",
 "  const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,\"0\")}`;",
 "  const prev = DATA.months[k] ? JSON.parse(JSON.stringify(DATA.months[k])) : null;",
-"  DATA.months[k] = {people:r.people, totals:r.totals||{}, work:r.work||{}, vdays:r.vdays||{}};",
+"  DATA.months[k] = {people:r.people, totals:r.totals||{}, work:r.work||{}, vdays:r.vdays||{}, roles:r.roles||{}};",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
 "  trades().filter(t=>t.date.startsWith(k)).forEach(t=>applyTrade(t));   // \u0e15\u0e32\u0e23\u0e32\u0e07\u0e43\u0e2b\u0e21\u0e48\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e23\u0e27\u0e21\u0e0b\u0e37\u0e49\u0e2d-\u0e02\u0e32\u0e22 \u2192 \u0e43\u0e2a\u0e48\u0e0b\u0e49\u0e33 (\u0e0b\u0e49\u0e33\u0e44\u0e14\u0e49 \u0e44\u0e21\u0e48\u0e40\u0e1e\u0e35\u0e49\u0e22\u0e19)",
 "  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll();",
