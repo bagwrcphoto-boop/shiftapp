@@ -65,6 +65,7 @@ button{font:inherit;cursor:pointer;color:inherit}
 .notebox:focus{border-color:var(--accent)}
 .qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
 .qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}
+.ci{display:inline-flex;width:26px;height:26px;margin-right:2px;vertical-align:middle}.tl .cute{vertical-align:-4px;display:inline-block}
 .tl{border-left:2.5px dashed var(--line);margin:8px 0 2px 8px;padding-left:14px}.tl p{position:relative;font-size:14px;margin-bottom:8px;color:var(--text)}.tl p:before{content:"";position:absolute;left:-20.5px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--c,var(--accent))}.tl b{color:var(--title)}
 .notecard{display:flex;gap:10px;align-items:flex-start}
 .notecard .t{font-size:15px;white-space:pre-wrap;flex:1}
@@ -247,12 +248,12 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
     <p class="note" style="margin:2px 0 10px">ถ้าไม่มีแจ้งเตือนเด้ง ให้เปิด "อนุญาตการแจ้งเตือน" ของ Scriptable</p>
     <div class="grid2"><button class="btn" onclick="send('openNotiSettings')">ไปตั้งค่าแจ้งเตือน</button><button class="btn" onclick="send('testNoti')">ทดสอบแจ้งเตือน</button></div></div>
   <div class="card"><p class="lbl">ดูแลตัวเองช่วงเวร</p>
-    <div class="set"><span class="l">💧 เตือนดื่มน้ำระหว่างเวร</span><div class="sw" id="cWater" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l"><span class="ci" data-c="water"></span>เตือนดื่มน้ำระหว่างเวร</span><div class="sw" id="cWater" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <div class="set"><span class="l" style="padding-left:28px">ทุก</span><select id="cWaterH" onchange="saveSettings()"><option value="1">1 ชั่วโมง</option><option value="2">2 ชั่วโมง</option><option value="3">3 ชั่วโมง</option></select></div>
-    <div class="set"><span class="l">🍚 เตือนกินข้าว</span><div class="sw" id="cMeal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
-    <div class="set"><span class="l">😴 ตัวช่วยนอนก่อนเวรดึก</span><div class="sw" id="cNight" onclick="this.classList.toggle('on');saveSettings()"></div></div>
-    <div class="set"><span class="l">☕ เตือนงดกาแฟก่อนเวรดึก</span><div class="sw" id="cCoffee" onclick="this.classList.toggle('on');saveSettings()"></div></div>
-    <div class="set"><span class="l">🛌 เลิกเวรดึก → เตือนไปนอน</span><div class="sw" id="cSleep" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l"><span class="ci" data-c="rice"></span>เตือนกินข้าว</span><div class="sw" id="cMeal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l"><span class="ci" data-c="nap"></span>ตัวช่วยนอนก่อนเวรดึก</span><div class="sw" id="cNight" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l"><span class="ci" data-c="coffee"></span>เตือนงดกาแฟก่อนเวรดึก</span><div class="sw" id="cCoffee" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l"><span class="ci" data-c="bed"></span>เลิกเวรดึก → เตือนไปนอน</span><div class="sw" id="cSleep" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <p class="note" style="margin-top:6px">กินข้าว: เวรเช้า 12:00 · บ่าย 20:00 · ดึก 03:00<br>เตือนเฉพาะช่วงที่มีเวร วันหยุดไม่เตือน</p>
   </div>
   <div class="card">
@@ -484,13 +485,13 @@ function renderCare(){
     const S = night.st.getTime(), at = ms => hm(new Date(S + ms)), H = Math.max(1, +c.waterH||2), w = [];
     for (let t = H; t*36e5 < night.en - night.st - 15*6e4; t += H) w.push(at(t*36e5));
     const dd = dayDiff(n, night.st), L = [
-      ["#9b8cff", at(-10*36e5), "ทานข้าวมื้อหลัก 🍚 ก่อนงีบ"], ["#9b8cff", `${at(-9*36e5)}–${at(-6*36e5)}`, "งีบ 1.5–3 ชม. 😴"],
-      c.coffee ? ["#c9a26b", `หลัง ${at(-6*36e5)}`, "งดกาแฟ ☕"] : null, ["#ff9a6b", at(-1.5*36e5), "กินมื้อเบาๆ ก่อนเข้าเวร 🥪"],
+      ["#9b8cff", at(-10*36e5), `ทานข้าวมื้อหลักก่อนงีบ ${cute("rice",22)}`], ["#9b8cff", `${at(-9*36e5)}–${at(-6*36e5)}`, `งีบ 1.5–3 ชม. ${cute("nap",22)}`],
+      c.coffee ? ["#c9a26b", `หลัง ${at(-6*36e5)}`, `งดกาแฟ ${cute("coffee",22)}`] : null, ["#ff9a6b", at(-1.5*36e5), `กินมื้อเบาๆ ก่อนเข้าเวร ${cute("snack",22)}`],
       [null, at(0), `เข้าเวร${night.cs.map(x=>SH[x].n.replace("เวร","")).join("→")}`],
-      c.water && w.length ? ["#4fb3e8", w.join(" · "), "ดื่มน้ำ 💧"] : null,
-      c.meal ? ["#ff9a6b", at(3*36e5), "ของว่าง / มื้อเล็ก 🍙"] : null,
-      ["#9b8cff", hm(night.en), night.cs[night.cs.length-1]==="ด" ? "เลิกเวร → กลับไปนอนเลย 🛌" : "เลิกเวร"]].filter(Boolean);
-    h += `<p class="h3">${dd<=1 ? "คืนนี้มีเวรดึก" : "คืนพรุ่งนี้มีเวรดึก"} 🌙</p><p class="hello" style="font-size:13px">${DOWF[night.st.getDay()]} ${night.st.getDate()} ${MSH[night.st.getMonth()]} · ตารางดูแลตัวเอง</p>
+      c.water && w.length ? ["#4fb3e8", w.join(" · "), `ดื่มน้ำ ${cute("water",22)}`] : null,
+      c.meal ? ["#ff9a6b", at(3*36e5), `ของว่าง / มื้อเล็ก ${cute("snack",22)}`] : null,
+      ["#9b8cff", hm(night.en), night.cs[night.cs.length-1]==="ด" ? `เลิกเวร → กลับไปนอนเลย ${cute("bed",22)}` : "เลิกเวร"]].filter(Boolean);
+    h += `<p class="h3" style="display:flex;align-items:center;gap:6px">${dd<=1 ? "คืนนี้มีเวรดึก" : "คืนพรุ่งนี้มีเวรดึก"} ${cute("moon",26)}</p><p class="hello" style="font-size:13px">${DOWF[night.st.getDay()]} ${night.st.getDate()} ${MSH[night.st.getMonth()]} · ตารางดูแลตัวเอง</p>
       <div class="tl">${L.map(([col, t, x]) => `<p${col?` style="--c:${col}"`:""}><b>${t}</b> ${x}</p>`).join("")}</div>`;
   }
   el.style.display = h ? "" : "none"; el.innerHTML = h;
@@ -809,6 +810,7 @@ function renderSet(){
   $("setCal").classList.toggle("on", !!DATA.settings.calendar);
   $("setEve").classList.toggle("on", DATA.settings.eve !== false);
   $("setAI").value = "claude";
+  document.querySelectorAll(".ci[data-c]").forEach(el => { if (!el.innerHTML) el.innerHTML = cute(el.dataset.c, 26); });
   const c = careS();
   for (const [id, k] of [["cWater","water"],["cMeal","meal"],["cNight","night"],["cCoffee","coffee"],["cSleep","sleep"]]) $(id).classList.toggle("on", !!c[k]);
   $("cWaterH").value = String(c.waterH);
