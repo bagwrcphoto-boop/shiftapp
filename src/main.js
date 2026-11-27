@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 8";
+const APP_VERSION = "27 พ.ย. 69 · 9";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -210,7 +210,7 @@ async function readByTiles(b64, d, key, page) {
 1) ชื่อ "${d.me}" อยู่แถวเลขอะไรในรูปที่ 2
 2) จากหัวตารางในรูปที่ 1 เป็นเดือนอะไร ปี พ.ศ. อะไร
 3) ในรูปที่ 1 แถวของคนนี้ ช่อง "ทำงานจริง" เขียนเลขอะไร
-ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28}`, key, 300);
+ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28}`, key, 1000);
   const j = jsonOf(t);
   if (!(+j.label >= 1) || !findMe({ [String(j.name_seen || "")]: 1 }, d.me)) throw new Error("หาแถวชื่อไม่เจอ");
   const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
@@ -223,8 +223,8 @@ async function readByTiles(b64, d, key, page) {
 `รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
 ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรทั้งสองบรรทัด
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
-${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
-1=ดช 2=บ 3=- 4=ช`, key, 400);
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
+1=ดช 2=บ 3=- 4=ช`, key, 2000);
     const out = {};
     for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
     return { days: out, count: Object.values(out).join("").length };
