@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 30";
+const APP_VERSION = "28 พ.ย. 69 · 31";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -564,6 +564,7 @@ const APP_HTML = [
 ".editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}",
 ".seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}",
 ".trail{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-top:8px}.trail input{width:18px;height:18px;margin:0;accent-color:var(--accent)}",
+"body.lock{position:fixed;left:0;right:0;overflow:hidden}.sheet{overscroll-behavior:contain}",
 ".toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
@@ -1237,7 +1238,10 @@ const APP_HTML = [
 "function openSheet(){",
 "  const sh = $(\"sheet\");",
 "  sh.style.transform = \"\"; sh.scrollTop = 0; $(\"mask\").classList.add(\"on\"); sh.classList.add(\"on\");",
+"  if (!document.body.classList.contains(\"lock\")){ LOCKY = window.scrollY; document.body.style.top = -LOCKY + \"px\"; document.body.classList.add(\"lock\"); }   // \u0e25\u0e47\u0e2d\u0e01\u0e2b\u0e19\u0e49\u0e32\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e25\u0e31\u0e07\u0e44\u0e21\u0e48\u0e43\u0e2b\u0e49\u0e40\u0e25\u0e37\u0e48\u0e2d\u0e19",
 "}",
+"let LOCKY = 0;",
+"function unlockBody(){ if (!document.body.classList.contains(\"lock\")) return; document.body.classList.remove(\"lock\"); document.body.style.top = \"\"; window.scrollTo(0, LOCKY); }",
 "/* \u0e25\u0e32\u0e01\u0e41\u0e1c\u0e48\u0e19\u0e25\u0e48\u0e32\u0e07\u0e25\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e1b\u0e34\u0e14 */",
 "(() => {",
 "  const sh = $(\"sheet\"); let y0 = null, dy = 0;",
@@ -1245,7 +1249,7 @@ const APP_HTML = [
 "  sh.addEventListener(\"touchmove\", e => { if (y0 == null) return; dy = e.touches[0].clientY - y0; if (dy > 0){ sh.style.transition = \"none\"; sh.style.transform = `translateY(${dy}px)`; if (e.cancelable) e.preventDefault(); } }, {passive:false});",
 "  sh.addEventListener(\"touchend\", () => { if (y0 == null) return; sh.style.transition = \"\"; if (dy > 90) closeSheet(); else sh.style.transform = \"\"; y0 = null; dy = 0; });",
 "})();",
-"function closeSheet(){ $(\"mask\").classList.remove(\"on\"); $(\"sheet\").classList.remove(\"on\"); $(\"sheet\").style.transform = \"\"; selDay=null; renderCal(); }",
+"function closeSheet(){ $(\"mask\").classList.remove(\"on\"); $(\"sheet\").classList.remove(\"on\"); $(\"sheet\").style.transform = \"\"; unlockBody(); selDay=null; renderCal(); }",
 "",
 "/* ===== \u0e2a\u0e23\u0e38\u0e1b ===== */",
 "function renderSum(){",
