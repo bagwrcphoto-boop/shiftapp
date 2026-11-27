@@ -125,3 +125,23 @@ window.warpQuad = function(img, P){
     dp[o+3] = 255; }
   ox.putImageData(od, 0, 0); return out;
 };
+
+// แบบใหม่: ช่องใหญ่ขึ้น แบ่ง 2 รูป (วันที่ 1-16 / 17-สิ้นเดือน) ให้ไม่เกินขนาดที่ AI ย่อรูป และเส้นแบ่งบน/ล่างชัด
+window.makeTiles2 = function(k, days){
+  const g = GRID.g, [y0, y1] = g.bands[k-1], n = Math.min(days || 31, g.xs.length - 1);
+  const tw = 200, cwAvg = (g.xs[n] - g.xs[0]) / n, th = Math.round(tw * (y1 - y0) / cwAvg), lab = 52, per = 7, gap = 14;
+  const parts = [[1, Math.min(16, n)], [17, n]].filter(([a, b]) => a <= b);
+  return JSON.stringify(parts.map(([a, b]) => {
+    const cnt = b - a + 1, rows = Math.ceil(cnt / per), W = per * (tw + gap) + gap, H = rows * (th + lab + gap) + gap;
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+    x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
+    for (let d = a; d <= b; d++){
+      const i = d - a, cx = gap + (i % per) * (tw + gap), cy = gap + Math.floor(i / per) * (th + lab + gap), xi = d - 1;
+      x.fillStyle = "#c2185b"; x.font = "700 44px sans-serif"; x.textAlign = "center"; x.textBaseline = "top"; x.fillText(String(d), cx + tw/2, cy + 2);
+      const pad = (g.xs[xi+1] - g.xs[xi]) * 0.06;
+      x.drawImage(gridCrop(g.xs[xi] + pad, y0 + pad, g.xs[xi+1] - g.xs[xi] - pad*2, y1 - y0 - pad*2, tw, th), cx, cy + lab);
+      x.strokeStyle = "#999"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, tw, th);
+    }
+    return c.toDataURL("image/jpeg", .92).split(",")[1];
+  }));
+};

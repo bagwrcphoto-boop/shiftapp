@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 23";
+const APP_VERSION = "27 พ.ย. 69 · 24";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -227,20 +227,25 @@ async function readByTiles(b64, d, key, page) {
   const days = new Date(year, month, 0).getDate();
   const cols = +(await page("GRID.g && GRID.g.xs ? GRID.g.xs.length - 1 : 0"));
   if (cols && cols < days) throw new Error(`เห็นคอลัมน์วันที่แค่ ${cols} จาก ${days}`);   // ตัดช่องไม่ครบ → วันอาจเลื่อน ใช้วิธีสำรอง
-  const tiles = await page(`makeTiles(${+j.label}, ${days})`);
+  let tiles;
+  try { tiles = JSON.parse(await page(`makeTiles2(${+j.label}, ${days})`)); } catch (e) { tiles = null; }
+  if (!Array.isArray(tiles) || !tiles.length) tiles = [await page(`makeTiles(${+j.label}, ${days})`)];
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
   const workdays = j.workdays != null && +j.workdays > 0 && +j.workdays <= 31 ? +j.workdays : null;
   const ask = async (hint, model) => {
-    const t = await claudeCall(model || CLAUDE_MODEL, tiles,
-`รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
-ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรทั้งสองบรรทัด
+    const t = await claudeCallN(model || CLAUDE_MODEL, tiles,
+`${tiles.length > 1 ? `รูปที่ 1 คือวันที่ 1-16 รูปที่ 2 คือวันที่ 17-${days}` : `รูปนี้คือวันที่ 1-${days}`} เป็นช่องตารางเวรของคนคนเดียว แยกวันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง
+แต่ละช่องมี 2 บรรทัด (บน กับ ล่าง) อ่านทีละบรรทัด
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, v, ลา, กิจ, EN, D, E, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
 ข้อความที่มีคำว่า "ไม่" นำหน้า เช่น "ไม่ ด" "ไม่ ช" แปลว่าขอไม่ขึ้นเวรนั้น ไม่ใช่เวร และคำว่า "วันเกิด" ก็ไม่ใช่เวร
-ถ้าช่องไหนมีตัว v ให้ใส่ v ด้วย เช่น 3=v
-${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
-1=ดช 2=บ 3=- 4=ช`, key, 2000);
+ถ้าบรรทัดไหนมีตัว v ให้ใส่ v
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=บน/ล่าง คั่นด้วยเว้นวรรค ใช้ - ถ้าบรรทัดนั้นไม่มีเวร เช่น
+1=ด/ช 2=-/บ 3=-/- 4=-/v 5=ช/-`, key, 2000);
     const out = {}, seen = new Set(), vd = new Set();
-    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvV]*)/g)) { seen.add(+x[1]); if (/v/i.test(x[2]) && +x[1] <= days) vd.add(+x[1]); const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
+    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvVxX\-]*)(?:\s*\/\s*([ชบดvVxX\-]*))?/g)) {
+      const dd = +x[1], cells = (x[2] || "") + (x[3] || ""); seen.add(dd); if (dd < 1 || dd > days) continue;
+      if (/v/i.test(cells)) vd.add(dd);
+      const s = sortS(cells).filter((c, i, a) => a.indexOf(c) === i).join(""); if (s) out[dd] = s; }
     return { days: out, count: Object.values(out).join("").length, full: seen.has(days), v: vd.size };
   };
   const askFull = async (hint, model) => {     // คำตอบไม่ครบถึงวันสุดท้าย → ถามใหม่ 1 ครั้ง
@@ -742,6 +747,26 @@ const APP_HTML = [
 "      dp[o+c] = (sp[i0]*(1-fu) + sp[i0+4]*fu)*(1-fv) + (sp[i0+sw*4]*(1-fu) + sp[i0+sw*4+4]*fu)*fv; }",
 "    dp[o+3] = 255; }",
 "  ox.putImageData(od, 0, 0); return out;",
+"};",
+"",
+"// \u0e41\u0e1a\u0e1a\u0e43\u0e2b\u0e21\u0e48: \u0e0a\u0e48\u0e2d\u0e07\u0e43\u0e2b\u0e0d\u0e48\u0e02\u0e36\u0e49\u0e19 \u0e41\u0e1a\u0e48\u0e07 2 \u0e23\u0e39\u0e1b (\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 1-16 / 17-\u0e2a\u0e34\u0e49\u0e19\u0e40\u0e14\u0e37\u0e2d\u0e19) \u0e43\u0e2b\u0e49\u0e44\u0e21\u0e48\u0e40\u0e01\u0e34\u0e19\u0e02\u0e19\u0e32\u0e14\u0e17\u0e35\u0e48 AI \u0e22\u0e48\u0e2d\u0e23\u0e39\u0e1b \u0e41\u0e25\u0e30\u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07\u0e0a\u0e31\u0e14",
+"window.makeTiles2 = function(k, days){",
+"  const g = GRID.g, [y0, y1] = g.bands[k-1], n = Math.min(days || 31, g.xs.length - 1);",
+"  const tw = 200, cwAvg = (g.xs[n] - g.xs[0]) / n, th = Math.round(tw * (y1 - y0) / cwAvg), lab = 52, per = 7, gap = 14;",
+"  const parts = [[1, Math.min(16, n)], [17, n]].filter(([a, b]) => a <= b);",
+"  return JSON.stringify(parts.map(([a, b]) => {",
+"    const cnt = b - a + 1, rows = Math.ceil(cnt / per), W = per * (tw + gap) + gap, H = rows * (th + lab + gap) + gap;",
+"    const c = document.createElement(\"canvas\"); c.width = W; c.height = H; const x = c.getContext(\"2d\");",
+"    x.fillStyle = \"#fff\"; x.fillRect(0, 0, W, H);",
+"    for (let d = a; d <= b; d++){",
+"      const i = d - a, cx = gap + (i % per) * (tw + gap), cy = gap + Math.floor(i / per) * (th + lab + gap), xi = d - 1;",
+"      x.fillStyle = \"#c2185b\"; x.font = \"700 44px sans-serif\"; x.textAlign = \"center\"; x.textBaseline = \"top\"; x.fillText(String(d), cx + tw/2, cy + 2);",
+"      const pad = (g.xs[xi+1] - g.xs[xi]) * 0.06;",
+"      x.drawImage(gridCrop(g.xs[xi] + pad, y0 + pad, g.xs[xi+1] - g.xs[xi] - pad*2, y1 - y0 - pad*2, tw, th), cx, cy + lab);",
+"      x.strokeStyle = \"#999\"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, tw, th);",
+"    }",
+"    return c.toDataURL(\"image/jpeg\", .92).split(\",\")[1];",
+"  }));",
 "};",
 "",
 "",

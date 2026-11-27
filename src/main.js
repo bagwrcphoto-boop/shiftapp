@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 23";
+const APP_VERSION = "27 พ.ย. 69 · 24";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -219,20 +219,25 @@ async function readByTiles(b64, d, key, page) {
   const days = new Date(year, month, 0).getDate();
   const cols = +(await page("GRID.g && GRID.g.xs ? GRID.g.xs.length - 1 : 0"));
   if (cols && cols < days) throw new Error(`เห็นคอลัมน์วันที่แค่ ${cols} จาก ${days}`);   // ตัดช่องไม่ครบ → วันอาจเลื่อน ใช้วิธีสำรอง
-  const tiles = await page(`makeTiles(${+j.label}, ${days})`);
+  let tiles;
+  try { tiles = JSON.parse(await page(`makeTiles2(${+j.label}, ${days})`)); } catch (e) { tiles = null; }
+  if (!Array.isArray(tiles) || !tiles.length) tiles = [await page(`makeTiles(${+j.label}, ${days})`)];
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
   const workdays = j.workdays != null && +j.workdays > 0 && +j.workdays <= 31 ? +j.workdays : null;
   const ask = async (hint, model) => {
-    const t = await claudeCall(model || CLAUDE_MODEL, tiles,
-`รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
-ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรทั้งสองบรรทัด
+    const t = await claudeCallN(model || CLAUDE_MODEL, tiles,
+`${tiles.length > 1 ? `รูปที่ 1 คือวันที่ 1-16 รูปที่ 2 คือวันที่ 17-${days}` : `รูปนี้คือวันที่ 1-${days}`} เป็นช่องตารางเวรของคนคนเดียว แยกวันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง
+แต่ละช่องมี 2 บรรทัด (บน กับ ล่าง) อ่านทีละบรรทัด
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, v, ลา, กิจ, EN, D, E, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
 ข้อความที่มีคำว่า "ไม่" นำหน้า เช่น "ไม่ ด" "ไม่ ช" แปลว่าขอไม่ขึ้นเวรนั้น ไม่ใช่เวร และคำว่า "วันเกิด" ก็ไม่ใช่เวร
-ถ้าช่องไหนมีตัว v ให้ใส่ v ด้วย เช่น 3=v
-${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
-1=ดช 2=บ 3=- 4=ช`, key, 2000);
+ถ้าบรรทัดไหนมีตัว v ให้ใส่ v
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=บน/ล่าง คั่นด้วยเว้นวรรค ใช้ - ถ้าบรรทัดนั้นไม่มีเวร เช่น
+1=ด/ช 2=-/บ 3=-/- 4=-/v 5=ช/-`, key, 2000);
     const out = {}, seen = new Set(), vd = new Set();
-    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvV]*)/g)) { seen.add(+x[1]); if (/v/i.test(x[2]) && +x[1] <= days) vd.add(+x[1]); const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
+    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvVxX\-]*)(?:\s*\/\s*([ชบดvVxX\-]*))?/g)) {
+      const dd = +x[1], cells = (x[2] || "") + (x[3] || ""); seen.add(dd); if (dd < 1 || dd > days) continue;
+      if (/v/i.test(cells)) vd.add(dd);
+      const s = sortS(cells).filter((c, i, a) => a.indexOf(c) === i).join(""); if (s) out[dd] = s; }
     return { days: out, count: Object.values(out).join("").length, full: seen.has(days), v: vd.size };
   };
   const askFull = async (hint, model) => {     // คำตอบไม่ครบถึงวันสุดท้าย → ถามใหม่ 1 ครั้ง
