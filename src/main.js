@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 33";
+const APP_VERSION = "28 พ.ย. 69 · 34";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -170,7 +170,7 @@ async function locateRow(b64, me, key) {
 `รูปนี้คือตารางเวรพยาบาลรายเดือน หาตำแหน่งแนวตั้งของ 2 อย่าง แล้วตอบเป็นสัดส่วน 0-1 ของความสูงรูป (0 = ขอบบน, 1 = ขอบล่าง)
 1) แถวหัวตารางที่มีตัวเลขวันที่ 1-31
 2) แถวของ "${me}" (คนละคนกับแถวอื่น ครอบทั้งบรรทัดบนและบรรทัดล่างของคนนี้)
-ตอบ JSON อย่างเดียว: {"year_be":2569,"month":11,"header_top":0.03,"header_bottom":0.07,"row_top":0.55,"row_bottom":0.61,"name_in_table":"ชื่อที่เห็นในตาราง"}`, key, 400);
+ตอบ JSON อย่างเดียว: {"year_be":2569,"month":11,"header_top":0.03,"header_bottom":0.07,"row_top":0.55,"row_bottom":0.61,"name_in_table":"ชื่อที่เห็นในตาราง"}`, key, 6000);
   const j = jsonOf(t), ok = v => typeof v === "number" && v >= 0 && v <= 1;
   if (![j.header_top, j.header_bottom, j.row_top, j.row_bottom].every(ok) || j.row_bottom <= j.row_top || j.header_bottom <= j.header_top) throw new Error("หาแถวไม่เจอ");
   return j;
@@ -489,12 +489,14 @@ async function runApp() {
     }
     await call(`setData(${js(payload())})`);
   }
+  let lastMsg = Date.now();
   async function pump() {
     if (busy) return; busy = true;
     try {
       while (true) {
         const q = JSON.parse(await call("__drain()"));
         if (!q.length) break;
+        lastMsg = Date.now();
         for (const m of q) { try { await handle(m); } catch (e) { console.log(e); try { await call(`toastErr(${js(String(e.message || e))})`); } catch (_) {} } }
       }
     } finally { busy = false; }
@@ -509,7 +511,7 @@ async function runApp() {
   const sleep = ms => new Promise(r => Timer.schedule(ms, false, r));
   while (open) {                                   // เช็กคำสั่งจากหน้าแอปทุก 0.4 วินาที (กันกรณีสัญญาณไม่ถึง)
     try { await pump(); } catch (e) { console.log(e); }
-    await sleep(400);
+    await sleep(Date.now() - lastMsg < 5000 ? 400 : 1500);   // ว่างนานแล้ว เช็กห่างขึ้น (ลดกระตุกตอนเลื่อน) — กดปุ่มยังส่งทันทีผ่านสัญญาณ
   }
   await shown;
 }

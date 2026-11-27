@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 33";
+const APP_VERSION = "28 พ.ย. 69 · 34";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -178,7 +178,7 @@ async function locateRow(b64, me, key) {
 `รูปนี้คือตารางเวรพยาบาลรายเดือน หาตำแหน่งแนวตั้งของ 2 อย่าง แล้วตอบเป็นสัดส่วน 0-1 ของความสูงรูป (0 = ขอบบน, 1 = ขอบล่าง)
 1) แถวหัวตารางที่มีตัวเลขวันที่ 1-31
 2) แถวของ "${me}" (คนละคนกับแถวอื่น ครอบทั้งบรรทัดบนและบรรทัดล่างของคนนี้)
-ตอบ JSON อย่างเดียว: {"year_be":2569,"month":11,"header_top":0.03,"header_bottom":0.07,"row_top":0.55,"row_bottom":0.61,"name_in_table":"ชื่อที่เห็นในตาราง"}`, key, 400);
+ตอบ JSON อย่างเดียว: {"year_be":2569,"month":11,"header_top":0.03,"header_bottom":0.07,"row_top":0.55,"row_bottom":0.61,"name_in_table":"ชื่อที่เห็นในตาราง"}`, key, 6000);
   const j = jsonOf(t), ok = v => typeof v === "number" && v >= 0 && v <= 1;
   if (![j.header_top, j.header_bottom, j.row_top, j.row_bottom].every(ok) || j.row_bottom <= j.row_top || j.header_bottom <= j.header_top) throw new Error("หาแถวไม่เจอ");
   return j;
@@ -429,11 +429,11 @@ const APP_HTML = [
 "h1,h2,h3,p{margin:0}",
 "button{font:inherit;cursor:pointer;color:inherit}",
 "#decor{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}",
-".blob{position:absolute;border-radius:50%;filter:blur(40px);opacity:.85}",
+".blob{position:absolute;border-radius:50%;opacity:.85}",
 ".page{display:none;animation:fade .25s ease}",
 ".page.on{display:block}",
 "@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}",
-".card{background:var(--card);border:var(--cardBorder);box-shadow:var(--cardShadow);border-radius:var(--r);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);padding:16px;margin-bottom:14px}",
+".card{background:var(--card);border:var(--cardBorder);box-shadow:var(--cardShadow);border-radius:var(--r);padding:16px;margin-bottom:14px}",
 ".hello{font-size:16px;font-weight:500;color:var(--sub)}",
 ".big{font-size:26px;font-weight:700;color:var(--title)}",
 ".h3{font-size:17px;font-weight:700;color:var(--title)}",
@@ -565,6 +565,9 @@ const APP_HTML = [
 ".seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}",
 ".trail{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-top:8px}.trail input{width:18px;height:18px;margin:0;accent-color:var(--accent)}",
 "body.lock{position:fixed;left:0;right:0;overflow:hidden}.sheet{overscroll-behavior:contain}",
+"html{touch-action:manipulation}*{-webkit-tap-highlight-color:transparent}",
+"button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:active,.d:active,.pchip:active,.fchip:active,.qchip:active,.sd:active{transform:scale(.96)}",
+"#decor{will-change:transform}.tabs,.sheet{will-change:transform}",
 ".toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
@@ -964,7 +967,7 @@ const APP_HTML = [
 "  ICON_SET = s.icons;",
 "  $(\"themeVars\").textContent = `:root{--font:'${s.font}','Sukhumvit Set',system-ui,sans-serif;${s.v(p)}}` + (s.extra||\"\");",
 "  const pos = [\"left:-90px;top:-60px\",\"right:-80px;top:220px\",\"left:-60px;top:560px\",\"right:-50px;bottom:-40px\"], sz = [300,260,280,220];",
-"  $(\"decor\").innerHTML = s.blobs(p).map((c,i)=>`<div class=\"blob\" style=\"width:${sz[i]}px;height:${sz[i]}px;background:${c};${pos[i]}\"></div>`).join(\"\");",
+"  $(\"decor\").innerHTML = s.blobs(p).map((c,i)=>`<div class=\"blob\" style=\"width:${sz[i]+80}px;height:${sz[i]+80}px;background:radial-gradient(circle closest-side,${c} 45%,${al(c,0)} 100%);${pos[i]}\"></div>`).join(\"\");",
 "  $(\"styles\").innerHTML = Object.entries(STYLES).map(([k,v])=>`<button class=\"stb ${k===t.style?\"on\":\"\"}\" onclick=\"setTheme('${k}',null)\">${v.name}</button>`).join(\"\");",
 "  $(\"swatches\").style.opacity = s.fixed ? \".35\" : \"\"; $(\"swatches\").style.pointerEvents = s.fixed ? \"none\" : \"\";",
 "  $(\"swatches\").innerHTML = Object.entries(PALETTES).map(([k,v])=>`<button class=\"swb ${k===t.palette?\"on\":\"\"}\" onclick=\"setTheme(null,'${k}')\"><span style=\"background:linear-gradient(135deg,${v.blobs[0]},${v.accent})\"></span>${v.name}</button>`).join(\"\");",
@@ -1636,12 +1639,14 @@ async function runApp() {
     }
     await call(`setData(${js(payload())})`);
   }
+  let lastMsg = Date.now();
   async function pump() {
     if (busy) return; busy = true;
     try {
       while (true) {
         const q = JSON.parse(await call("__drain()"));
         if (!q.length) break;
+        lastMsg = Date.now();
         for (const m of q) { try { await handle(m); } catch (e) { console.log(e); try { await call(`toastErr(${js(String(e.message || e))})`); } catch (_) {} } }
       }
     } finally { busy = false; }
@@ -1656,7 +1661,7 @@ async function runApp() {
   const sleep = ms => new Promise(r => Timer.schedule(ms, false, r));
   while (open) {                                   // เช็กคำสั่งจากหน้าแอปทุก 0.4 วินาที (กันกรณีสัญญาณไม่ถึง)
     try { await pump(); } catch (e) { console.log(e); }
-    await sleep(400);
+    await sleep(Date.now() - lastMsg < 5000 ? 400 : 1500);   // ว่างนานแล้ว เช็กห่างขึ้น (ลดกระตุกตอนเลื่อน) — กดปุ่มยังส่งทันทีผ่านสัญญาณ
   }
   await shown;
 }
