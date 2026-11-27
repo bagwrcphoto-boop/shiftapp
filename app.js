@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 19";
+const APP_VERSION = "27 พ.ย. 69 · 20";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -840,7 +840,7 @@ const APP_HTML = [
 "    const h = (b.en - b.st)/36e5;",
 "    if (h >= 16) out.push({d:b.st, kind:\"long\", t:`${fd(b.st)} \u0e17\u0e33\u0e15\u0e48\u0e2d\u0e40\u0e19\u0e37\u0e48\u0e2d\u0e07 ${h} \u0e0a\u0e21. (${b.cs.map(c=>SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\"\u2192\")})`});",
 "    const nx = blocks[i+1];",
-"    if (nx){ const g = (nx.st - b.en)/36e5; if (g > 0 && g < 8) out.push({d:nx.st, kind:\"rest\", t:`${fd(nx.st)} \u0e1e\u0e31\u0e01\u0e41\u0e04\u0e48 ${g} \u0e0a\u0e21. \u0e01\u0e48\u0e2d\u0e19${SH[nx.cs[0]].n}`}); }",
+"    if (nx){ const g = (nx.st - b.en)/36e5; if (g > 0 && g <= 8) out.push({d:nx.st, kind:\"rest\", t:`${fd(nx.st)} \u0e1e\u0e31\u0e01\u0e41\u0e04\u0e48 ${g} \u0e0a\u0e21. \u0e01\u0e48\u0e2d\u0e19${SH[nx.cs[0]].n}`}); }",
 "  });",
 "  const days = [...new Set(L.map(x=>new Date(x.st.getFullYear(),x.st.getMonth(),x.st.getDate()).getTime()))].sort((a,b)=>a-b);",
 "  let s0 = 0;",

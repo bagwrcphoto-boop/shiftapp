@@ -477,7 +477,7 @@ function restIssues(){
     const h = (b.en - b.st)/36e5;
     if (h >= 16) out.push({d:b.st, kind:"long", t:`${fd(b.st)} ทำต่อเนื่อง ${h} ชม. (${b.cs.map(c=>SH[c].n.replace("เวร","")).join("→")})`});
     const nx = blocks[i+1];
-    if (nx){ const g = (nx.st - b.en)/36e5; if (g > 0 && g < 8) out.push({d:nx.st, kind:"rest", t:`${fd(nx.st)} พักแค่ ${g} ชม. ก่อน${SH[nx.cs[0]].n}`}); }
+    if (nx){ const g = (nx.st - b.en)/36e5; if (g > 0 && g <= 8) out.push({d:nx.st, kind:"rest", t:`${fd(nx.st)} พักแค่ ${g} ชม. ก่อน${SH[nx.cs[0]].n}`}); }
   });
   const days = [...new Set(L.map(x=>new Date(x.st.getFullYear(),x.st.getMonth(),x.st.getDate()).getTime()))].sort((a,b)=>a-b);
   let s0 = 0;
