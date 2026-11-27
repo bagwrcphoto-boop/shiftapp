@@ -210,6 +210,7 @@ select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:
     <div class="set"><span class="l"><i data-i="sunset"></i>เวรบ่าย</span><span class="r">16:00 – 24:00</span></div>
     <div class="set"><span class="l"><i data-i="moon"></i>เวรดึก</span><span class="r">00:00 – 08:00</span></div>
   </div>
+  <p class="note" id="verNote"></p>
 </section>
 
 <nav class="tabs">
@@ -478,6 +479,7 @@ function pickFriend(i){ const md = monthData(); frFriend = Object.keys(md.people
 /* ===== ตั้งค่า ===== */
 function renderSet(){
   $("setName").textContent = DATA.me;
+  $("verNote").textContent = DATA.version ? "เวอร์ชัน " + DATA.version : "";
   $("setKeyG").textContent = DATA.hasKey.gemini ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง";
   $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ไม่ใช้";
   $("setNotify").value = String(DATA.settings.notify);

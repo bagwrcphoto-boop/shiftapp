@@ -10,6 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
+const APP_VERSION = "27 พ.ย. 69 · 4";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -178,7 +179,8 @@ async function locateRow(b64, me, key) {
 function cropBands(img, loc) {
   const W = img.size.width, H = img.size.height, pad = 0.006;
   const band = (a, b) => { const y0 = Math.max(0, Math.floor((a - pad) * H)), y1 = Math.min(H, Math.ceil((b + pad) * H)); return [y0, Math.max(y1, y0 + 4)]; };
-  const parts = [band(loc.header_top, loc.header_bottom), band(loc.row_top, loc.row_bottom)];
+  const rh = loc.row_bottom - loc.row_top;   // เผื่อแถวบน-ล่างอีกข้างละ 1.5 แถว กันหาตำแหน่งพลาด
+  const parts = [band(loc.header_top, loc.header_bottom), band(Math.max(loc.header_bottom, loc.row_top - rh * 1.5), loc.row_bottom + rh * 1.5)];
   const sc = Math.min(3, 2400 / W);
   const one = ([y0, y1]) => { const c = new DrawContext(); c.respectScreenScale = false; c.opaque = true; c.size = new Size(Math.round(W * sc), Math.round((y1 - y0) * sc));
     c.drawImageInRect(img, new Rect(0, -y0 * sc, W * sc, H * sc)); return c.getImage(); };
@@ -191,16 +193,18 @@ function cropBands(img, loc) {
 }
 async function readMyRow(b64, me, key, hint) {
   const t = await claudeCall(CLAUDE_STRONG, b64,
-`รูปนี้ตัดมาจากตารางเวรพยาบาล ส่วนบนคือหัวตาราง (ตัวเลขวันที่ 1-31 แต่ละช่องคือ 1 คอลัมน์) ส่วนล่างคือแถวของ "${me}" ซึ่งมีบรรทัดบนกับบรรทัดล่าง
+`รูปนี้ตัดมาจากตารางเวรพยาบาล ส่วนบนคือหัวตาราง (ตัวเลขวันที่ 1-31 แต่ละช่องคือ 1 คอลัมน์) ส่วนล่างมีหลายแถว ให้อ่าน "เฉพาะแถวที่ชื่อ ${me}" (ดูชื่อที่คอลัมน์ซ้าย) ซึ่งมีบรรทัดบนกับบรรทัดล่าง
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
 ไล่ทีละคอลัมน์จากซ้ายไปขวา ให้ช่องในแถวตรงกับเลขวันที่ที่อยู่ "ตรงหัวคอลัมน์เดียวกัน" พอดี ระวังอย่าเลื่อนคอลัมน์
 แล้วอ่านเลขในคอลัมน์ "ทำงานจริง" ของแถวนี้ด้วย
 ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ใส่ครบทุกวันที่มีในหัวตาราง:
-{"days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}},"total":28}`, key, 3000);
+{"name_seen":"ชื่อในแถวที่อ่าน","days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}},"total":28}
+ถ้าไม่เห็นแถวของ ${me} ในรูปนี้ ให้ตอบ {"name_seen":"","days":{},"total":null}`, key, 3000);
   const j = jsonOf(t), days = {};
   for (const [d, v] of Object.entries(j.days || {})) { const s = sortS(String((v && v.top) || "") + String((v && v.bottom) || "")).join(""); if (s && +d >= 1 && +d <= 31) days[+d] = s; }
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
-  return { days, total, count: Object.values(days).join("").length };
+  const seen = String(j.name_seen || ""), match = !!seen && !!findMe({ [seen]: 1 }, me);
+  return { days, total, count: Object.values(days).join("").length, match, seen };
 }
 async function readRosterClaude(b64, d, key) {
   const img = Image.fromData(Data.fromBase64String(b64));
@@ -213,7 +217,9 @@ async function readRosterClaude(b64, d, key) {
   if (loc) {
     const crop = cropBands(img, loc);
     my = await readMyRow(crop, d.me, key);
-    for (let i = 0; i < 2 && my.total != null && my.count !== my.total; i++)
+    if (!my.match) my = await readMyRow(b64, d.me, key, "รูปนี้เป็นตารางเต็ม หาแถวชื่อนี้ให้เจอก่อน แล้วค่อยอ่าน");   // ตัดพลาด → อ่านจากรูปเต็ม
+    if (!my.match) my = null;
+    for (let i = 0; my && i < 2 && my.total != null && my.count !== my.total; i++)
       my = await readMyRow(crop, d.me, key, `ครั้งก่อนนับได้ ${my.count} เวร แต่ช่องทำงานจริงเขียนว่า ${my.total} แปลว่ามีบางวันอ่านผิด ตรวจใหม่ทีละคอลัมน์`);
   }
   const people = all.err ? {} : all.people, totals = all.err ? {} : all.totals;
@@ -484,6 +490,7 @@ const APP_HTML = [
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"sunset\"></i>\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22</span><span class=\"r\">16:00 \u2013 24:00</span></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"moon\"></i>\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01</span><span class=\"r\">00:00 \u2013 08:00</span></div>",
 "  </div>",
+"  <p class=\"note\" id=\"verNote\"></p>",
 "</section>",
 "",
 "<nav class=\"tabs\">",
@@ -752,6 +759,7 @@ const APP_HTML = [
 "/* ===== \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 ===== */",
 "function renderSet(){",
 "  $(\"setName\").textContent = DATA.me;",
+"  $(\"verNote\").textContent = DATA.version ? \"\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19 \" + DATA.version : \"\";",
 "  $(\"setKeyG\").textContent = DATA.hasKey.gemini ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e15\u0e31\u0e49\u0e07\";",
 "  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e49\";",
 "  $(\"setNotify\").value = String(DATA.settings.notify);",
@@ -934,7 +942,7 @@ const APP_HTML = [
 async function runApp() {
   let d = loadData();
   const wv = new WebView();
-  const payload = () => Object.assign({}, d, { hasKey: hasKey() });
+  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION });
   const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
   const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const call = s => wv.evaluateJavaScript(s, false);
