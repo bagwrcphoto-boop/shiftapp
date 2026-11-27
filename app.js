@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 45";
+const APP_VERSION = "28 พ.ย. 69 · 46";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -2250,8 +2250,9 @@ function drawLarge(d, now, I, T, sz) {
     const i = first + day - 1, x = P + (i % 7) * (cw + gap), yy = gTop + Math.floor(i / 7) * (ch + gap);
     const s = sortS(me[day]), dt = new Date(y, m, day), past = dt < new Date(now.getFullYear(), now.getMonth(), now.getDate()), today = isThis && day === now.getDate();
     rr(c, x, yy, cw, ch, 9, s.length ? CA(T.shift[s[0]][0], T.dark ? 0.9 : 1) : CA(T.card, T.offA));
-    const isz = Math.min(cw * 0.56, ch * 0.56, 26);
-    shiftIcons(c, I, s, x + cw / 2, yy + ch * 0.6, s.length ? isz : isz * 0.72);
+    const isz = Math.min(cw * 0.52, ch * 0.46, 24);
+    shiftIcons(c, I, s, x + cw / 2, yy + ch * (s.length ? 0.5 : 0.58), s.length ? isz : isz * 0.72);
+    if (s.length) tx(c, s.join(""), x, yy + ch - 12, cw, 11, F("Bold", 8.5), CA(T.title), "center");   // ตัวย่อ เช่น ชด บด
     tx(c, day, x + 4, yy + 1, cw - 6, 12, F(today ? "Bold" : "SemiBold", 9.5), CA(today ? T.accent : T.text, 0.85));
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, yy + 2, 11);
     if (past && !today) rr(c, x, yy, cw, ch, 9, CA(T.past, T.pastA));
