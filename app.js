@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 12";
+const APP_VERSION = "27 พ.ย. 69 · 13";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -433,7 +433,7 @@ const APP_HTML = [
 ".mask{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:.2s;z-index:20}",
 ".mask.on{opacity:1;pointer-events:auto}",
 ".sheet{position:fixed;left:0;right:0;bottom:0;background:var(--sheet);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:28px 28px 0 0;padding:10px 18px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(105%);transition:.3s cubic-bezier(.2,.9,.3,1.05);z-index:21;max-height:86vh;overflow:auto}",
-".sheet.on{transform:none}",
+".sheet.on{transform:none}.shx{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:17px;border:0;background:var(--tint);color:var(--title);font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2}",
 ".grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}",
 ".srow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;margin-bottom:8px}",
 ".srow i{font-size:30px}",
@@ -906,8 +906,19 @@ const APP_HTML = [
 "  if (text !== ((DATA.notes[date]||\"\").trim())){ if (text) DATA.notes[date] = text; else delete DATA.notes[date]; send(\"saveNote\", {date, text}); }",
 "  closeSheet(); renderAll(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\");",
 "}",
-"function openSheet(){ $(\"mask\").classList.add(\"on\"); $(\"sheet\").classList.add(\"on\"); }",
-"function closeSheet(){ $(\"mask\").classList.remove(\"on\"); $(\"sheet\").classList.remove(\"on\"); selDay=null; renderCal(); }",
+"function openSheet(){",
+"  const sh = $(\"sheet\");",
+"  if (!sh.querySelector(\".shx\")) sh.insertAdjacentHTML(\"afterbegin\", `<button class=\"shx\" onclick=\"closeSheet()\" aria-label=\"\u0e1b\u0e34\u0e14\"><i data-i=\"x\" class=\"${icls(\"x\")}\"></i></button>`);",
+"  sh.style.transform = \"\"; sh.scrollTop = 0; $(\"mask\").classList.add(\"on\"); sh.classList.add(\"on\");",
+"}",
+"/* \u0e25\u0e32\u0e01\u0e41\u0e1c\u0e48\u0e19\u0e25\u0e48\u0e32\u0e07\u0e25\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e1b\u0e34\u0e14 */",
+"(() => {",
+"  const sh = $(\"sheet\"); let y0 = null, dy = 0;",
+"  sh.addEventListener(\"touchstart\", e => { if (sh.scrollTop > 0 || e.target.closest(\"textarea,input,select\")) { y0 = null; return; } y0 = e.touches[0].clientY; dy = 0; }, {passive:true});",
+"  sh.addEventListener(\"touchmove\", e => { if (y0 == null) return; dy = e.touches[0].clientY - y0; if (dy > 0){ sh.style.transition = \"none\"; sh.style.transform = `translateY(${dy}px)`; if (e.cancelable) e.preventDefault(); } }, {passive:false});",
+"  sh.addEventListener(\"touchend\", () => { if (y0 == null) return; sh.style.transition = \"\"; if (dy > 90) closeSheet(); else sh.style.transform = \"\"; y0 = null; dy = 0; });",
+"})();",
+"function closeSheet(){ $(\"mask\").classList.remove(\"on\"); $(\"sheet\").classList.remove(\"on\"); $(\"sheet\").style.transform = \"\"; selDay=null; renderCal(); }",
 "",
 "/* ===== \u0e2a\u0e23\u0e38\u0e1b ===== */",
 "function renderSum(){",
