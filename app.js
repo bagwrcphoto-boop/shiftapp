@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 6";
+const APP_VERSION = "27 พ.ย. 69 · 7";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -108,9 +108,9 @@ const PROMPT =
 - ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, วันเกิด, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
 - คอลัมน์ทางขวาหลังคอลัมน์สรุป (เช่นสีเขียว 31,1,2,3) เป็นเวรล่วงหน้าของเดือนถัดไป ให้ข้าม
 - ไล่ทีละคอลัมน์อย่างระวัง ให้วันที่ตรงกับคอลัมน์จริง
-งาน: อ่านทุกคนในตาราง ตอบเป็น JSON อย่างเดียว รูปแบบ:
-{"year_be":2569,"month":12,"people":[{"name":"ชื่อ นามสกุลตามตาราง","shifts":{"1":"ชด","2":"บ"},"total":30}]}
-shifts ใส่เฉพาะวันที่มีเวร (ใช้ตัวอักษร ช/บ/ด เท่านั้น) total คือเลขในคอลัมน์ "ทำงานจริง" ของคนนั้น (ถ้าไม่มีใส่ null)`;
+งาน: อ่านทุกคนในตาราง ตอบเป็น JSON อย่างเดียว รูปแบบ (shifts เป็นข้อความสั้น ใส่เฉพาะวันที่มีเวร):
+{"year_be":2569,"month":12,"people":[{"name":"ชื่อ นามสกุลตามตาราง","shifts":"1=ชด 2=บ 6=ช","total":30}]}
+total คือเลขในคอลัมน์ "ทำงานจริง" ของคนนั้น (ถ้าไม่มีใส่ null)`;
 
 async function askGemini(b64, apiKey) {
   let last = "";
@@ -154,7 +154,8 @@ function parseRoster(text, me) {
   for (const p of j.people || []) {
     if (!p.name) continue;
     const v = {};
-    for (const [day, s] of Object.entries(p.shifts || {})) { const c = sortS(String(s)).join(""); if (c && +day >= 1 && +day <= 31) v[+day] = c; }
+    const sh = typeof p.shifts === "string" ? Object.fromEntries([...p.shifts.matchAll(/(\d{1,2})\s*[=:]\s*([ชบด]+)/g)].map(x => [x[1], x[2]])) : (p.shifts || {});
+    for (const [day, s] of Object.entries(sh)) { const c = sortS(String(s)).join(""); if (c && +day >= 1 && +day <= 31) v[+day] = c; }
     people[p.name.trim()] = v;
     if (p.total != null && !isNaN(+p.total)) totals[p.name.trim()] = +p.total;
   }
@@ -209,6 +210,8 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย�
 }
 // ---- แบบแม่นที่สุด: แอปหาเส้นตารางเอง → ตัดช่องแต่ละวันขยายใหญ่พร้อมเลขวัน ----
 async function readByTiles(b64, d, key, page) {
+  const progress = s => page(`onProgress(${JSON.stringify(s)})`).catch(() => {});
+  progress("กำลังหาแถวของคุณในตาราง…");
   const names = await page("makeNames()");
   const t = await claudeCallN(CLAUDE_MODEL, [b64, names],
 `รูปที่ 1 คือตารางเวรพยาบาลทั้งตาราง รูปที่ 2 คือคอลัมน์ชื่อของแต่ละแถว มีเลขกำกับสีชมพู (#1, #2, ...)
@@ -223,24 +226,27 @@ async function readByTiles(b64, d, key, page) {
   const days = new Date(year, month, 0).getDate();
   const tiles = await page(`makeTiles(${+j.label}, ${days})`);
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
-  const ask = async hint => {
-    const r = jsonOf(await claudeCall(CLAUDE_STRONG, tiles,
+  const ask = async (hint, model) => {
+    const t = await claudeCall(model || CLAUDE_MODEL, tiles,
 `รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
-ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรในแต่ละบรรทัด
+ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรทั้งสองบรรทัด
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
-${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ครบทุกวัน 1-${days}: {"days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}}}`, key, 3000));
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
+1=ดช 2=บ 3=- 4=ช`, key, 400);
     const out = {};
-    for (const [dd, v] of Object.entries(r.days || {})) { const s = sortS(String((v && v.top) || "") + String((v && v.bottom) || "")).join(""); if (s && +dd >= 1 && +dd <= days) out[+dd] = s; }
+    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
     return { days: out, count: Object.values(out).join("").length };
   };
   // อ่าน 2 รอบพร้อมกันแล้วเทียบ วันไหนไม่ตรงกันให้อ่านรอบ 3 แล้วใช้เสียงข้างมาก
+  progress("กำลังอ่านเวรทีละวัน (2 รอบ)…");
   const [r1, r2] = await Promise.all([ask(), ask()]);
   const val = (r, dd) => r.days[dd] || "";
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
   const cnt = o => Object.values(o).join("").length;
   let final = Object.assign({}, r1.days), uncertain = [];
   if (diff.length || (total != null && r1.count !== total)) {
-    const r3 = await ask(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`);
+    progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…");
+    const r3 = await ask(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
     final = {};
     for (let dd = 1; dd <= days; dd++) {
       const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
@@ -254,14 +260,13 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย�
 
 async function readRosterClaude(b64, d, key, grid, page) {
   if (grid && page) {
-    const [tiles, all] = await Promise.all([
-      readByTiles(b64, d, key, page).catch(e => ({ err: e })),
-      askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }))
-    ]);
+    const friends = askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }));   // เวรเพื่อน: อ่านเบื้องหลัง ไม่ต้องรอ
+    const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
-      const people = all.err ? {} : all.people, totals = all.err ? {} : all.totals;
-      people[d.me] = tiles.days; if (tiles.total != null) totals[d.me] = tiles.total; else delete totals[d.me];
-      return { year: tiles.year, month: tiles.month, people, totals, method: "tiles", uncertain: tiles.uncertain };
+      const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
+      const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
+      if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
+      return { year: tiles.year, month: tiles.month, people, totals, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);
@@ -935,8 +940,9 @@ const APP_HTML = [
 "  img.onerror = () => { inp.value = \"\"; onParsed({error:\"\u0e40\u0e1b\u0e34\u0e14\u0e23\u0e39\u0e1b\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 \u0e25\u0e2d\u0e07\u0e41\u0e04\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e15\u0e32\u0e23\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e41\u0e04\u0e1b\u0e41\u0e17\u0e19\"}); };",
 "  img.src = url;",
 "}",
+"window.onProgress = function(t){ const el = $(\"progTxt\"); if (el) el.textContent = t; };",
 "window.onReading = function(){",
-"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><div class=\"loading\"><i class=\"${icls(\"flower\")} spin\"></i><p class=\"h3\">\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e48\u0e32\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u2026</p><p style=\"font-size:14px\">\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13 20\u201340 \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35</p></div>`;",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><div class=\"loading\"><i class=\"${icls(\"flower\")} spin\"></i><p class=\"h3\">\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e48\u0e32\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u2026</p><p style=\"font-size:14px\" id=\"progTxt\">\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13 30\u201360 \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35</p></div>`;",
 "  openSheet();",
 "};",
 "let PARSED = null;",
@@ -1095,10 +1101,13 @@ async function runApp() {
   const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const call = s => wv.evaluateJavaScript(s, false);
   let busy = false;
+  const pendingFriends = {};
 
   async function handle(m) {
     if (m.type === "saveMonth") {
-      d.months[m.payload.key] = m.payload.month; saveData(d); await syncAll(d);
+      d.months[m.payload.key] = m.payload.month;
+      if (pendingFriends[m.payload.key]) { for (const [n, v] of Object.entries(pendingFriends[m.payload.key])) if (n !== d.me) d.months[m.payload.key].people[n] = v; delete pendingFriends[m.payload.key]; }
+      saveData(d); await syncAll(d);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
       if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];
@@ -1109,7 +1118,15 @@ async function runApp() {
       let r;
       const p = typeof m.payload === "string" ? { b64: m.payload, grid: null } : m.payload;
       try { r = await readRoster(p.b64, d, p.grid, s => wv.evaluateJavaScript(s, false)); } catch (e) { r = { error: String(e.message || e) }; }
+      const later = r.friendsLater; delete r.friendsLater;
       await call(`onParsed(${js(r)})`);
+      if (later) later.then(async all => {          // เวรเพื่อนอ่านเสร็จทีหลัง → เติมลงเดือนนั้น
+        if (!all || all.err || all.year !== r.year || all.month !== r.month) return;
+        const k = `${r.year}-${pad(r.month)}`, mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
+        const target = d.months[k] ? d.months[k].people : mo;
+        for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
+        if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); }
+      });
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));
       await ShareSheet.present([img]);

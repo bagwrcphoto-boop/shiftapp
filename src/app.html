@@ -502,8 +502,9 @@ function gotPhoto(inp){
   img.onerror = () => { inp.value = ""; onParsed({error:"เปิดรูปนี้ไม่ได้ ลองแคปหน้าจอตารางแล้วเลือกรูปที่แคปแทน"}); };
   img.src = url;
 }
+window.onProgress = function(t){ const el = $("progTxt"); if (el) el.textContent = t; };
 window.onReading = function(){
-  $("sheet").innerHTML = `<div class="grab"></div><div class="loading"><i class="${icls("flower")} spin"></i><p class="h3">กำลังอ่านตารางเวร…</p><p style="font-size:14px">ประมาณ 20–40 วินาที</p></div>`;
+  $("sheet").innerHTML = `<div class="grab"></div><div class="loading"><i class="${icls("flower")} spin"></i><p class="h3">กำลังอ่านตารางเวร…</p><p style="font-size:14px" id="progTxt">ประมาณ 30–60 วินาที</p></div>`;
   openSheet();
 };
 let PARSED = null;
