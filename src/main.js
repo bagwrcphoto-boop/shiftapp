@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 18";
+const APP_VERSION = "27 พ.ย. 69 · 19";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -400,13 +400,27 @@ async function runApp() {
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));
       await ShareSheet.present([img]);
+    } else if (m.type === "saveProfile") {         // ชื่อ + key จากหน้าตั้งค่าในแอป
+      const name = String(m.payload.name || "").trim(), c = String(m.payload.claudeKey || "").trim();
+      if (name && name !== d.me) {
+        for (const md of Object.values(d.months)) { const f = findMe(md.people, name); if (f && f !== name) { md.people[name] = md.people[f]; delete md.people[f]; } }
+        d.me = name;
+      }
+      if (c) Keychain.set(K_CLAUDE, c);
+      saveData(d); await syncAll(d);
+    } else if (m.type === "testKey") {
+      const key = String(m.payload.claudeKey || "").trim() || getKey("claude");
+      let r;
+      if (!key) r = { ok: false, error: "ยังไม่ได้ใส่ key" };
+      else try { await claudeCallN(CLAUDE_MODEL, [], "ตอบคำว่า OK", key, 5); r = { ok: true }; } catch (e) { r = { ok: false, error: String(e.message || e).slice(0, 120) }; }
+      await call(`onKeyTest(${js(r)})`); return;
     } else if (m.type === "editSettings") {
       const a = new Alert();
       a.title = "ชื่อ และ API key";
-      a.message = "ชื่อให้ตรงกับในตารางเวร\nGemini key ขอฟรีได้ที่ aistudio.google.com\nClaude key ไม่ใส่ก็ได้";
+      a.message = "ชื่อให้ตรงกับในตารางเวร\nClaude key ขอได้ที่ console.anthropic.com";
       a.addTextField("ชื่อ นามสกุล", d.me);
       a.addSecureTextField("Gemini API key", Keychain.contains(K_GEMINI) ? Keychain.get(K_GEMINI) : "");
-      a.addSecureTextField("Claude API key (ไม่บังคับ)", Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : "");
+      a.addSecureTextField("Claude API key", Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : "");
       a.addAction("บันทึก"); a.addCancelAction("ยกเลิก");
       if (await a.presentAlert() === -1) return;
       const name = a.textFieldValue(0).trim(), g = a.textFieldValue(1).trim(), c = a.textFieldValue(2).trim();

@@ -214,10 +214,9 @@ body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;poin
   </div>
   <div class="card">
     <div class="set"><span class="l"><i data-i="user"></i>ชื่อในตาราง</span><span class="r" id="setName"></span></div>
-    <div class="set"><span class="l"><i data-i="key"></i>Gemini key</span><span class="r" id="setKeyG"></span></div>
     <div class="set"><span class="l"><i data-i="key"></i>Claude key</span><span class="r" id="setKeyC"></span></div>
   </div>
-  <button class="btn" style="width:100%;margin-bottom:14px" onclick="send('editSettings')"><i data-i="edit"></i>แก้ชื่อ / API key</button>
+  <button class="btn" style="width:100%;margin-bottom:14px" onclick="openProfile()"><i data-i="edit"></i>แก้ชื่อ / API key</button>
   <button class="btn" style="width:100%;margin-bottom:14px" onclick="openPaste()"><i data-i="list"></i>วางรหัสเวร</button>
   <div class="card">
     <div class="set"><span class="l"><i data-i="sun"></i>เวรเช้า</span><span class="r">08:00 – 16:00</span></div>
@@ -620,6 +619,26 @@ function applyTrade(t, undo){       // ปรับปฏิทิน: ซื้
   send("saveMonth", {key:k, month:DATA.months[k]});
 }
 window.reapplyTrades = k => { trades().filter(t=>t.date.startsWith(k)).forEach(t=>applyTrade(t)); renderAll(); };
+/* ===== ชื่อ + Claude key (เก็บใน Keychain บนเครื่อง) ===== */
+function openProfile(){
+  $("sheet").innerHTML = `<div class="grab"></div><h2 class="big" style="font-size:22px">ชื่อ และ API key</h2>
+    <p class="lab">ชื่อ-นามสกุล (ให้ตรงกับในตารางเวร)</p><input id="pfName" value="${esc(DATA.me||"")}" autocomplete="off">
+    <p class="lab">Claude API key ${DATA.hasKey.claude?"(ตั้งแล้ว · เว้นว่าง = ใช้อันเดิม)":"(ยังไม่ได้ตั้ง)"}</p>
+    <input id="pfKey" type="password" placeholder="sk-ant-api03-..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="note" style="margin-top:6px">ขอ key ได้ที่ console.anthropic.com · key เก็บในเครื่องนี้เท่านั้น</p>
+    <button class="btn main" style="width:100%;margin-top:12px" onclick="saveProfile()">${ic("check")}บันทึก</button>
+    <button class="btn" style="width:100%;margin-top:8px" onclick="testKey()">${ic("ai")}ทดสอบว่า key ใช้ได้ไหม</button>
+    <p class="note" id="pfTest" style="margin-top:8px"></p>`;
+  openSheet();
+}
+function saveProfile(){
+  const name = $("pfName").value.trim(), key = $("pfKey").value.trim();
+  if (!name) return toastErr("ใส่ชื่อก่อนนะ");
+  if (key && !/^sk-ant-/.test(key)) return toastErr("key ต้องขึ้นต้นด้วย sk-ant-");
+  send("saveProfile", {name, claudeKey: key || null}); closeSheet(); toast("บันทึกแล้ว");
+}
+function testKey(){ const key = $("pfKey").value.trim(); $("pfTest").textContent = "กำลังทดสอบ…"; send("testKey", {claudeKey: key || null}); }
+window.onKeyTest = r => { const el = $("pfTest"); if (el) el.textContent = r.ok ? "✓ key ใช้ได้ พร้อมอ่านตาราง" : "✗ ใช้ไม่ได้: " + r.error; };
 function saveAct(){
   const {d, mode, c} = ACT, who = (ACT.who||"").trim();
   if (!c) return toastErr("เลือกเวรก่อนนะ");
@@ -734,8 +753,7 @@ function pickFriend(i){ const md = monthData(); frFriend = Object.keys(md.people
 function renderSet(){
   $("setName").textContent = DATA.me;
   $("verNote").textContent = DATA.version ? "เวอร์ชัน " + DATA.version : "";
-  $("setKeyG").textContent = DATA.hasKey.gemini ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง";
-  $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ไม่ใช้";
+  $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง";
   $("setNotify").value = String(DATA.settings.notify);
   $("setCal").classList.toggle("on", !!DATA.settings.calendar);
   $("setEve").classList.toggle("on", DATA.settings.eve !== false);

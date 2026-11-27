@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 18";
+const APP_VERSION = "27 พ.ย. 69 · 19";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -577,10 +577,9 @@ const APP_HTML = [
 "  </div>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"user\"></i>\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><span class=\"r\" id=\"setName\"></span></div>",
-"    <div class=\"set\"><span class=\"l\"><i data-i=\"key\"></i>Gemini key</span><span class=\"r\" id=\"setKeyG\"></span></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"key\"></i>Claude key</span><span class=\"r\" id=\"setKeyC\"></span></div>",
 "  </div>",
-"  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"send('editSettings')\"><i data-i=\"edit\"></i>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d / API key</button>",
+"  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"openProfile()\"><i data-i=\"edit\"></i>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d / API key</button>",
 "  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"openPaste()\"><i data-i=\"list\"></i>\u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23</button>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"sun\"></i>\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32</span><span class=\"r\">08:00 \u2013 16:00</span></div>",
@@ -983,6 +982,26 @@ const APP_HTML = [
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
 "}",
 "window.reapplyTrades = k => { trades().filter(t=>t.date.startsWith(k)).forEach(t=>applyTrade(t)); renderAll(); };",
+"/* ===== \u0e0a\u0e37\u0e48\u0e2d + Claude key (\u0e40\u0e01\u0e47\u0e1a\u0e43\u0e19 Keychain \u0e1a\u0e19\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07) ===== */",
+"function openProfile(){",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><h2 class=\"big\" style=\"font-size:22px\">\u0e0a\u0e37\u0e48\u0e2d \u0e41\u0e25\u0e30 API key</h2>",
+"    <p class=\"lab\">\u0e0a\u0e37\u0e48\u0e2d-\u0e19\u0e32\u0e21\u0e2a\u0e01\u0e38\u0e25 (\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23)</p><input id=\"pfName\" value=\"${esc(DATA.me||\"\")}\" autocomplete=\"off\">",
+"    <p class=\"lab\">Claude API key ${DATA.hasKey.claude?\"(\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27 \u00b7 \u0e40\u0e27\u0e49\u0e19\u0e27\u0e48\u0e32\u0e07 = \u0e43\u0e0a\u0e49\u0e2d\u0e31\u0e19\u0e40\u0e14\u0e34\u0e21)\":\"(\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e15\u0e31\u0e49\u0e07)\"}</p>",
+"    <input id=\"pfKey\" type=\"password\" placeholder=\"sk-ant-api03-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\">",
+"    <p class=\"note\" style=\"margin-top:6px\">\u0e02\u0e2d key \u0e44\u0e14\u0e49\u0e17\u0e35\u0e48 console.anthropic.com \u00b7 key \u0e40\u0e01\u0e47\u0e1a\u0e43\u0e19\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07\u0e19\u0e35\u0e49\u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19</p>",
+"    <button class=\"btn main\" style=\"width:100%;margin-top:12px\" onclick=\"saveProfile()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>",
+"    <button class=\"btn\" style=\"width:100%;margin-top:8px\" onclick=\"testKey()\">${ic(\"ai\")}\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e27\u0e48\u0e32 key \u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49\u0e44\u0e2b\u0e21</button>",
+"    <p class=\"note\" id=\"pfTest\" style=\"margin-top:8px\"></p>`;",
+"  openSheet();",
+"}",
+"function saveProfile(){",
+"  const name = $(\"pfName\").value.trim(), key = $(\"pfKey\").value.trim();",
+"  if (!name) return toastErr(\"\u0e43\u0e2a\u0e48\u0e0a\u0e37\u0e48\u0e2d\u0e01\u0e48\u0e2d\u0e19\u0e19\u0e30\");",
+"  if (key && !/^sk-ant-/.test(key)) return toastErr(\"key \u0e15\u0e49\u0e2d\u0e07\u0e02\u0e36\u0e49\u0e19\u0e15\u0e49\u0e19\u0e14\u0e49\u0e27\u0e22 sk-ant-\");",
+"  send(\"saveProfile\", {name, claudeKey: key || null}); closeSheet(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\");",
+"}",
+"function testKey(){ const key = $(\"pfKey\").value.trim(); $(\"pfTest\").textContent = \"\u0e01\u0e33\u0e25\u0e31\u0e07\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u2026\"; send(\"testKey\", {claudeKey: key || null}); }",
+"window.onKeyTest = r => { const el = $(\"pfTest\"); if (el) el.textContent = r.ok ? \"\u2713 key \u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49 \u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e2d\u0e48\u0e32\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\" : \"\u2717 \u0e43\u0e0a\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49: \" + r.error; };",
 "function saveAct(){",
 "  const {d, mode, c} = ACT, who = (ACT.who||\"\").trim();",
 "  if (!c) return toastErr(\"\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e27\u0e23\u0e01\u0e48\u0e2d\u0e19\u0e19\u0e30\");",
@@ -1097,8 +1116,7 @@ const APP_HTML = [
 "function renderSet(){",
 "  $(\"setName\").textContent = DATA.me;",
 "  $(\"verNote\").textContent = DATA.version ? \"\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19 \" + DATA.version : \"\";",
-"  $(\"setKeyG\").textContent = DATA.hasKey.gemini ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e15\u0e31\u0e49\u0e07\";",
-"  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e49\";",
+"  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e15\u0e31\u0e49\u0e07\";",
 "  $(\"setNotify\").value = String(DATA.settings.notify);",
 "  $(\"setCal\").classList.toggle(\"on\", !!DATA.settings.calendar);",
 "  $(\"setEve\").classList.toggle(\"on\", DATA.settings.eve !== false);",
@@ -1334,13 +1352,27 @@ async function runApp() {
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));
       await ShareSheet.present([img]);
+    } else if (m.type === "saveProfile") {         // ชื่อ + key จากหน้าตั้งค่าในแอป
+      const name = String(m.payload.name || "").trim(), c = String(m.payload.claudeKey || "").trim();
+      if (name && name !== d.me) {
+        for (const md of Object.values(d.months)) { const f = findMe(md.people, name); if (f && f !== name) { md.people[name] = md.people[f]; delete md.people[f]; } }
+        d.me = name;
+      }
+      if (c) Keychain.set(K_CLAUDE, c);
+      saveData(d); await syncAll(d);
+    } else if (m.type === "testKey") {
+      const key = String(m.payload.claudeKey || "").trim() || getKey("claude");
+      let r;
+      if (!key) r = { ok: false, error: "ยังไม่ได้ใส่ key" };
+      else try { await claudeCallN(CLAUDE_MODEL, [], "ตอบคำว่า OK", key, 5); r = { ok: true }; } catch (e) { r = { ok: false, error: String(e.message || e).slice(0, 120) }; }
+      await call(`onKeyTest(${js(r)})`); return;
     } else if (m.type === "editSettings") {
       const a = new Alert();
       a.title = "ชื่อ และ API key";
-      a.message = "ชื่อให้ตรงกับในตารางเวร\nGemini key ขอฟรีได้ที่ aistudio.google.com\nClaude key ไม่ใส่ก็ได้";
+      a.message = "ชื่อให้ตรงกับในตารางเวร\nClaude key ขอได้ที่ console.anthropic.com";
       a.addTextField("ชื่อ นามสกุล", d.me);
       a.addSecureTextField("Gemini API key", Keychain.contains(K_GEMINI) ? Keychain.get(K_GEMINI) : "");
-      a.addSecureTextField("Claude API key (ไม่บังคับ)", Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : "");
+      a.addSecureTextField("Claude API key", Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : "");
       a.addAction("บันทึก"); a.addCancelAction("ยกเลิก");
       if (await a.presentAlert() === -1) return;
       const name = a.textFieldValue(0).trim(), g = a.textFieldValue(1).trim(), c = a.textFieldValue(2).trim();
