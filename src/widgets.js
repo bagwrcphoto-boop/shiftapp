@@ -37,7 +37,7 @@ const CA = (h, a = 1) => new Color(h, a);
 
 function wTheme(d) {
   const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
-  const L = { "ช": ["#ADE8C4", "#1F5A3B"], "บ": ["#B9D3FF", "#24427E"], "ด": ["#D5C3FF", "#4A2F8C"] };
+  const L = { "ช": ["#8FDDB0", "#1F5A3B"], "บ": ["#9EC3FF", "#24427E"], "ด": ["#C3A9FF", "#4A2F8C"] };
   if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
   if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
   if (t.style === "luxe") return { dark: false, g1: "#FFFFFF", g2: "#F8F4F2", b1: "#F6F0ED", b2: "#FFFFFF", title: "#2E2A2C", sub: "#A3989C", text: "#3A3436", accent: "#2E2A2C", onAccent: "#FFFFFF", card: "#F6F1EE", cardA: 0.9, offA: 0.95, pastA: 0.32, past: "#FFFFFF", shift: L };
@@ -52,7 +52,7 @@ function wTheme(d) {
   return { dark: false, g1: mixHex(p.body, "#FFD6E6", t.palette === "sakura" ? 0.35 : 0.1), g2: mixHex(p.blobs[1], "#FFFFFF", 0.72), b1: p.blobs[0], b2: p.blobs[1],
     title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF",
     card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF",
-    shift: { "ช": ["#ADE8C4", "#1F5A3B"], "บ": ["#B9D3FF", "#24427E"], "ด": ["#D5C3FF", "#4A2F8C"] } };
+    shift: { "ช": ["#8FDDB0", "#1F5A3B"], "บ": ["#9EC3FF", "#24427E"], "ด": ["#C3A9FF", "#4A2F8C"] } };
 }
 
 // ----- เครื่องมือวาด -----
@@ -64,6 +64,8 @@ function cell(c, T, x, y, w, h, r, color) {     // ช่องการ์ด: 
   rr(c, x, y, w, h, r, color);
   rrStroke(c, x + 0.5, y + 0.5, w - 1, h - 1, r, T.dark ? CA("#FFFFFF", 0.14) : CA("#FFFFFF", 0.95), 1.2);
 }
+const SH_EDGE = { "ช": "#4FBF82", "บ": "#5E95F2", "ด": "#9672F0" };   // ขอบเข้มตามเวร แยกช่องให้ชัด
+const shiftEdge = (c, T, s, x, y, w, h, r) => { if (!T.dark && s && s.length) rrStroke(c, x + 0.75, y + 0.75, w - 1.5, h - 1.5, r, CA(SH_EDGE[s[0]], 0.9), 1.5); };
 const shiftBg = (T, s) => s && s.length ? CA(T.shift[s[0]][0], T.dark ? 0.9 : 1) : CA(T.card, T.offA);
 function tx(c, s, x, y, w, h, font, color, align) {
   c.setFont(font); c.setTextColor(color);
@@ -155,7 +157,7 @@ function drawLarge(d, now, I, T, sz) {
   for (let day = 1; day <= days; day++) {
     const i = first + day - 1, x = P + (i % 7) * (cw + gap), yy = gTop + Math.floor(i / 7) * (ch + gap);
     const s = sortS(me[day]), dt = new Date(y, m, day), past = dt < new Date(now.getFullYear(), now.getMonth(), now.getDate()), today = isThis && day === now.getDate();
-    cell(c, T, x, yy, cw, ch, 9, shiftBg(T, s));
+    cell(c, T, x, yy, cw, ch, 9, shiftBg(T, s)); shiftEdge(c, T, s, x, yy, cw, ch, 9);
     const isz = Math.min(cw * 0.52, ch * 0.46, 24);
     shiftIcons(c, I, s, x + cw / 2, yy + ch * (s.length ? 0.5 : 0.58), s.length ? isz : isz * 0.72);
     if (s.length) { const rl = ((d.months[k].roles || {})[d.me] || {})[day] || [], lw = 6, x0 = x + (cw - s.length * lw) / 2;   // ตัวย่อ เช่น ชด บด สีตามหน้าที่ บนป้ายขาว (อ่านชัดทุกสีพื้น)
@@ -197,7 +199,7 @@ function drawMedium(d, now, I, T, sz) {
   const top = P + 34, gap = 5, cw = (W - 2 * P - 6 * gap) / 7, chh = H - top - P;
   for (let i = 0; i < 7; i++) {
     const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + i * (cw + gap), today = i === 0;
-    cell(c, T, x, top, cw, chh, 12, shiftBg(T, s));
+    cell(c, T, x, top, cw, chh, 12, shiftBg(T, s)); shiftEdge(c, T, s, x, top, cw, chh, 12);
     if (today) rrStroke(c, x + 1, top + 1, cw - 2, chh - 2, 11, CA(T.accent), 2);
     const we = dt.getDay() === 0 || dt.getDay() === 6;
     tx(c, DOW[dt.getDay()], x, top + 5, cw, 12, F("Bold", 9.5), CA(we ? T.accent : T.sub), "center");
@@ -235,7 +237,7 @@ function drawSmall(d, now, I, T, sz) {
   const gy = P + 16 + isz, sh = 18, sy = gy + Math.max(0, (py - gy - sh) / 2), cw4 = (W - 2 * P) / 4;
   for (let i = 1; i <= 4; i++) {
     const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + (i - 1) * cw4;
-    cell(c, T, x + 1, sy, cw4 - 2, sh, 8, shiftBg(T, s));
+    cell(c, T, x + 1, sy, cw4 - 2, sh, 8, shiftBg(T, s)); shiftEdge(c, T, s, x + 1, sy, cw4 - 2, sh, 8);
     tx(c, dt.getDate(), x + 3, sy + 2, 15, 14, F("Bold", 9.5), CA(dt.getDay() % 6 === 0 ? T.accent : T.title), "center");
     if (s === null) tx(c, "–", x + 17, sy + 2, cw4 - 20, 14, F("Bold", 9.5), CA(T.sub), "center");
     else if (!s.length) img(c, I, "off", x + 19, sy + 2, 14);
