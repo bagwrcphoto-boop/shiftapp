@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 4";
+const APP_VERSION = "27 พ.ย. 69 · 6";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -127,13 +127,14 @@ async function askGemini(b64, apiKey) {
   }
   throw new Error(last);
 }
-async function askClaude(b64, apiKey) { return claudeCall(CLAUDE_MODEL, b64, PROMPT, apiKey, 8000); }
-async function claudeCall(model, b64, text, apiKey, maxTokens) {
+async function askClaude(b64, apiKey) { return claudeCall(CLAUDE_MODEL, b64, PROMPT, apiKey, 16000); }
+async function claudeCall(model, b64, text, apiKey, maxTokens) { return claudeCallN(model, [b64], text, apiKey, maxTokens); }
+async function claudeCallN(model, imgs, text, apiKey, maxTokens) {
   const req = new Request("https://api.anthropic.com/v1/messages");
   req.method = "POST"; req.timeoutInterval = 150;
   req.headers = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
   req.body = JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content: [
-    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text }] }] });
+    ...imgs.map(data => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } })), { type: "text", text }] }] });
   const res = await req.loadJSON();
   if (res.error) throw new Error(res.error.message || JSON.stringify(res.error));
   return res.content.map(c => c.text || "").join("");
@@ -198,7 +199,66 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย�
   const seen = String(j.name_seen || ""), match = !!seen && !!findMe({ [seen]: 1 }, me);
   return { days, total, count: Object.values(days).join("").length, match, seen };
 }
-async function readRosterClaude(b64, d, key) {
+// ---- แบบแม่นที่สุด: แอปหาเส้นตารางเอง → ตัดช่องแต่ละวันขยายใหญ่พร้อมเลขวัน ----
+async function readByTiles(b64, d, key, page) {
+  const names = await page("makeNames()");
+  const t = await claudeCallN(CLAUDE_MODEL, [b64, names],
+`รูปที่ 1 คือตารางเวรพยาบาลทั้งตาราง รูปที่ 2 คือคอลัมน์ชื่อของแต่ละแถว มีเลขกำกับสีชมพู (#1, #2, ...)
+1) ชื่อ "${d.me}" อยู่แถวเลขอะไรในรูปที่ 2
+2) จากหัวตารางในรูปที่ 1 เป็นเดือนอะไร ปี พ.ศ. อะไร
+3) ในรูปที่ 1 แถวของคนนี้ ช่อง "ทำงานจริง" เขียนเลขอะไร
+ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28}`, key, 300);
+  const j = jsonOf(t);
+  if (!(+j.label >= 1) || !findMe({ [String(j.name_seen || "")]: 1 }, d.me)) throw new Error("หาแถวชื่อไม่เจอ");
+  const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
+  if (!(month >= 1 && month <= 12) || !year) throw new Error("อ่านเดือนไม่ได้");
+  const days = new Date(year, month, 0).getDate();
+  const tiles = await page(`makeTiles(${+j.label}, ${days})`);
+  const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
+  const ask = async hint => {
+    const r = jsonOf(await claudeCall(CLAUDE_STRONG, tiles,
+`รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
+ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรในแต่ละบรรทัด
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ครบทุกวัน 1-${days}: {"days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}}}`, key, 3000));
+    const out = {};
+    for (const [dd, v] of Object.entries(r.days || {})) { const s = sortS(String((v && v.top) || "") + String((v && v.bottom) || "")).join(""); if (s && +dd >= 1 && +dd <= days) out[+dd] = s; }
+    return { days: out, count: Object.values(out).join("").length };
+  };
+  // อ่าน 2 รอบพร้อมกันแล้วเทียบ วันไหนไม่ตรงกันให้อ่านรอบ 3 แล้วใช้เสียงข้างมาก
+  const [r1, r2] = await Promise.all([ask(), ask()]);
+  const val = (r, dd) => r.days[dd] || "";
+  let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
+  const cnt = o => Object.values(o).join("").length;
+  let final = Object.assign({}, r1.days), uncertain = [];
+  if (diff.length || (total != null && r1.count !== total)) {
+    const r3 = await ask(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`);
+    final = {};
+    for (let dd = 1; dd <= days; dd++) {
+      const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
+      if (pick === undefined) { uncertain.push(dd); if (v[2]) final[dd] = v[2]; } else if (pick) final[dd] = pick;
+      if (pick !== undefined && v.some(x => x !== pick)) uncertain.push(dd);
+    }
+  }
+  const my = { days: final, count: cnt(final) };
+  return { year, month, days: my.days, total, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+}
+
+async function readRosterClaude(b64, d, key, grid, page) {
+  if (grid && page) {
+    const [tiles, all] = await Promise.all([
+      readByTiles(b64, d, key, page).catch(e => ({ err: e })),
+      askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }))
+    ]);
+    if (!tiles.err) {
+      const people = all.err ? {} : all.people, totals = all.err ? {} : all.totals;
+      people[d.me] = tiles.days; if (tiles.total != null) totals[d.me] = tiles.total; else delete totals[d.me];
+      return { year: tiles.year, month: tiles.month, people, totals, method: "tiles", uncertain: tiles.uncertain };
+    }
+  }
+  return readRosterCrop(b64, d, key);
+}
+async function readRosterCrop(b64, d, key) {
   const img = Image.fromData(Data.fromBase64String(b64));
   const [loc, all] = await Promise.all([
     locateRow(b64, d.me, key).catch(e => null),
@@ -221,11 +281,11 @@ async function readRosterClaude(b64, d, key) {
   if (!(month >= 1 && month <= 12) || !year) { if (all.err) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้"); return all; }
   return { year, month, people, totals, careful: !!my };
 }
-async function readRoster(b64, d) {
+async function readRoster(b64, d, grid, page) {
   const ai = GEMINI_OFF ? "claude" : (d.settings.ai === "claude" ? "claude" : "gemini");
   const k = getKey(ai);
   if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (ใส่ใน claudeKey ของตัวโหลด หรือในหน้าตั้งค่า)`);
-  if (ai === "claude") return readRosterClaude(b64, d, k);
+  if (ai === "claude") return readRosterClaude(b64, d, k, grid, page);
   return parseRoster(await askGemini(b64, k), d.me);
 }
 
@@ -291,7 +351,8 @@ async function runApp() {
       d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
     } else if (m.type === "readPhoto") {
       let r;
-      try { r = await readRoster(m.payload, d); } catch (e) { r = { error: String(e.message || e) }; }
+      const p = typeof m.payload === "string" ? { b64: m.payload, grid: null } : m.payload;
+      try { r = await readRoster(p.b64, d, p.grid, s => wv.evaluateJavaScript(s, false)); } catch (e) { r = { error: String(e.message || e) }; }
       await call(`onParsed(${js(r)})`);
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));

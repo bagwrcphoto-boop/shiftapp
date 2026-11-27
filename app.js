@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 4";
+const APP_VERSION = "27 พ.ย. 69 · 6";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -135,13 +135,14 @@ async function askGemini(b64, apiKey) {
   }
   throw new Error(last);
 }
-async function askClaude(b64, apiKey) { return claudeCall(CLAUDE_MODEL, b64, PROMPT, apiKey, 8000); }
-async function claudeCall(model, b64, text, apiKey, maxTokens) {
+async function askClaude(b64, apiKey) { return claudeCall(CLAUDE_MODEL, b64, PROMPT, apiKey, 16000); }
+async function claudeCall(model, b64, text, apiKey, maxTokens) { return claudeCallN(model, [b64], text, apiKey, maxTokens); }
+async function claudeCallN(model, imgs, text, apiKey, maxTokens) {
   const req = new Request("https://api.anthropic.com/v1/messages");
   req.method = "POST"; req.timeoutInterval = 150;
   req.headers = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
   req.body = JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content: [
-    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text }] }] });
+    ...imgs.map(data => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } })), { type: "text", text }] }] });
   const res = await req.loadJSON();
   if (res.error) throw new Error(res.error.message || JSON.stringify(res.error));
   return res.content.map(c => c.text || "").join("");
@@ -206,7 +207,66 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย�
   const seen = String(j.name_seen || ""), match = !!seen && !!findMe({ [seen]: 1 }, me);
   return { days, total, count: Object.values(days).join("").length, match, seen };
 }
-async function readRosterClaude(b64, d, key) {
+// ---- แบบแม่นที่สุด: แอปหาเส้นตารางเอง → ตัดช่องแต่ละวันขยายใหญ่พร้อมเลขวัน ----
+async function readByTiles(b64, d, key, page) {
+  const names = await page("makeNames()");
+  const t = await claudeCallN(CLAUDE_MODEL, [b64, names],
+`รูปที่ 1 คือตารางเวรพยาบาลทั้งตาราง รูปที่ 2 คือคอลัมน์ชื่อของแต่ละแถว มีเลขกำกับสีชมพู (#1, #2, ...)
+1) ชื่อ "${d.me}" อยู่แถวเลขอะไรในรูปที่ 2
+2) จากหัวตารางในรูปที่ 1 เป็นเดือนอะไร ปี พ.ศ. อะไร
+3) ในรูปที่ 1 แถวของคนนี้ ช่อง "ทำงานจริง" เขียนเลขอะไร
+ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28}`, key, 300);
+  const j = jsonOf(t);
+  if (!(+j.label >= 1) || !findMe({ [String(j.name_seen || "")]: 1 }, d.me)) throw new Error("หาแถวชื่อไม่เจอ");
+  const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
+  if (!(month >= 1 && month <= 12) || !year) throw new Error("อ่านเดือนไม่ได้");
+  const days = new Date(year, month, 0).getDate();
+  const tiles = await page(`makeTiles(${+j.label}, ${days})`);
+  const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
+  const ask = async hint => {
+    const r = jsonOf(await claudeCall(CLAUDE_STRONG, tiles,
+`รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
+ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรในแต่ละบรรทัด
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ครบทุกวัน 1-${days}: {"days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}}}`, key, 3000));
+    const out = {};
+    for (const [dd, v] of Object.entries(r.days || {})) { const s = sortS(String((v && v.top) || "") + String((v && v.bottom) || "")).join(""); if (s && +dd >= 1 && +dd <= days) out[+dd] = s; }
+    return { days: out, count: Object.values(out).join("").length };
+  };
+  // อ่าน 2 รอบพร้อมกันแล้วเทียบ วันไหนไม่ตรงกันให้อ่านรอบ 3 แล้วใช้เสียงข้างมาก
+  const [r1, r2] = await Promise.all([ask(), ask()]);
+  const val = (r, dd) => r.days[dd] || "";
+  let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
+  const cnt = o => Object.values(o).join("").length;
+  let final = Object.assign({}, r1.days), uncertain = [];
+  if (diff.length || (total != null && r1.count !== total)) {
+    const r3 = await ask(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`);
+    final = {};
+    for (let dd = 1; dd <= days; dd++) {
+      const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
+      if (pick === undefined) { uncertain.push(dd); if (v[2]) final[dd] = v[2]; } else if (pick) final[dd] = pick;
+      if (pick !== undefined && v.some(x => x !== pick)) uncertain.push(dd);
+    }
+  }
+  const my = { days: final, count: cnt(final) };
+  return { year, month, days: my.days, total, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+}
+
+async function readRosterClaude(b64, d, key, grid, page) {
+  if (grid && page) {
+    const [tiles, all] = await Promise.all([
+      readByTiles(b64, d, key, page).catch(e => ({ err: e })),
+      askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }))
+    ]);
+    if (!tiles.err) {
+      const people = all.err ? {} : all.people, totals = all.err ? {} : all.totals;
+      people[d.me] = tiles.days; if (tiles.total != null) totals[d.me] = tiles.total; else delete totals[d.me];
+      return { year: tiles.year, month: tiles.month, people, totals, method: "tiles", uncertain: tiles.uncertain };
+    }
+  }
+  return readRosterCrop(b64, d, key);
+}
+async function readRosterCrop(b64, d, key) {
   const img = Image.fromData(Data.fromBase64String(b64));
   const [loc, all] = await Promise.all([
     locateRow(b64, d.me, key).catch(e => null),
@@ -229,11 +289,11 @@ async function readRosterClaude(b64, d, key) {
   if (!(month >= 1 && month <= 12) || !year) { if (all.err) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้"); return all; }
   return { year, month, people, totals, careful: !!my };
 }
-async function readRoster(b64, d) {
+async function readRoster(b64, d, grid, page) {
   const ai = GEMINI_OFF ? "claude" : (d.settings.ai === "claude" ? "claude" : "gemini");
   const k = getKey(ai);
   if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (ใส่ใน claudeKey ของตัวโหลด หรือในหน้าตั้งค่า)`);
-  if (ai === "claude") return readRosterClaude(b64, d, k);
+  if (ai === "claude") return readRosterClaude(b64, d, k, grid, page);
   return parseRoster(await askGemini(b64, k), d.me);
 }
 
@@ -515,6 +575,90 @@ const APP_HTML = [
 " mocha:{name:\"\u0e04\u0e23\u0e35\u0e21\u0e21\u0e2d\u0e04\u0e04\u0e48\u0e32\",accent:\"#9C6A45\",title:\"#47301F\",sub:\"#6E523E\",text:\"#352619\",body:\"#F5EDE4\",tint:\"#EFE3D6\",blobs:[\"#E8D2BC\",\"#F2DCC8\",\"#DCC4B0\",\"#EADBC8\"],dark:{body:\"#1C1511\",card:\"#2E241D\",accent:\"#D9A97F\",title:\"#FAF2EA\",sub:\"#DCC7B4\",blobs:[\"#6E4A30\",\"#5A3E2E\",\"#7A5638\",\"#4E3A2C\"]}},",
 "};",
 "const CUTE = {\"sun\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><g stroke=\\\"#FFB347\\\" stroke-width=\\\"5\\\" stroke-linecap=\\\"round\\\"><path d=\\\"M32 4v7M32 53v7M4 32h7M53 32h7M12 12l5 5M47 47l5 5M52 12l-5 5M17 47l-5 5\\\"/></g><circle cx=\\\"32\\\" cy=\\\"32\\\" r=\\\"17\\\" fill=\\\"#FFD166\\\"/><circle cx=\\\"32\\\" cy=\\\"32\\\" r=\\\"17\\\" fill=\\\"none\\\" stroke=\\\"#FFB347\\\" stroke-width=\\\"2\\\"/><circle cx=\\\"26\\\" cy=\\\"30\\\" r=\\\"2.3\\\" fill=\\\"#5A3A2E\\\"/><circle cx=\\\"38\\\" cy=\\\"30\\\" r=\\\"2.3\\\" fill=\\\"#5A3A2E\\\"/><ellipse cx=\\\"22\\\" cy=\\\"36\\\" rx=\\\"3.4\\\" ry=\\\"2.2\\\" fill=\\\"#FF8FA3\\\" opacity=\\\".8\\\"/><ellipse cx=\\\"42\\\" cy=\\\"36\\\" rx=\\\"3.4\\\" ry=\\\"2.2\\\" fill=\\\"#FF8FA3\\\" opacity=\\\".8\\\"/><path d=\\\"M28 36q4 4 8 0\\\" stroke=\\\"#5A3A2E\\\" stroke-width=\\\"2.2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/></svg>\", \"sunset\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><circle cx=\\\"38\\\" cy=\\\"26\\\" r=\\\"15\\\" fill=\\\"#FFB38A\\\"/><circle cx=\\\"38\\\" cy=\\\"26\\\" r=\\\"15\\\" fill=\\\"none\\\" stroke=\\\"#FF9466\\\" stroke-width=\\\"2\\\"/><path d=\\\"M33 24q2-2 4 0M41 24q2-2 4 0\\\" stroke=\\\"#6B3A2E\\\" stroke-width=\\\"2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><path d=\\\"M14 50a10 10 0 0 1 2-19.8A13 13 0 0 1 40 30a9 9 0 0 1 10 9.5A8 8 0 0 1 48 55H18a8 8 0 0 1-4-5z\\\" fill=\\\"#BFD7FF\\\"/><path d=\\\"M14 50a10 10 0 0 1 2-19.8A13 13 0 0 1 40 30a9 9 0 0 1 10 9.5A8 8 0 0 1 48 55H18a8 8 0 0 1-4-5z\\\" fill=\\\"none\\\" stroke=\\\"#8FB4F2\\\" stroke-width=\\\"2\\\"/><circle cx=\\\"25\\\" cy=\\\"44\\\" r=\\\"2\\\" fill=\\\"#3B4F7E\\\"/><circle cx=\\\"35\\\" cy=\\\"44\\\" r=\\\"2\\\" fill=\\\"#3B4F7E\\\"/><ellipse cx=\\\"21\\\" cy=\\\"48\\\" rx=\\\"2.8\\\" ry=\\\"1.8\\\" fill=\\\"#FF9FB5\\\" opacity=\\\".8\\\"/><ellipse cx=\\\"39\\\" cy=\\\"48\\\" rx=\\\"2.8\\\" ry=\\\"1.8\\\" fill=\\\"#FF9FB5\\\" opacity=\\\".8\\\"/><path d=\\\"M28 47q2 2.5 4 0\\\" stroke=\\\"#3B4F7E\\\" stroke-width=\\\"1.8\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/></svg>\", \"moon\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><path d=\\\"M40 8a24 24 0 1 0 18 34A20 20 0 0 1 40 8z\\\" fill=\\\"#CDB8FF\\\" stroke=\\\"#A88BF0\\\" stroke-width=\\\"2\\\"/><path d=\\\"M20 34q3 3 6 0M31 34q3 3 6 0\\\" stroke=\\\"#4A2F8C\\\" stroke-width=\\\"2.2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><ellipse cx=\\\"19\\\" cy=\\\"40\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF9FC4\\\" opacity=\\\".85\\\"/><ellipse cx=\\\"38\\\" cy=\\\"40\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF9FC4\\\" opacity=\\\".85\\\"/><path d=\\\"M26 42q2.5 2 5 0\\\" stroke=\\\"#4A2F8C\\\" stroke-width=\\\"1.8\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><path d=\\\"M50 10l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z\\\" fill=\\\"#FFD166\\\"/><text x=\\\"46\\\" y=\\\"32\\\" font-size=\\\"9\\\" font-weight=\\\"700\\\" fill=\\\"#A88BF0\\\" font-family=\\\"sans-serif\\\">z</text><text x=\\\"52\\\" y=\\\"26\\\" font-size=\\\"7\\\" font-weight=\\\"700\\\" fill=\\\"#A88BF0\\\" font-family=\\\"sans-serif\\\">z</text></svg>\", \"off\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><path d=\\\"M32 56S8 42 8 24a12 12 0 0 1 24-4 12 12 0 0 1 24 4c0 18-24 32-24 32z\\\" fill=\\\"#FFB3CC\\\" stroke=\\\"#F48FB1\\\" stroke-width=\\\"2\\\"/><circle cx=\\\"25\\\" cy=\\\"30\\\" r=\\\"2.2\\\" fill=\\\"#7A2E4E\\\"/><circle cx=\\\"39\\\" cy=\\\"30\\\" r=\\\"2.2\\\" fill=\\\"#7A2E4E\\\"/><ellipse cx=\\\"21\\\" cy=\\\"35\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF7FA6\\\" opacity=\\\".7\\\"/><ellipse cx=\\\"43\\\" cy=\\\"35\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF7FA6\\\" opacity=\\\".7\\\"/><path d=\\\"M28 35q4 4 8 0\\\" stroke=\\\"#7A2E4E\\\" stroke-width=\\\"2.2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><ellipse cx=\\\"20\\\" cy=\\\"20\\\" rx=\\\"4\\\" ry=\\\"2.5\\\" fill=\\\"#fff\\\" opacity=\\\".6\\\" transform=\\\"rotate(-30 20 20)\\\"/></svg>\", \"note\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><rect x=\\\"10\\\" y=\\\"10\\\" width=\\\"44\\\" height=\\\"46\\\" rx=\\\"10\\\" fill=\\\"#FFF3B0\\\" stroke=\\\"#F2C94C\\\" stroke-width=\\\"2\\\"/><rect x=\\\"22\\\" y=\\\"5\\\" width=\\\"20\\\" height=\\\"10\\\" rx=\\\"4\\\" fill=\\\"#F7A8C4\\\"/><path d=\\\"M19 30h26M19 39h18\\\" stroke=\\\"#D9A93A\\\" stroke-width=\\\"3\\\" stroke-linecap=\\\"round\\\"/><path d=\\\"M44 44l6-6 4 4-6 6h-4z\\\" fill=\\\"#F48FB1\\\"/></svg>\"};",
+"/* ===== \u0e2b\u0e32\u0e40\u0e2a\u0e49\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e43\u0e19\u0e23\u0e39\u0e1b \u0e41\u0e25\u0e49\u0e27\u0e15\u0e31\u0e14\u0e0a\u0e48\u0e2d\u0e07\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19\u0e43\u0e2b\u0e49 AI \u0e2d\u0e48\u0e32\u0e19\u0e07\u0e48\u0e32\u0e22 ===== */",
+"const GRID = { img: null, ok: false };",
+"function gridMask(src, W, H){",
+"  const cv = document.createElement(\"canvas\"); cv.width = W; cv.height = H;",
+"  const x = cv.getContext(\"2d\"); x.fillStyle = \"#fff\"; x.fillRect(0, 0, W, H); x.drawImage(src, 0, 0, W, H);",
+"  const px = x.getImageData(0, 0, W, H).data, m = new Uint8Array(W * H);",
+"  for (let i = 0, j = 0; j < m.length; i += 4, j++){ const r = px[i], g = px[i+1], b = px[i+2], mx = Math.max(r,g,b), mn = Math.min(r,g,b);",
+"    m[j] = (0.3*r + 0.59*g + 0.11*b) < 165 && mx - mn < 55 ? 1 : 0; }    // \u0e40\u0e2a\u0e49\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07 = \u0e40\u0e17\u0e32/\u0e14\u0e33 (\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e48\u0e2a\u0e35\u0e1e\u0e37\u0e49\u0e19\u0e0a\u0e48\u0e2d\u0e07)",
+"  return m;",
+"}",
+"function gridLines(prof, frac){",
+"  let mx = 0; for (const v of prof) if (v > mx) mx = v;",
+"  const thr = mx * frac, out = []; let s = -1;",
+"  for (let i = 0; i <= prof.length; i++){ const on = i < prof.length && prof[i] >= thr; if (on && s < 0) s = i; if (!on && s >= 0){ out.push((s + i - 1)/2); s = -1; } }",
+"  return out;",
+"}",
+"function gridDetect(img){",
+"  const W0 = img.naturalWidth || img.width, H0 = img.naturalHeight || img.height;",
+"  const sc = 1600 / W0, W = 1600, H = Math.round(H0 * sc);",
+"  let m = gridMask(img, W, H);",
+"  // \u0e2b\u0e32\u0e21\u0e38\u0e21\u0e40\u0e2d\u0e35\u0e22\u0e07 (\u0e40\u0e0a\u0e48\u0e19\u0e23\u0e39\u0e1b\u0e16\u0e48\u0e32\u0e22\u0e08\u0e2d) \u0e42\u0e14\u0e22\u0e25\u0e2d\u0e07\u0e40\u0e2d\u0e35\u0e22\u0e07\u0e17\u0e35\u0e25\u0e30\u0e19\u0e34\u0e14\u0e43\u0e2b\u0e49\u0e40\u0e2a\u0e49\u0e19\u0e41\u0e19\u0e27\u0e15\u0e31\u0e49\u0e07\u0e04\u0e21\u0e17\u0e35\u0e48\u0e2a\u0e38\u0e14",
+"  let bestA = 0, bestS = -1;",
+"  for (let a = -2.5; a <= 2.501; a += 0.25){",
+"    const t = Math.tan(a * Math.PI / 180), col = new Float64Array(W + 200);",
+"    for (let y = 0; y < H; y += 2){ const off = Math.round((y - H/2) * t) + 100, row = y * W; for (let xx = 0; xx < W; xx++) if (m[row + xx]) col[xx + off]++; }",
+"    let s = 0; for (const v of col) s += v * v;",
+"    if (s > bestS){ bestS = s; bestA = a; }",
+"  }",
+"  let src = img;",
+"  if (Math.abs(bestA) > 0.01){     // \u0e2b\u0e21\u0e38\u0e19\u0e23\u0e39\u0e1b\u0e01\u0e25\u0e31\u0e1a\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07",
+"    const c = document.createElement(\"canvas\"); c.width = W0; c.height = H0; const x = c.getContext(\"2d\");",
+"    x.fillStyle = \"#fff\"; x.fillRect(0, 0, W0, H0); x.translate(W0/2, H0/2); x.rotate(-bestA * Math.PI / 180); x.drawImage(img, -W0/2, -H0/2);",
+"    src = c; m = gridMask(src, W, H);",
+"  }",
+"  const col = new Array(W).fill(0);",
+"  for (let y = 0; y < H; y++){ const row = y * W; for (let xx = 0; xx < W; xx++) if (m[row + xx]) col[xx]++; }",
+"  const vx = gridLines(col, 0.42);",
+"  let best = null;     // \u0e0a\u0e38\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e41\u0e19\u0e27\u0e15\u0e31\u0e49\u0e07\u0e17\u0e35\u0e48\u0e2b\u0e48\u0e32\u0e07\u0e40\u0e17\u0e48\u0e32\u0e46 \u0e01\u0e31\u0e19\u0e22\u0e32\u0e27\u0e17\u0e35\u0e48\u0e2a\u0e38\u0e14 = \u0e04\u0e2d\u0e25\u0e31\u0e21\u0e19\u0e4c\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48",
+"  for (let i = 0; i < vx.length - 1; i++){",
+"    const g0 = vx[i+1] - vx[i]; if (g0 < 12) continue;",
+"    let j = i + 1;",
+"    while (j < vx.length - 1){ const g = vx[j+1] - vx[j]; if (Math.abs(g - g0) > g0 * 0.3) break; j++; }",
+"    if (!best || j - i > best.n) best = { s: i, n: j - i };",
+"  }",
+"  if (!best || best.n < 28) return { ok: false, why: \"\u0e2b\u0e32\u0e04\u0e2d\u0e25\u0e31\u0e21\u0e19\u0e4c\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\", angle: bestA, n: best && best.n };",
+"  const xs = vx.slice(best.s, best.s + best.n + 1), cw = (xs[xs.length-1] - xs[0]) / best.n;",
+"  const row = new Array(H).fill(0), xa = Math.round(xs[0]), xb = Math.round(xs[xs.length-1]);",
+"  for (let y = 0; y < H; y++){ const r = y * W; for (let xx = xa; xx <= xb; xx++) if (m[r + xx]) row[y]++; }",
+"  const hy = gridLines(row, 0.45);",
+"  const bands = [];",
+"  for (let i = 0; i < hy.length - 1; i++){ const h = hy[i+1] - hy[i]; if (h >= cw * 1.45) bands.push([hy[i], hy[i+1]]); }",
+"  if (bands.length < 2) return { ok: false, why: \"\u0e2b\u0e32\u0e41\u0e16\u0e27\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\" };",
+"  GRID.img = src;",
+"  return { ok: true, sc, angle: bestA, xs, bands, nameX: [Math.max(0, xs[0] - cw * 9), xs[0]] };",
+"}",
+"function gridCrop(sx, sy, sw, sh, dw, dh){ const s = 1 / GRID.g.sc, c = document.createElement(\"canvas\"); c.width = dw; c.height = dh; const x = c.getContext(\"2d\"); x.imageSmoothingQuality = \"high\"; x.fillStyle = \"#fff\"; x.fillRect(0, 0, dw, dh); x.drawImage(GRID.img, sx*s, sy*s, sw*s, sh*s, 0, 0, dw, dh); return c; }",
+"// \u0e23\u0e39\u0e1b\u0e0a\u0e37\u0e48\u0e2d\u0e02\u0e2d\u0e07\u0e17\u0e38\u0e01\u0e41\u0e16\u0e27 \u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e40\u0e25\u0e02\u0e01\u0e33\u0e01\u0e31\u0e1a #1, #2, ...",
+"window.makeNames = function(){",
+"  const g = GRID.g, [x0, x1] = g.nameX, w = 700, lh = 64, H = g.bands.length * (lh + 6) + 6;",
+"  const c = document.createElement(\"canvas\"); c.width = w + 90; c.height = H; const x = c.getContext(\"2d\");",
+"  x.fillStyle = \"#fff\"; x.fillRect(0, 0, c.width, H);",
+"  g.bands.forEach(([y0, y1], i) => {",
+"    const yy = 6 + i * (lh + 6);",
+"    x.drawImage(gridCrop(x0, y0, x1 - x0, y1 - y0, w, lh), 90, yy);",
+"    x.fillStyle = \"#d0115b\"; x.font = \"700 30px sans-serif\"; x.textBaseline = \"middle\"; x.fillText(\"#\" + (i+1), 8, yy + lh/2);",
+"  });",
+"  return c.toDataURL(\"image/jpeg\", .92).split(\",\")[1];",
+"};",
+"// \u0e0a\u0e48\u0e2d\u0e07\u0e02\u0e2d\u0e07\u0e41\u0e15\u0e48\u0e25\u0e30\u0e27\u0e31\u0e19\u0e43\u0e19\u0e41\u0e16\u0e27 k \u0e02\u0e22\u0e32\u0e22\u0e43\u0e2b\u0e0d\u0e48 \u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e40\u0e25\u0e02\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e15\u0e31\u0e27\u0e42\u0e15",
+"window.makeTiles = function(k, days){",
+"  const g = GRID.g, [y0, y1] = g.bands[k-1], n = Math.min(days || 31, g.xs.length - 1);",
+"  const tw = 150, th = Math.round(tw * (y1 - y0) / ((g.xs[n] - g.xs[0]) / n)), lab = 46, per = 8, gap = 14;",
+"  const rows = Math.ceil(n / per), W = per * (tw + gap) + gap, H = rows * (th + lab + gap) + gap;",
+"  const c = document.createElement(\"canvas\"); c.width = W; c.height = H; const x = c.getContext(\"2d\");",
+"  x.fillStyle = \"#fff\"; x.fillRect(0, 0, W, H);",
+"  for (let i = 0; i < n; i++){",
+"    const cx = gap + (i % per) * (tw + gap), cy = gap + Math.floor(i / per) * (th + lab + gap);",
+"    x.fillStyle = \"#c2185b\"; x.font = \"700 40px sans-serif\"; x.textAlign = \"center\"; x.textBaseline = \"top\"; x.fillText(String(i+1), cx + tw/2, cy + 2);",
+"    const pad = (g.xs[i+1] - g.xs[i]) * 0.06;",
+"    x.drawImage(gridCrop(g.xs[i] + pad, y0 + pad, g.xs[i+1] - g.xs[i] - pad*2, y1 - y0 - pad*2, tw, th), cx, cy + lab);",
+"    x.strokeStyle = \"#999\"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, tw, th);",
+"  }",
+"  return c.toDataURL(\"image/jpeg\", .92).split(\",\")[1];",
+"};",
 "",
 "",
 "/* ===== \u0e44\u0e2d\u0e04\u0e2d\u0e19 ===== */",
@@ -783,8 +927,10 @@ const APP_HTML = [
 "    const sc = Math.min(1, 2400/Math.max(img.naturalWidth, img.naturalHeight));",
 "    const cv = document.createElement(\"canvas\"); cv.width = Math.round(img.naturalWidth*sc); cv.height = Math.round(img.naturalHeight*sc);",
 "    const x = cv.getContext(\"2d\"); x.fillStyle = \"#fff\"; x.fillRect(0,0,cv.width,cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);",
-"    URL.revokeObjectURL(url); inp.value = \"\";",
-"    send(\"readPhoto\", cv.toDataURL(\"image/jpeg\", .9).split(\",\")[1]);",
+"    inp.value = \"\";",
+"    let grid = null;",
+"    try { GRID.img = img; GRID.g = gridDetect(img); grid = GRID.g.ok ? { bands: GRID.g.bands.length, cols: GRID.g.xs.length - 1 } : null; } catch(e){ grid = null; }",
+"    send(\"readPhoto\", { b64: cv.toDataURL(\"image/jpeg\", .9).split(\",\")[1], grid });",
 "  };",
 "  img.onerror = () => { inp.value = \"\"; onParsed({error:\"\u0e40\u0e1b\u0e34\u0e14\u0e23\u0e39\u0e1b\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 \u0e25\u0e2d\u0e07\u0e41\u0e04\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e15\u0e32\u0e23\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e41\u0e04\u0e1b\u0e41\u0e17\u0e19\"}); };",
 "  img.src = url;",
@@ -802,9 +948,11 @@ const APP_HTML = [
 "  if (!me){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\u0e0a\u0e37\u0e48\u0e2d \"${DATA.me}\"</p><div class=\"msg o\">${ic(\"warn\")}<span>\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49: ${Object.keys(r.people).join(\", \")}<br>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e41\u0e25\u0e49\u0e27\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e43\u0e2b\u0e21\u0e48</span></div>${close}`; openSheet(); return; }",
 "  const cnt = Object.values(me).map(sortS).flat().length, tot = r.totals ? r.totals[DATA.me] : null;",
 "  const chk = tot==null ? \"\" : tot===cnt ? `<div class=\"msg m\">${ic(\"check\")}<span>${cnt} \u0e40\u0e27\u0e23 \u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\"</span></div>` : `<div class=\"msg o\">${ic(\"warn\")}<span>\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${cnt} \u0e40\u0e27\u0e23 \u0e41\u0e15\u0e48\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" = ${tot} \u0e25\u0e2d\u0e07\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2d\u0e35\u0e01\u0e17\u0e35 \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\u0e41\u0e15\u0e30\u0e41\u0e01\u0e49\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19\u0e44\u0e14\u0e49</span></div>`;",
-"  const list = Object.keys(me).map(Number).sort((a,b)=>a-b).map(d=>`<span style=\"display:inline-flex;gap:3px;align-items:center;margin:0 12px 8px 0;font-weight:600\">${d} ${sortS(me[d]).map(pill).join(\"\")}</span>`).join(\"\");",
+"  const unc = r.uncertain || [], dim = new Date(r.year, r.month, 0).getDate();",
+"  const list = Array.from({length: dim}, (_, i) => i + 1).filter(d => me[d] || unc.includes(d)).map(d=>`<span style=\"display:inline-flex;gap:3px;align-items:center;margin:0 10px 8px 0;font-weight:600;${unc.includes(d)?\"background:#FFE2CF;border-radius:8px;padding:0 5px;outline:2px solid #E0612F\":\"\"}\">${d} ${me[d] ? sortS(me[d]).map(pill).join(\"\") : \"\u0e2b\u0e22\u0e38\u0e14\"}</span>`).join(\"\");",
+"  const uncMsg = unc.length ? `<div class=\"msg o\">${ic(\"warn\")}<span>AI \u0e44\u0e21\u0e48\u0e41\u0e19\u0e48\u0e43\u0e08\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${unc.join(\", \")} (\u0e01\u0e23\u0e2d\u0e1a\u0e2a\u0e49\u0e21) \u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07\u0e08\u0e23\u0e34\u0e07\u0e01\u0e48\u0e2d\u0e19\u0e19\u0e30 \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\u0e41\u0e15\u0e30\u0e41\u0e01\u0e49\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19\u0e44\u0e14\u0e49</span></div>` : \"\";",
 "  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">${MONTHS[r.month-1]} ${r.year+543}</p>",
-"    <p class=\"hello\" style=\"font-size:14px\">\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${Object.keys(r.people).length} \u0e04\u0e19\u0e43\u0e19\u0e27\u0e2d\u0e23\u0e4c\u0e14 \u00b7 \u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}</p>${chk}",
+"    <p class=\"hello\" style=\"font-size:14px\">\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${Object.keys(r.people).length} \u0e04\u0e19\u0e43\u0e19\u0e27\u0e2d\u0e23\u0e4c\u0e14 \u00b7 \u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}</p>${chk}${uncMsg}",
 "    <div style=\"margin:10px 0\">${list}</div>",
 "    <div class=\"grid2\"><button class=\"btn\" onclick=\"closeSheet()\">\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01</button><button class=\"btn main\" onclick=\"confirmParsed()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button></div>`;",
 "  openSheet();",
@@ -959,7 +1107,8 @@ async function runApp() {
       d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
     } else if (m.type === "readPhoto") {
       let r;
-      try { r = await readRoster(m.payload, d); } catch (e) { r = { error: String(e.message || e) }; }
+      const p = typeof m.payload === "string" ? { b64: m.payload, grid: null } : m.payload;
+      try { r = await readRoster(p.b64, d, p.grid, s => wv.evaluateJavaScript(s, false)); } catch (e) { r = { error: String(e.message || e) }; }
       await call(`onParsed(${js(r)})`);
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));

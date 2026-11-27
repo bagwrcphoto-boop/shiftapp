@@ -494,8 +494,10 @@ function gotPhoto(inp){
     const sc = Math.min(1, 2400/Math.max(img.naturalWidth, img.naturalHeight));
     const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth*sc); cv.height = Math.round(img.naturalHeight*sc);
     const x = cv.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0,0,cv.width,cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
-    URL.revokeObjectURL(url); inp.value = "";
-    send("readPhoto", cv.toDataURL("image/jpeg", .9).split(",")[1]);
+    inp.value = "";
+    let grid = null;
+    try { GRID.img = img; GRID.g = gridDetect(img); grid = GRID.g.ok ? { bands: GRID.g.bands.length, cols: GRID.g.xs.length - 1 } : null; } catch(e){ grid = null; }
+    send("readPhoto", { b64: cv.toDataURL("image/jpeg", .9).split(",")[1], grid });
   };
   img.onerror = () => { inp.value = ""; onParsed({error:"เปิดรูปนี้ไม่ได้ ลองแคปหน้าจอตารางแล้วเลือกรูปที่แคปแทน"}); };
   img.src = url;
@@ -513,9 +515,11 @@ window.onParsed = function(r){
   if (!me){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">ไม่เจอชื่อ "${DATA.me}"</p><div class="msg o">${ic("warn")}<span>ชื่อที่อ่านได้: ${Object.keys(r.people).join(", ")}<br>แก้ชื่อในหน้าตั้งค่าให้ตรงกับตาราง แล้วอัปรูปใหม่</span></div>${close}`; openSheet(); return; }
   const cnt = Object.values(me).map(sortS).flat().length, tot = r.totals ? r.totals[DATA.me] : null;
   const chk = tot==null ? "" : tot===cnt ? `<div class="msg m">${ic("check")}<span>${cnt} เวร ตรงกับช่อง "ทำงานจริง"</span></div>` : `<div class="msg o">${ic("warn")}<span>อ่านได้ ${cnt} เวร แต่ช่อง "ทำงานจริง" = ${tot} ลองเทียบกับตารางอีกที บันทึกแล้วแตะแก้รายวันได้</span></div>`;
-  const list = Object.keys(me).map(Number).sort((a,b)=>a-b).map(d=>`<span style="display:inline-flex;gap:3px;align-items:center;margin:0 12px 8px 0;font-weight:600">${d} ${sortS(me[d]).map(pill).join("")}</span>`).join("");
+  const unc = r.uncertain || [], dim = new Date(r.year, r.month, 0).getDate();
+  const list = Array.from({length: dim}, (_, i) => i + 1).filter(d => me[d] || unc.includes(d)).map(d=>`<span style="display:inline-flex;gap:3px;align-items:center;margin:0 10px 8px 0;font-weight:600;${unc.includes(d)?"background:#FFE2CF;border-radius:8px;padding:0 5px;outline:2px solid #E0612F":""}">${d} ${me[d] ? sortS(me[d]).map(pill).join("") : "หยุด"}</span>`).join("");
+  const uncMsg = unc.length ? `<div class="msg o">${ic("warn")}<span>AI ไม่แน่ใจวันที่ ${unc.join(", ")} (กรอบส้ม) เทียบกับตารางจริงก่อนนะ บันทึกแล้วแตะแก้รายวันได้</span></div>` : "";
   $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">${MONTHS[r.month-1]} ${r.year+543}</p>
-    <p class="hello" style="font-size:14px">อ่านได้ ${Object.keys(r.people).length} คนในวอร์ด · เวรของ${first(DATA.me)}</p>${chk}
+    <p class="hello" style="font-size:14px">อ่านได้ ${Object.keys(r.people).length} คนในวอร์ด · เวรของ${first(DATA.me)}</p>${chk}${uncMsg}
     <div style="margin:10px 0">${list}</div>
     <div class="grid2"><button class="btn" onclick="closeSheet()">ยกเลิก</button><button class="btn main" onclick="confirmParsed()">${ic("check")}บันทึก</button></div>`;
   openSheet();
