@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 39";
+const APP_VERSION = "28 พ.ย. 69 · 40";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -448,10 +448,9 @@ async function syncNotifications(d) {
 const CARE_DEF = { water: true, waterH: 2, meal: true, night: true, coffee: false, sleep: true };
 const careOf = d => Object.assign({}, CARE_DEF, (d.settings || {}).care || {});
 const MEAL_AT = { "ช": 4, "บ": 4, "ด": 3 };        // ชั่วโมงหลังเริ่มเวร: เช้า 12:00, บ่าย 20:00, ดึก 03:00
-const runUrl = q => `scriptable:///run/${encodeURIComponent(Script.name())}?${q}`;
 function careItems(d, all, now) {
   const c = careOf(d), out = [], horizon = now.getTime() + 4 * 864e5;
-  const add = (at, id, title, body, drink) => { if (at > now && at.getTime() < horizon) out.push({ at, id, title, body, drink }); };
+  const add = (at, id, title, body) => { if (at > now && at.getTime() < horizon) out.push({ at, id, title, body }); };
   for (const b of all) {
     if (b.st.getTime() > horizon) break;
     const S = b.st.getTime(), E = b.en.getTime(), tag = S;
@@ -461,7 +460,7 @@ function careItems(d, all, now) {
     }
     if (c.coffee && b.cs[0] === "ด") add(new Date(S - 6 * 36e5), `cof-${tag}`, "☕ งดกาแฟหลังจากนี้นะ", "ถ้าจะงีบก่อนเข้าเวรดึก");
     const meals = c.meal ? b.cs.map((x, i) => S + i * 8 * 36e5 + MEAL_AT[x] * 36e5) : [];
-    if (c.water) { const H = Math.max(1, +c.waterH || 2); for (let t = S + H * 36e5, k = H; t < E - 15 * 6e4; t += H * 36e5, k += H) if (!meals.some(m => Math.abs(m - t) < 30 * 6e4)) add(new Date(t), `w-${t}`, "💧 ดื่มน้ำหน่อยนะ", `อยู่เวรมา ${k} ชม.แล้ว ดื่มน้ำสักแก้ว`, true); }
+    if (c.water) { const H = Math.max(1, +c.waterH || 2); for (let t = S + H * 36e5, k = H; t < E - 15 * 6e4; t += H * 36e5, k += H) if (!meals.some(m => Math.abs(m - t) < 30 * 6e4)) add(new Date(t), `w-${t}`, "💧 ดื่มน้ำหน่อยนะ", `อยู่เวรมา ${k} ชม.แล้ว ดื่มน้ำสักแก้ว`); }
     if (c.meal) b.cs.forEach((x, i) => { const t = S + i * 8 * 36e5 + MEAL_AT[x] * 36e5;
       add(new Date(t), `m-${t}`, x === "ด" ? "🍙 ได้เวลากินอะไรหน่อย" : "🍚 ได้เวลากินข้าวแล้ว", x === "ด" ? "ครึ่งเวรดึกแล้ว ทานของว่างหรือมื้อเล็กๆ นะ" : "อย่าลืมกินข้าว ดื่มน้ำด้วยนะ"); });
     if (c.sleep && b.cs[b.cs.length - 1] === "ด") add(new Date(E), `slp-${tag}`, "🛌 เลิกเวรแล้ว", "กลับไปนอนพักเลยนะ เก่งมากวันนี้");
@@ -473,15 +472,8 @@ async function scheduleCare(d, all, now) {
     const n = new Notification();
     n.identifier = `shiftapp-care-${it.id}`; n.threadIdentifier = "shiftapp";
     n.title = it.title; n.body = it.body;
-    if (it.drink) { n.addAction("ดื่มแล้ว ✓", runUrl("drink=1")); n.openURL = runUrl("drink=1"); }
     n.setTriggerDate(it.at); await n.schedule();
   }
-}
-function addDrink(d, now) {
-  const k = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  d.water = d.water || {}; d.water[k] = (d.water[k] || 0) + 1;
-  for (const x of Object.keys(d.water).sort().slice(0, -14)) delete d.water[x];   // เก็บแค่ 14 วันล่าสุด
-  saveData(d); return d.water[k];
 }
 async function syncAll(d) {
   try { await syncCalendar(d); } catch (e) { console.log("calendar: " + e); }
@@ -597,7 +589,6 @@ const APP_HTML = [
 ".qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}",
 ".qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}",
 ".tl{border-left:2.5px dashed var(--line);margin:8px 0 2px 8px;padding-left:14px}.tl p{position:relative;font-size:14px;margin-bottom:8px;color:var(--text)}.tl p:before{content:\"\";position:absolute;left:-20.5px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--c,var(--accent))}.tl b{color:var(--title)}",
-".wat{display:flex;align-items:center;gap:10px}.wat .bar{flex:1;height:10px;margin-top:6px}.wat button{border:0;border-radius:14px;padding:8px 12px;font:inherit;font-weight:700;background:var(--accent);color:var(--onAccent)}",
 ".notecard{display:flex;gap:10px;align-items:flex-start}",
 ".notecard .t{font-size:15px;white-space:pre-wrap;flex:1}",
 ".chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}",
@@ -1258,7 +1249,6 @@ const APP_HTML = [
 "",
 "/* ===== \u0e14\u0e39\u0e41\u0e25\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07 ===== */",
 "function myBlocks(){ const B = []; for (const x of allMyShifts()){ const b = B[B.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else B.push({st:x.st, en:x.en, cs:[x.c]}); } return B; }",
-"function drink(){ DATA.water = DATA.water || {}; const k = dk(now()); DATA.water[k] = (DATA.water[k]||0) + 1; send(\"drink\"); renderCare(); toast(`\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e41\u0e25\u0e49\u0e27 ${DATA.water[k]} \u0e41\u0e01\u0e49\u0e27 \ud83d\udca7`); }",
 "function renderCare(){",
 "  const c = careS(), n = now(), B = myBlocks(), el = $(\"careCard\"); let h = \"\";",
 "  const night = c.night && B.find(b => b.cs[0]===\"\u0e14\" && b.st > n && dayDiff(n, b.st) <= 2 && b.st - n < 36*36e5);",
@@ -1274,11 +1264,6 @@ const APP_HTML = [
 "      [\"#9b8cff\", hm(night.en), night.cs[night.cs.length-1]===\"\u0e14\" ? \"\u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23 \u2192 \u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e19\u0e2d\u0e19\u0e40\u0e25\u0e22 \ud83d\udecc\" : \"\u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23\"]].filter(Boolean);",
 "    h += `<p class=\"h3\">${dd<=1 ? \"\u0e04\u0e37\u0e19\u0e19\u0e35\u0e49\u0e21\u0e35\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\" : \"\u0e04\u0e37\u0e19\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49\u0e21\u0e35\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\"} \ud83c\udf19</p><p class=\"hello\" style=\"font-size:13px\">${DOWF[night.st.getDay()]} ${night.st.getDate()} ${MSH[night.st.getMonth()]} \u00b7 \u0e15\u0e32\u0e23\u0e32\u0e07\u0e14\u0e39\u0e41\u0e25\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07</p>",
 "      <div class=\"tl\">${L.map(([col, t, x]) => `<p${col?` style=\"--c:${col}\"`:\"\"}><b>${t}</b> ${x}</p>`).join(\"\")}</div>`;",
-"  }",
-"  const work = B.find(b => b.st <= n && b.en > n) || B.find(b => sameDay(b.st, n));",
-"  if (c.water && work){",
-"    const k = (DATA.water||{})[dk(n)] || 0;",
-"    h += `${h?'<div style=\"height:12px\"></div>':\"\"}<div class=\"wat\"><span style=\"font-size:28px\">\ud83d\udca7</span><div style=\"flex:1\"><p class=\"h3\" style=\"font-size:15px\">\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e41\u0e25\u0e49\u0e27 ${k} / 8 \u0e41\u0e01\u0e49\u0e27</p><div class=\"bar\"><div style=\"width:${Math.min(100,k/8*100)}%;background:#4fb3e8\"></div></div></div><button onclick=\"drink()\">+1 \u0e41\u0e01\u0e49\u0e27</button></div>`;",
 "  }",
 "  el.style.display = h ? \"\" : \"none\"; el.innerHTML = h;",
 "}",
@@ -1909,18 +1894,17 @@ const APP_HTML = [
 "}",
 "initView(); renderAll();",
 "if (DATA.restored) setTimeout(()=>toast(\"\u0e01\u0e39\u0e49\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e08\u0e32\u0e01 iCloud \u0e41\u0e25\u0e49\u0e27\"), 600);",
-"if (DATA.drank) setTimeout(()=>toast(`\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e41\u0e25\u0e49\u0e27\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 ${DATA.drank} \u0e41\u0e01\u0e49\u0e27 \ud83d\udca7`), 600);",
 "</script>",
 "</body>",
 "</html>",
 ""
 ].join("\n");
 
-async function runApp(drank) {
+async function runApp() {
   const fromBackup = await restoreIfEmpty();
   let d = loadData();
   const wv = new WebView();
-  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup, drank: drank || null });
+  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup });
   const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
   let html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const style0 = ((d.settings || {}).theme || {}).style || "glass", local = readAssets(style0);
@@ -1942,8 +1926,6 @@ async function runApp(drank) {
       const k = m.payload.key; restored[k] = true; delete pendingFriends[k];
       if (m.payload.month) d.months[k] = m.payload.month; else delete d.months[k];
       saveData(d); await syncAll(d);
-    } else if (m.type === "drink") {
-      addDrink(d, new Date()); await call(`setData(${js(payload())})`);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
       if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];
@@ -2340,8 +2322,7 @@ if (config.runsInWidget || config.runsInAccessoryWidget) {
   if (config.runsWithSiri) Speech.speak(ans);
   Script.setShortcutOutput(ans);
 } else {
-  const q = (typeof args !== "undefined" && args && args.queryParameters) || {};
-  await runApp(q.drink ? addDrink(loadData(), new Date()) : null);   // กด "ดื่มแล้ว ✓" จากแจ้งเตือน
+  await runApp();
 }
 Script.complete();
 // ===== จบไฟล์ (ถ้าไม่เห็นบรรทัดนี้ แปลว่าไฟล์มาไม่ครบ) =====

@@ -66,7 +66,6 @@ button{font:inherit;cursor:pointer;color:inherit}
 .qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
 .qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}
 .tl{border-left:2.5px dashed var(--line);margin:8px 0 2px 8px;padding-left:14px}.tl p{position:relative;font-size:14px;margin-bottom:8px;color:var(--text)}.tl p:before{content:"";position:absolute;left:-20.5px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--c,var(--accent))}.tl b{color:var(--title)}
-.wat{display:flex;align-items:center;gap:10px}.wat .bar{flex:1;height:10px;margin-top:6px}.wat button{border:0;border-radius:14px;padding:8px 12px;font:inherit;font-weight:700;background:var(--accent);color:var(--onAccent)}
 .notecard{display:flex;gap:10px;align-items:flex-start}
 .notecard .t{font-size:15px;white-space:pre-wrap;flex:1}
 .chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}
@@ -475,7 +474,6 @@ function renderHero(){
 
 /* ===== ดูแลตัวเอง ===== */
 function myBlocks(){ const B = []; for (const x of allMyShifts()){ const b = B[B.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else B.push({st:x.st, en:x.en, cs:[x.c]}); } return B; }
-function drink(){ DATA.water = DATA.water || {}; const k = dk(now()); DATA.water[k] = (DATA.water[k]||0) + 1; send("drink"); renderCare(); toast(`ดื่มน้ำแล้ว ${DATA.water[k]} แก้ว 💧`); }
 function renderCare(){
   const c = careS(), n = now(), B = myBlocks(), el = $("careCard"); let h = "";
   const night = c.night && B.find(b => b.cs[0]==="ด" && b.st > n && dayDiff(n, b.st) <= 2 && b.st - n < 36*36e5);
@@ -491,11 +489,6 @@ function renderCare(){
       ["#9b8cff", hm(night.en), night.cs[night.cs.length-1]==="ด" ? "เลิกเวร → กลับไปนอนเลย 🛌" : "เลิกเวร"]].filter(Boolean);
     h += `<p class="h3">${dd<=1 ? "คืนนี้มีเวรดึก" : "คืนพรุ่งนี้มีเวรดึก"} 🌙</p><p class="hello" style="font-size:13px">${DOWF[night.st.getDay()]} ${night.st.getDate()} ${MSH[night.st.getMonth()]} · ตารางดูแลตัวเอง</p>
       <div class="tl">${L.map(([col, t, x]) => `<p${col?` style="--c:${col}"`:""}><b>${t}</b> ${x}</p>`).join("")}</div>`;
-  }
-  const work = B.find(b => b.st <= n && b.en > n) || B.find(b => sameDay(b.st, n));
-  if (c.water && work){
-    const k = (DATA.water||{})[dk(n)] || 0;
-    h += `${h?'<div style="height:12px"></div>':""}<div class="wat"><span style="font-size:28px">💧</span><div style="flex:1"><p class="h3" style="font-size:15px">วันนี้ดื่มน้ำแล้ว ${k} / 8 แก้ว</p><div class="bar"><div style="width:${Math.min(100,k/8*100)}%;background:#4fb3e8"></div></div></div><button onclick="drink()">+1 แก้ว</button></div>`;
   }
   el.style.display = h ? "" : "none"; el.innerHTML = h;
 }
@@ -1126,7 +1119,6 @@ if (!DATA){
 }
 initView(); renderAll();
 if (DATA.restored) setTimeout(()=>toast("กู้ข้อมูลจาก iCloud แล้ว"), 600);
-if (DATA.drank) setTimeout(()=>toast(`ดื่มน้ำแล้ววันนี้ ${DATA.drank} แก้ว 💧`), 600);
 </script>
 </body>
 </html>
