@@ -74,11 +74,11 @@ function tx(c, s, x, y, w, h, font, color, align) {
 }
 function img(c, I, name, x, y, s) { if (I[name]) c.drawImageInRect(I[name], new Rect(x, y, s, s)); }
 function drawBg(c, sz, T) {
-  const n = 48, soft = h => T.dark ? h : mixHex(h, "#FFFFFF", 0.1);    // ธีมสว่าง: พื้นนวลขึ้น ช่องสีเด่นขึ้น
+  const n = 48, soft = h => T.dark ? h : mixHex(h, "#FFC6DE", 0.55);    // ธีมสว่าง: พื้นนวลขึ้น ช่องสีเด่นขึ้น
   for (let i = 0; i < n; i++) { c.setFillColor(CA(mixHex(soft(T.g1), soft(T.g2), i / (n - 1)))); c.fillRect(new Rect(0, sz.height * i / n, sz.width, sz.height / n + 1)); }
   const blob = (cx, cy, r, hex, a) => { for (let k = 18; k >= 1; k--) { const q = r * k / 18; c.setFillColor(CA(hex, a / 18)); c.fillEllipse(new Rect(cx - q, cy - q, q * 2, q * 2)); } };
-  blob(sz.width * 0.92, -sz.height * 0.08, sz.width * 0.5, T.b1, T.dark ? 0.5 : 0.6);
-  blob(sz.width * 0.05, sz.height * 1.08, sz.width * 0.5, T.b2, T.dark ? 0.45 : 0.55);
+  blob(sz.width * 0.92, -sz.height * 0.08, sz.width * 0.5, T.dark ? T.b1 : "#FF9CC8", T.dark ? 0.5 : 0.55);
+  blob(sz.width * 0.05, sz.height * 1.08, sz.width * 0.5, T.dark ? T.b2 : "#F7A8E0", T.dark ? 0.45 : 0.5);
   if (!T.dark) blob(sz.width * 0.55, sz.height * 0.5, sz.width * 0.38, "#FFE4D6", 0.18);   // ไล่สีพีชกลางๆ ให้ละมุน
 }
 const shortName = d => String(d.me || "").replace(/^(นางสาว|นาง|นาย)/, "").split(" ")[0];
