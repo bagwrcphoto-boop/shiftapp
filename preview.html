@@ -243,6 +243,9 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
     <div class="set"><span class="l"><i data-i="ai"></i>AI อ่านรูป</span>
       <select id="setAI" onchange="saveSettings()"><option value="claude">Claude</option><option value="gemini" disabled>Gemini (ปิดชั่วคราว)</option></select></div>
   </div>
+  <div class="card"><p class="lbl">การแจ้งเตือน</p>
+    <p class="note" style="margin:2px 0 10px">ถ้าไม่มีแจ้งเตือนเด้ง ให้เปิด "อนุญาตการแจ้งเตือน" ของ Scriptable</p>
+    <div class="grid2"><button class="btn" onclick="send('openNotiSettings')">ไปตั้งค่าแจ้งเตือน</button><button class="btn" onclick="send('testNoti')">ทดสอบแจ้งเตือน</button></div></div>
   <div class="card"><p class="lbl">ดูแลตัวเองช่วงเวร</p>
     <div class="set"><span class="l">💧 เตือนดื่มน้ำระหว่างเวร</span><div class="sw" id="cWater" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <div class="set"><span class="l" style="padding-left:28px">ทุก</span><select id="cWaterH" onchange="saveSettings()"><option value="1">1 ชั่วโมง</option><option value="2">2 ชั่วโมง</option><option value="3">3 ชั่วโมง</option></select></div>
@@ -1370,6 +1373,16 @@ if (!DATA){
     months:{"2026-12":{people, totals:{[me]:30}, work:{[me]:19}}}, notes:{"2026-12-03":"ประชุมวอร์ด 13:00 (ตัวอย่าง)","2026-12-08":"แลกเวรกับเพื่อน เอ (ตัวอย่าง)"}};
 }
 initView(); renderAll();
+function notiIntro(){      // เปิดแอปครั้งแรก: ชวนเปิดแจ้งเตือน
+  $("sheet").innerHTML = `<div class="grab"></div><h2 class="big" style="font-size:22px">🔔 เปิดแจ้งเตือนกันก่อน</h2>
+    <p class="hello" style="margin:6px 0 14px;font-size:15px">แอปจะเตือนก่อนขึ้นเวร เตือนดื่มน้ำ กินข้าว และเตรียมตัวก่อนเวรดึก<br>ต้องอนุญาตการแจ้งเตือนของ Scriptable ก่อนนะ</p>
+    <button class="btn main" style="width:100%;margin-bottom:10px" onclick="send('testNoti');notiDone()">${ic("bell")}ทดสอบแจ้งเตือน (กด "อนุญาต" ถ้ามีถาม)</button>
+    <button class="btn" style="width:100%;margin-bottom:10px" onclick="send('openNotiSettings');notiDone()">ไปตั้งค่าแจ้งเตือน</button>
+    <button class="btn" style="width:100%" onclick="notiDone();closeSheet()">ไว้ทีหลัง</button>`;
+  openSheet();
+}
+function notiDone(){ if (DATA.settings.notiAsked) return; DATA.settings.notiAsked = true; send("saveSettings", DATA.settings); }
+if (!DATA.preview && !DATA.settings.notiAsked) setTimeout(notiIntro, 700);
 if (DATA.restored) setTimeout(()=>toast("กู้ข้อมูลจาก iCloud แล้ว"), 600);
 </script>
 </body>

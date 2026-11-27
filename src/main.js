@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 41";
+const APP_VERSION = "28 พ.ย. 69 · 42";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -395,10 +395,16 @@ function shiftBlocks(list) {
   for (const x of list) { const b = out[out.length - 1]; if (b && x.st.getTime() === b.en.getTime()) { b.en = x.en; b.cs.push(x.c); } else out.push({ c: x.c, st: x.st, en: x.en, cs: [x.c] }); }
   return out;
 }
-async function syncNotifications(d) {
-  const pend = await Notification.allPending();
-  const ids = pend.filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
-  if (ids.length) await Notification.removePending(ids);
+let NEWIDS = null;
+async function sched(n) { await n.schedule(); if (NEWIDS) NEWIDS.add(n.identifier); }
+async function syncNotifications(d) {      // ตั้งชุดใหม่ก่อน (id เดิมจะถูกแทนที่) แล้วค่อยลบอันที่ไม่ใช้แล้ว → ถ้าถูกตัดกลางคันก็ไม่หายหมด
+  const old = (await Notification.allPending()).filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
+  NEWIDS = new Set();
+  try { await scheduleAll(d); } catch (e) { NEWIDS = null; throw e; }      // ล้มกลางคัน → เก็บของเดิมไว้
+  const gone = old.filter(id => !NEWIDS.has(id)); NEWIDS = null;
+  if (gone.length) await Notification.removePending(gone);
+}
+async function scheduleAll(d) {
   const before = +d.settings.notify, now = new Date(), all = shiftBlocks(allMyShifts(d));   // เวรต่อกันเตือนครั้งเดียวตอนเริ่ม
   if (d.settings.eve !== false) {              // เตือนเวรพรุ่งนี้ 20:00 (ล่วงหน้า 14 วัน)
     const byDay = {};
@@ -409,7 +415,7 @@ async function syncNotifications(d) {
       const n = new Notification();
       n.identifier = `shiftapp-eve-${t}`; n.threadIdentifier = "shiftapp";
       n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
-      n.setTriggerDate(at); await n.schedule();
+      n.setTriggerDate(at); await sched(n);
     }
   }
   {                                            // ใกล้สิ้นเดือน ยังไม่มีตารางเดือนหน้า → เตือนอัปโหลด (วันที่ 25 และวันสุดท้าย 10:00)
@@ -420,7 +426,7 @@ async function syncNotifications(d) {
       const n = new Notification();
       n.identifier = `shiftapp-upload-${key}-${day}`; n.threadIdentifier = "shiftapp";
       n.title = "ยังไม่มีตารางเวรเดือนหน้า"; n.body = `ได้ตารางเดือน${MONTHS[nx.getMonth()]}แล้ว ถ่ายรูปส่งเข้าแอปได้เลย`;
-      n.setTriggerDate(at); await n.schedule();
+      n.setTriggerDate(at); await sched(n);
     }
   }
   await scheduleCare(d, all, now);
@@ -433,7 +439,7 @@ async function syncNotifications(d) {
     n.title = `${x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n} เริ่ม ${hhmm(x.st)}`;
     n.body = before >= 60 ? `อีก ${before / 60} ชั่วโมงขึ้นเวรแล้วนะ` : `อีก ${before} นาทีขึ้นเวรแล้วนะ`;
     n.setTriggerDate(new Date(x.st.getTime() - before * 6e4));
-    await n.schedule();
+    await sched(n);
   }
 }
 // ---------------- ดูแลตัวเองช่วงเวร: ดื่มน้ำ / กินข้าว / เตรียมเวรดึก / ไปนอน ----------------
@@ -464,7 +470,7 @@ async function scheduleCare(d, all, now) {
     const n = new Notification();
     n.identifier = `shiftapp-care-${it.id}`; n.threadIdentifier = "shiftapp";
     n.title = it.title; n.body = it.body;
-    n.setTriggerDate(it.at); await n.schedule();
+    n.setTriggerDate(it.at); await sched(n);
   }
 }
 async function syncAll(d) {
@@ -561,6 +567,12 @@ async function runApp() {
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); await call(`window.reapplyTrades && reapplyTrades(${js(k)})`); }
       });
+    } else if (m.type === "testNoti") {          // ครั้งแรกที่ตั้งแจ้งเตือน iOS จะถามอนุญาตเอง
+      const n = new Notification(); n.identifier = "shiftapp-test"; n.threadIdentifier = "shiftapp-test";
+      n.title = "🔔 แจ้งเตือนใช้ได้แล้ว"; n.body = "ถ้าเห็นข้อความนี้ แปลว่าแอปเวรเตือนได้ปกติ"; n.setTriggerDate(new Date(Date.now() + 5000));
+      await n.schedule(); await call(`toast(${js("อีก 5 วินาทีจะมีแจ้งเตือนเด้ง")})`); return;
+    } else if (m.type === "openNotiSettings") {
+      Safari.open("app-settings:"); return;
     } else if (m.type === "backupNow") {
       backupData(d); const ok = !!icloudFm();
       await call(`toast(${js(ok ? "สำรองไป iCloud แล้ว" : "ใช้ iCloud ไม่ได้ (เปิด iCloud Drive ให้ Scriptable ก่อน)")})`); return;
@@ -700,7 +712,12 @@ async function buildWidget(d, now, family) {
 
 // ---------------- เริ่มทำงาน ----------------
 if (config.runsInWidget || config.runsInAccessoryWidget) {
-  Script.setWidget(await buildWidget(loadData(), new Date(), config.widgetFamily));
+  const wd = loadData();
+  Script.setWidget(await buildWidget(wd, new Date(), config.widgetFamily));
+  const stamp = fm.joinPath(fm.documentsDirectory(), "shiftapp-notisync.txt");   // วิดเจ็ตรีเฟรช → ตั้งแจ้งเตือนวันข้างหน้าใหม่เอง (ไม่เกินทุก 30 นาที)
+  if (!fm.fileExists(stamp) || Date.now() - +fm.readString(stamp) > 30 * 6e4) {
+    try { await syncNotifications(wd); fm.writeString(stamp, String(Date.now())); } catch (e) { console.log("widget notify: " + e); }
+  }
 } else if (config.runsWithSiri || config.runsFromShortcut) {   // "หวัดดี Siri เวรถัดไป"
   const ans = siriAnswer(loadData(), new Date());
   if (config.runsWithSiri) Speech.speak(ans);
