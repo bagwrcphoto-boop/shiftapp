@@ -196,7 +196,7 @@ select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:
       <select id="setNotify" onchange="saveSettings()"><option value="0">ปิด</option><option value="30">30 นาที</option><option value="60">1 ชั่วโมง</option><option value="120">2 ชั่วโมง</option><option value="720">12 ชั่วโมง</option></select></div>
     <div class="set"><span class="l"><i data-i="calsync"></i>ใส่เวรในปฏิทิน iPhone</span><div class="sw" id="setCal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <div class="set"><span class="l"><i data-i="ai"></i>AI อ่านรูป</span>
-      <select id="setAI" onchange="saveSettings()"><option value="gemini">Gemini (ฟรี)</option><option value="claude">Claude</option></select></div>
+      <select id="setAI" onchange="saveSettings()"><option value="claude">Claude</option><option value="gemini" disabled>Gemini (ปิดชั่วคราว)</option></select></div>
   </div>
   <div class="card">
     <div class="set"><span class="l"><i data-i="user"></i>ชื่อในตาราง</span><span class="r" id="setName"></span></div>
@@ -481,7 +481,7 @@ function renderSet(){
   $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ไม่ใช้";
   $("setNotify").value = String(DATA.settings.notify);
   $("setCal").classList.toggle("on", !!DATA.settings.calendar);
-  $("setAI").value = DATA.settings.ai || "gemini";
+  $("setAI").value = "claude";
 }
 function saveSettings(){
   DATA.settings.notify = +$("setNotify").value;

@@ -10,6 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
+const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
 const CLAUDE_MODEL = "claude-sonnet-5-5";
@@ -152,7 +153,7 @@ function parseRoster(text, me) {
   return { year, month, people, totals };
 }
 async function readRoster(b64, d) {
-  const ai = d.settings.ai === "claude" ? "claude" : "gemini";
+  const ai = GEMINI_OFF ? "claude" : (d.settings.ai === "claude" ? "claude" : "gemini");
   const k = getKey(ai);
   if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (วางไว้บนสุดของสคริปต์ หรือใส่ในหน้าตั้งค่า)`);
   const text = ai === "claude" ? await askClaude(b64, k) : await askGemini(b64, k);

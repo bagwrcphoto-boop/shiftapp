@@ -10,6 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
+const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
 const CLAUDE_MODEL = "claude-sonnet-5-5";
@@ -160,7 +161,7 @@ function parseRoster(text, me) {
   return { year, month, people, totals };
 }
 async function readRoster(b64, d) {
-  const ai = d.settings.ai === "claude" ? "claude" : "gemini";
+  const ai = GEMINI_OFF ? "claude" : (d.settings.ai === "claude" ? "claude" : "gemini");
   const k = getKey(ai);
   if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (วางไว้บนสุดของสคริปต์ หรือใส่ในหน้าตั้งค่า)`);
   const text = ai === "claude" ? await askClaude(b64, k) : await askGemini(b64, k);
@@ -406,7 +407,7 @@ const APP_HTML = [
 "      <select id=\"setNotify\" onchange=\"saveSettings()\"><option value=\"0\">\u0e1b\u0e34\u0e14</option><option value=\"30\">30 \u0e19\u0e32\u0e17\u0e35</option><option value=\"60\">1 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"120\">2 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"720\">12 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option></select></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"calsync\"></i>\u0e43\u0e2a\u0e48\u0e40\u0e27\u0e23\u0e43\u0e19\u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 iPhone</span><div class=\"sw\" id=\"setCal\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"ai\"></i>AI \u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b</span>",
-"      <select id=\"setAI\" onchange=\"saveSettings()\"><option value=\"gemini\">Gemini (\u0e1f\u0e23\u0e35)</option><option value=\"claude\">Claude</option></select></div>",
+"      <select id=\"setAI\" onchange=\"saveSettings()\"><option value=\"claude\">Claude</option><option value=\"gemini\" disabled>Gemini (\u0e1b\u0e34\u0e14\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27)</option></select></div>",
 "  </div>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"user\"></i>\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><span class=\"r\" id=\"setName\"></span></div>",
@@ -691,7 +692,7 @@ const APP_HTML = [
 "  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e49\";",
 "  $(\"setNotify\").value = String(DATA.settings.notify);",
 "  $(\"setCal\").classList.toggle(\"on\", !!DATA.settings.calendar);",
-"  $(\"setAI\").value = DATA.settings.ai || \"gemini\";",
+"  $(\"setAI\").value = \"claude\";",
 "}",
 "function saveSettings(){",
 "  DATA.settings.notify = +$(\"setNotify\").value;",
