@@ -428,6 +428,42 @@ window.makeTiles2 = function(k, days, mode){
   }));
 };
 
+// ---- ตรวจ ช/บ/ด ซ้ำแบบเทียบกับตัวอย่างจากตารางเดียวกัน ----
+function halfBox(k, d, half){
+  const g = GRID.g, [y0, y1] = g.bands[k-1], xi = d - 1, w = g.xs[xi+1] - g.xs[xi], padx = w * 0.06, h = y1 - y0, mid = y0 + h * 0.5;
+  return half === "top" ? [g.xs[xi] + padx, y0 + h*0.04, w - padx*2, h*0.48] : [g.xs[xi] + padx, mid, w - padx*2, h*0.46];
+}
+// ครึ่งไหนมีตัวอักษร (ดูจากความต่างระหว่างหมึกกับพื้น)
+window.halfInk = function(k, days){
+  const out = {};
+  for (let d = 1; d <= days; d++){ out[d] = {};
+    for (const half of ["top", "bot"]){
+      const [sx, sy, sw, sh] = halfBox(k, d, half), c = gridCrop(sx, sy, sw, sh, 40, 30), p = c.getContext("2d").getImageData(0, 0, 40, 30).data, v = [];
+      for (let i = 0; i < p.length; i += 4) v.push(Math.max(p[i], p[i+1], p[i+2]));
+      v.sort((a, b) => a - b); out[d][half] = v[Math.floor(v.length*0.6)] - v[Math.floor(v.length*0.02)] > 60;
+    } }
+  return JSON.stringify(out);
+};
+// รูปตัวอย่าง (legend) + รูปตัวที่ต้องตรวจ แต่ละตัวขยายใหญ่ มีเลขกำกับ
+window.glyphSheet = function(k, items, legend){
+  const S = 110, gap = 12, lab = 34;
+  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(k, it.d, it.half); return gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw)); };
+  const draw = (rows) => {
+    const per = 8, hh = Math.round(S * 0.95), H = rows.reduce((a, r) => a + Math.ceil(r.items.length / per) * (hh + lab + gap) + 40, gap), W = per * (S + gap) + gap + 10;
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
+    let y = gap;
+    for (const r of rows){ x.fillStyle = "#333"; x.font = "700 26px sans-serif"; x.textAlign = "left"; x.textBaseline = "top"; x.fillText(r.title, gap, y); y += 36;
+      r.items.forEach((it, i) => { const cx = gap + (i % per) * (S + gap), cy = y + Math.floor(i / per) * (hh + lab + gap);
+        x.fillStyle = "#c2185b"; x.font = "700 26px sans-serif"; x.textAlign = "center"; x.fillText(it.label, cx + S/2, cy);
+        const im = cell(it); x.drawImage(im, cx, cy + lab, S, Math.min(hh, im.height)); x.strokeStyle = "#999"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, S, Math.min(hh, im.height)); });
+      y += Math.ceil(r.items.length / per) * (hh + lab + gap) + 4; }
+    return c.toDataURL("image/jpeg", .92).split(",")[1];
+  };
+  const L = draw(["ช", "บ", "ด"].filter(c => legend[c] && legend[c].length).map(c => ({ title: "ตัวอย่างตัว " + c, items: legend[c].map((it, i) => ({ ...it, label: c })) })));
+  const Q = draw([{ title: "ตัวที่ต้องตรวจ", items: items.map((it, i) => ({ ...it, label: "#" + (i + 1) })) }]);
+  return JSON.stringify([L, Q]);
+};
+
 
 /* ===== ไอคอน ===== */
 const ICON_NAMES = {sun:["sun","sun"],sunset:["sun-horizon","sunset-2"],moon:["moon-stars","moon"],off:["coffee","zzz"],alarm:["alarm","alarm"],

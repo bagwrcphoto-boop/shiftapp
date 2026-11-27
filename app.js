@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 26";
+const APP_VERSION = "27 พ.ย. 69 · 27";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -274,6 +274,31 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
       if (pick !== undefined && v.some(x => x !== pick)) uncertain.push(dd);
     }
   }
+  // ตรวจซ้ำ ช/บ/ด: ตัดตัวอักษรแต่ละตัวมาเทียบกับตัวอย่างจากตารางเดียวกัน (ฟอนต์เดียวกัน)
+  try {
+    progress("เทียบตัว ช / บ / ด กับตัวอย่างในตาราง…");
+    const ink = JSON.parse(await page(`halfInk(${+j.label}, ${days})`)), glyphs = [];
+    for (let dd = 1; dd <= days; dd++){ const s = sortS(final[dd]), h = ink[dd] || {};
+      if (s.length === 2) { glyphs.push({ d: dd, half: "top", c: s[0] }, { d: dd, half: "bot", c: s[1] }); }
+      else if (s.length === 1) { if (h.bot && !h.top) glyphs.push({ d: dd, half: "bot", c: s[0] }); else if (h.top && !h.bot) glyphs.push({ d: dd, half: "top", c: s[0] }); } }
+    const agree = g => val(r1, g.d) === val(r2, g.d) && !uncertain.includes(g.d), legend = {};
+    for (const c of ["ช", "บ", "ด"]) legend[c] = glyphs.filter(g => g.c === c && agree(g)).slice(0, 4);
+    const exm = new Set(Object.values(legend).flat()), items = glyphs.filter(g => !exm.has(g));
+    if (items.length && legend["ช"].length && legend["บ"].length) {
+      const [L, Q] = JSON.parse(await page(`glyphSheet(${+j.label}, ${JSON.stringify(items.map(g => ({ d: g.d, half: g.half })))}, ${JSON.stringify(Object.fromEntries(Object.entries(legend).map(([c, a]) => [c, a.map(g => ({ d: g.d, half: g.half }))])))})`));
+      const t = await claudeCallN(CLAUDE_STRONG, [L, Q],
+`รูปที่ 1 คือตัวอย่างตัวอักษรจากตารางเดียวกัน (ฟอนต์และขนาดเดียวกัน) แยกเป็นตัว ช, ตัว บ, ตัว ด
+รูปที่ 2 คือตัวอักษรที่ต้องตรวจ มีเลขกำกับ #1, #2, ...
+เทียบรูปร่างกับตัวอย่างทีละตัว (ไม่ต้องดูสีพื้น) แล้วบอกว่าแต่ละตัวคือ ช, บ หรือ ด
+ระวัง ช กับ บ: ช มีหยักเล็กๆ ที่หัวด้านบนซ้าย บ หัวเรียบ
+ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด`, key, 1500);
+      const fix = {};
+      for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบด])/g)) { const g = items[+x[1] - 1]; if (g && g.c !== x[2]) fix[g.d + g.half] = x[2]; }
+      for (const g of glyphs) if (fix[g.d + g.half]) {
+        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = fix[g.d + g.half];
+        final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); }
+    }
+  } catch (e) { console.log("glyph check: " + e); }
   const my = { days: final, count: cnt(final) };
   return { year, month, days: my.days, total, workdays, vdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
@@ -808,6 +833,42 @@ const APP_HTML = [
 "    }",
 "    return c.toDataURL(\"image/jpeg\", .92).split(\",\")[1];",
 "  }));",
+"};",
+"",
+"// ---- \u0e15\u0e23\u0e27\u0e08 \u0e0a/\u0e1a/\u0e14 \u0e0b\u0e49\u0e33\u0e41\u0e1a\u0e1a\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e08\u0e32\u0e01\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e35\u0e22\u0e27\u0e01\u0e31\u0e19 ----",
+"function halfBox(k, d, half){",
+"  const g = GRID.g, [y0, y1] = g.bands[k-1], xi = d - 1, w = g.xs[xi+1] - g.xs[xi], padx = w * 0.06, h = y1 - y0, mid = y0 + h * 0.5;",
+"  return half === \"top\" ? [g.xs[xi] + padx, y0 + h*0.04, w - padx*2, h*0.48] : [g.xs[xi] + padx, mid, w - padx*2, h*0.46];",
+"}",
+"// \u0e04\u0e23\u0e36\u0e48\u0e07\u0e44\u0e2b\u0e19\u0e21\u0e35\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23 (\u0e14\u0e39\u0e08\u0e32\u0e01\u0e04\u0e27\u0e32\u0e21\u0e15\u0e48\u0e32\u0e07\u0e23\u0e30\u0e2b\u0e27\u0e48\u0e32\u0e07\u0e2b\u0e21\u0e36\u0e01\u0e01\u0e31\u0e1a\u0e1e\u0e37\u0e49\u0e19)",
+"window.halfInk = function(k, days){",
+"  const out = {};",
+"  for (let d = 1; d <= days; d++){ out[d] = {};",
+"    for (const half of [\"top\", \"bot\"]){",
+"      const [sx, sy, sw, sh] = halfBox(k, d, half), c = gridCrop(sx, sy, sw, sh, 40, 30), p = c.getContext(\"2d\").getImageData(0, 0, 40, 30).data, v = [];",
+"      for (let i = 0; i < p.length; i += 4) v.push(Math.max(p[i], p[i+1], p[i+2]));",
+"      v.sort((a, b) => a - b); out[d][half] = v[Math.floor(v.length*0.6)] - v[Math.floor(v.length*0.02)] > 60;",
+"    } }",
+"  return JSON.stringify(out);",
+"};",
+"// \u0e23\u0e39\u0e1b\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07 (legend) + \u0e23\u0e39\u0e1b\u0e15\u0e31\u0e27\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e15\u0e23\u0e27\u0e08 \u0e41\u0e15\u0e48\u0e25\u0e30\u0e15\u0e31\u0e27\u0e02\u0e22\u0e32\u0e22\u0e43\u0e2b\u0e0d\u0e48 \u0e21\u0e35\u0e40\u0e25\u0e02\u0e01\u0e33\u0e01\u0e31\u0e1a",
+"window.glyphSheet = function(k, items, legend){",
+"  const S = 110, gap = 12, lab = 34;",
+"  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(k, it.d, it.half); return gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw)); };",
+"  const draw = (rows) => {",
+"    const per = 8, hh = Math.round(S * 0.95), H = rows.reduce((a, r) => a + Math.ceil(r.items.length / per) * (hh + lab + gap) + 40, gap), W = per * (S + gap) + gap + 10;",
+"    const c = document.createElement(\"canvas\"); c.width = W; c.height = H; const x = c.getContext(\"2d\"); x.fillStyle = \"#fff\"; x.fillRect(0, 0, W, H);",
+"    let y = gap;",
+"    for (const r of rows){ x.fillStyle = \"#333\"; x.font = \"700 26px sans-serif\"; x.textAlign = \"left\"; x.textBaseline = \"top\"; x.fillText(r.title, gap, y); y += 36;",
+"      r.items.forEach((it, i) => { const cx = gap + (i % per) * (S + gap), cy = y + Math.floor(i / per) * (hh + lab + gap);",
+"        x.fillStyle = \"#c2185b\"; x.font = \"700 26px sans-serif\"; x.textAlign = \"center\"; x.fillText(it.label, cx + S/2, cy);",
+"        const im = cell(it); x.drawImage(im, cx, cy + lab, S, Math.min(hh, im.height)); x.strokeStyle = \"#999\"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, S, Math.min(hh, im.height)); });",
+"      y += Math.ceil(r.items.length / per) * (hh + lab + gap) + 4; }",
+"    return c.toDataURL(\"image/jpeg\", .92).split(\",\")[1];",
+"  };",
+"  const L = draw([\"\u0e0a\", \"\u0e1a\", \"\u0e14\"].filter(c => legend[c] && legend[c].length).map(c => ({ title: \"\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e15\u0e31\u0e27 \" + c, items: legend[c].map((it, i) => ({ ...it, label: c })) })));",
+"  const Q = draw([{ title: \"\u0e15\u0e31\u0e27\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e15\u0e23\u0e27\u0e08\", items: items.map((it, i) => ({ ...it, label: \"#\" + (i + 1) })) }]);",
+"  return JSON.stringify([L, Q]);",
 "};",
 "",
 "",

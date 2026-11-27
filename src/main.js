@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 26";
+const APP_VERSION = "27 พ.ย. 69 · 27";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -266,6 +266,31 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
       if (pick !== undefined && v.some(x => x !== pick)) uncertain.push(dd);
     }
   }
+  // ตรวจซ้ำ ช/บ/ด: ตัดตัวอักษรแต่ละตัวมาเทียบกับตัวอย่างจากตารางเดียวกัน (ฟอนต์เดียวกัน)
+  try {
+    progress("เทียบตัว ช / บ / ด กับตัวอย่างในตาราง…");
+    const ink = JSON.parse(await page(`halfInk(${+j.label}, ${days})`)), glyphs = [];
+    for (let dd = 1; dd <= days; dd++){ const s = sortS(final[dd]), h = ink[dd] || {};
+      if (s.length === 2) { glyphs.push({ d: dd, half: "top", c: s[0] }, { d: dd, half: "bot", c: s[1] }); }
+      else if (s.length === 1) { if (h.bot && !h.top) glyphs.push({ d: dd, half: "bot", c: s[0] }); else if (h.top && !h.bot) glyphs.push({ d: dd, half: "top", c: s[0] }); } }
+    const agree = g => val(r1, g.d) === val(r2, g.d) && !uncertain.includes(g.d), legend = {};
+    for (const c of ["ช", "บ", "ด"]) legend[c] = glyphs.filter(g => g.c === c && agree(g)).slice(0, 4);
+    const exm = new Set(Object.values(legend).flat()), items = glyphs.filter(g => !exm.has(g));
+    if (items.length && legend["ช"].length && legend["บ"].length) {
+      const [L, Q] = JSON.parse(await page(`glyphSheet(${+j.label}, ${JSON.stringify(items.map(g => ({ d: g.d, half: g.half })))}, ${JSON.stringify(Object.fromEntries(Object.entries(legend).map(([c, a]) => [c, a.map(g => ({ d: g.d, half: g.half }))])))})`));
+      const t = await claudeCallN(CLAUDE_STRONG, [L, Q],
+`รูปที่ 1 คือตัวอย่างตัวอักษรจากตารางเดียวกัน (ฟอนต์และขนาดเดียวกัน) แยกเป็นตัว ช, ตัว บ, ตัว ด
+รูปที่ 2 คือตัวอักษรที่ต้องตรวจ มีเลขกำกับ #1, #2, ...
+เทียบรูปร่างกับตัวอย่างทีละตัว (ไม่ต้องดูสีพื้น) แล้วบอกว่าแต่ละตัวคือ ช, บ หรือ ด
+ระวัง ช กับ บ: ช มีหยักเล็กๆ ที่หัวด้านบนซ้าย บ หัวเรียบ
+ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด`, key, 1500);
+      const fix = {};
+      for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบด])/g)) { const g = items[+x[1] - 1]; if (g && g.c !== x[2]) fix[g.d + g.half] = x[2]; }
+      for (const g of glyphs) if (fix[g.d + g.half]) {
+        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = fix[g.d + g.half];
+        final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); }
+    }
+  } catch (e) { console.log("glyph check: " + e); }
   const my = { days: final, count: cnt(final) };
   return { year, month, days: my.days, total, workdays, vdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
