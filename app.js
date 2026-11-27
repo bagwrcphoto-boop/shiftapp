@@ -1,0 +1,1013 @@
+// ===================================================================
+//  เวรของฉัน — แอปตารางเวร + วิดเจ็ต สำหรับ Scriptable (iPhone)
+//  เปิดในแอป   = หน้าแอปเต็ม (ปฏิทิน / สรุป / เพื่อน / ตั้งค่า)
+//  วิดเจ็ต      = เล็ก · กลาง · ใหญ่ · หน้าจอล็อก (เลือกขนาดตอนเพิ่มวิดเจ็ต)
+//  ช = เช้า 08-16 · บ = บ่าย 16-24 · ด = ดึก 00-08
+// ===================================================================
+
+// ค่าตั้งต้นมาจากตัวโหลด (ShiftApp บนมือถือ) — ไม่มี key อยู่ในไฟล์นี้
+const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
+const GEMINI_KEY = String(CFG.geminiKey || "");
+const CLAUDE_KEY = String(CFG.claudeKey || "");
+
+const DEFAULT_NAME = String(CFG.name || "");
+const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
+const CLAUDE_MODEL = "claude-sonnet-5-5";
+const K_GEMINI = "shiftapp_gemini_key", K_CLAUDE = "shift_claude_api_key", K_NAME_OLD = "shift_my_name";
+const CAL_NAME = "เวรของฉัน";
+
+const PALETTES = {
+ sakura:{name:"ชมพูซากุระ",accent:"#E0457F",title:"#6A1C44",sub:"#8A3D63",text:"#3E2230",body:"#FDE7F0",tint:"#FCE4EC",blobs:["#FF9EC4","#C9B6FF","#FFC8A8","#A8D8FF"],dark:{body:"#1B1029",card:"#2A1A3D",accent:"#FF79B5",title:"#FFF0F7",sub:"#F2C9DF",blobs:["#B0237A","#5A2DB8","#E0457E","#3A54C9"]}},
+ sky:{name:"ฟ้าใส",accent:"#2F78D6",title:"#123563",sub:"#365B8C",text:"#1C2A3E",body:"#E6F0FD",tint:"#DDEBFC",blobs:["#9CC8FF","#B8E6FF","#C9C2FF","#A8F0E0"],dark:{body:"#0D1830",card:"#17264A",accent:"#6FB0FF",title:"#EEF5FF",sub:"#BCD4F2",blobs:["#1F4FA8","#3A2C9C","#1C7FA0","#2A3FB8"]}},
+ mint:{name:"มิ้นต์",accent:"#14916B",title:"#0D4434",sub:"#2B6654",text:"#1A352C",body:"#E3F6EE",tint:"#D8F2E6",blobs:["#9EEBCB","#BDEBFF","#FFF0A8","#C8F0B0"],dark:{body:"#0C1F1A",card:"#14302A",accent:"#5FE0B0",title:"#EDFFF7",sub:"#B8E8D4",blobs:["#137A5C","#1E6A8C","#4A7A1E","#106E6E"]}},
+ lavender:{name:"ลาเวนเดอร์",accent:"#7A4FE0",title:"#35206A",sub:"#56408E",text:"#2A2040",body:"#EFE9FF",tint:"#E8E0FF",blobs:["#C9B6FF","#FFB8E0","#B6D0FF","#E0C8FF"],dark:{body:"#17112B",card:"#251C42",accent:"#B497FF",title:"#F4EFFF",sub:"#D4C6F5",blobs:["#5A2DB8","#8E2A88","#3446B0","#6A3AC0"]}},
+ peach:{name:"พีช",accent:"#E0612F",title:"#662812",sub:"#8C4A2B",text:"#3C281E",body:"#FFEFE4",tint:"#FFE6D6",blobs:["#FFC2A0","#FFD9A0","#FFB0C0","#FFE7B0"],dark:{body:"#24130C",card:"#3A2216",accent:"#FF9D70",title:"#FFF3EC",sub:"#F2CDB8",blobs:["#B04A1E","#A8306A","#B07A18","#8A3A2A"]}},
+ mocha:{name:"ครีมมอคค่า",accent:"#9C6A45",title:"#47301F",sub:"#6E523E",text:"#352619",body:"#F5EDE4",tint:"#EFE3D6",blobs:["#E8D2BC","#F2DCC8","#DCC4B0","#EADBC8"],dark:{body:"#1C1511",card:"#2E241D",accent:"#D9A97F",title:"#FAF2EA",sub:"#DCC7B4",blobs:["#6E4A30","#5A3E2E","#7A5638","#4E3A2C"]}},
+};
+
+
+const SH = { "ด": { n: "เวรดึก", s: 0, sym: "moon.stars.fill" }, "ช": { n: "เวรเช้า", s: 8, sym: "sun.max.fill" }, "บ": { n: "เวรบ่าย", s: 16, sym: "sunset.fill" } };
+const ORD = { "ด": 0, "ช": 1, "บ": 2 };
+const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+const pad = n => String(n).padStart(2, "0");
+const key = (y, m) => `${y}-${pad(m + 1)}`;
+const sortS = s => (s || "").split("").filter(c => ORD[c] != null).sort((a, b) => ORD[a] - ORD[b]);
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+// ---------------- เก็บข้อมูล ----------------
+const fm = FileManager.local();
+const FILE = fm.joinPath(fm.documentsDirectory(), "shiftapp-data.json");
+const OLD_FILE = fm.joinPath(fm.documentsDirectory(), "shifts.json");
+
+function loadData() {
+  let d;
+  if (fm.fileExists(FILE)) d = JSON.parse(fm.readString(FILE));
+  else {
+    const me = Keychain.contains(K_NAME_OLD) ? Keychain.get(K_NAME_OLD) : DEFAULT_NAME;
+    d = { me, months: {}, settings: {} };
+    if (fm.fileExists(OLD_FILE)) {               // ย้ายข้อมูลจากเวอร์ชันก่อน
+      const old = JSON.parse(fm.readString(OLD_FILE));
+      for (const [k, v] of Object.entries(old)) d.months[k] = { people: { [me]: v }, totals: {} };
+    }
+  }
+  d.settings = Object.assign({ notify: 60, calendar: true, ai: "gemini", theme: { style: "glass", palette: "sakura" } }, d.settings || {});
+  return d;
+}
+function saveData(d) { fm.writeString(FILE, JSON.stringify(d)); }
+function getKey(ai) {
+  if (ai === "claude") return Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : CLAUDE_KEY.trim();
+  return Keychain.contains(K_GEMINI) ? Keychain.get(K_GEMINI) : GEMINI_KEY.trim();
+}
+function hasKey() { return { gemini: !!getKey("gemini"), claude: !!getKey("claude") }; }
+
+function allMyShifts(d) {
+  const list = [];
+  for (const [k, md] of Object.entries(d.months)) {
+    const [y, m] = k.split("-").map(Number), me = md.people[d.me] || {};
+    for (const [day, s] of Object.entries(me)) for (const c of sortS(s)) {
+      const st = new Date(y, m - 1, +day, SH[c].s);
+      list.push({ c, st, en: new Date(st.getTime() + 8 * 3600e3) });
+    }
+  }
+  return list.sort((a, b) => a.st - b.st);
+}
+function shiftsOn(d, date) {
+  const md = d.months[key(date.getFullYear(), date.getMonth())];
+  return md && md.people[d.me] ? sortS(md.people[d.me][date.getDate()]) : (md ? [] : null);
+}
+
+// ---------------- ชื่อ ----------------
+const norm = s => String(s).replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/, "").replace(/\s+/g, "");
+function findMe(people, me) {
+  const n = norm(me), names = Object.keys(people);
+  return names.find(x => norm(x) === n) || names.find(x => norm(x).includes(n) || n.includes(norm(x)))
+      || names.find(x => norm(x).split("").filter((c, i) => c === n[i]).length >= n.length - 2 && Math.abs(norm(x).length - n.length) <= 2);
+}
+
+// ---------------- อ่านรูปด้วย AI ----------------
+function shrink(img, maxSide) {
+  const { width, height } = img.size;
+  const sc = Math.min(1, maxSide / Math.max(width, height));
+  if (sc === 1) return img;
+  const ctx = new DrawContext();
+  ctx.size = new Size(Math.round(width * sc), Math.round(height * sc));
+  ctx.opaque = true; ctx.respectScreenScale = false;
+  ctx.drawImageInRect(img, new Rect(0, 0, ctx.size.width, ctx.size.height));
+  return ctx.getImage();
+}
+const PROMPT =
+`รูปนี้คือตารางปฏิบัติงาน (ตารางเวร) พยาบาลรายเดือน ภาษาไทย
+- หัวตารางมีชื่อเดือนและปี พ.ศ. คอลัมน์ตัวเลข 1-31 คือวันที่ของเดือนนั้น (บางวันมีวงกลมล้อมรอบ ไม่ต้องสนใจ)
+- แต่ละคนมี 1 แถว แบ่งเป็นบรรทัดบนกับบรรทัดล่าง ในหนึ่งวันมีได้ 0-2 เวร ให้รวมทั้งบรรทัดบนและล่าง
+- ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, วันเกิด, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
+- คอลัมน์ทางขวาหลังคอลัมน์สรุป (เช่นสีเขียว 31,1,2,3) เป็นเวรล่วงหน้าของเดือนถัดไป ให้ข้าม
+- ไล่ทีละคอลัมน์อย่างระวัง ให้วันที่ตรงกับคอลัมน์จริง
+งาน: อ่านทุกคนในตาราง ตอบเป็น JSON อย่างเดียว รูปแบบ:
+{"year_be":2569,"month":12,"people":[{"name":"ชื่อ นามสกุลตามตาราง","shifts":{"1":"ชด","2":"บ"},"total":30}]}
+shifts ใส่เฉพาะวันที่มีเวร (ใช้ตัวอักษร ช/บ/ด เท่านั้น) total คือเลขในคอลัมน์ "ทำงานจริง" ของคนนั้น (ถ้าไม่มีใส่ null)`;
+
+async function askGemini(b64, apiKey) {
+  let last = "";
+  for (const model of GEMINI_MODELS) {
+    const req = new Request(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
+    req.method = "POST"; req.timeoutInterval = 120;
+    req.headers = { "x-goog-api-key": apiKey, "content-type": "application/json" };
+    req.body = JSON.stringify({
+      contents: [{ role: "user", parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: PROMPT }] }],
+      generationConfig: { temperature: 0, responseMimeType: "application/json" }
+    });
+    const res = await req.loadJSON();
+    if (res.error) {
+      last = res.error.message || JSON.stringify(res.error);
+      if (/api key|API_KEY|permission/i.test(last)) throw new Error("Gemini key ไม่ถูกต้อง: " + last);
+      continue;                                   // รุ่นนี้ใช้ไม่ได้/เต็มโควตา ลองรุ่นถัดไป
+    }
+    const parts = (((res.candidates || [])[0] || {}).content || {}).parts || [];
+    const text = parts.map(p => p.text || "").join("");
+    if (text) return text;
+    last = "Gemini ไม่ตอบกลับ";
+  }
+  throw new Error(last);
+}
+async function askClaude(b64, apiKey) {
+  const req = new Request("https://api.anthropic.com/v1/messages");
+  req.method = "POST"; req.timeoutInterval = 120;
+  req.headers = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+  req.body = JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8000, messages: [{ role: "user", content: [
+    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: PROMPT }] }] });
+  const res = await req.loadJSON();
+  if (res.error) throw new Error(res.error.message || JSON.stringify(res.error));
+  return res.content.map(c => c.text || "").join("");
+}
+function parseRoster(text, me) {
+  const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  const people = {}, totals = {};
+  for (const p of j.people || []) {
+    if (!p.name) continue;
+    const v = {};
+    for (const [day, s] of Object.entries(p.shifts || {})) { const c = sortS(String(s)).join(""); if (c && +day >= 1 && +day <= 31) v[+day] = c; }
+    people[p.name.trim()] = v;
+    if (p.total != null && !isNaN(+p.total)) totals[p.name.trim()] = +p.total;
+  }
+  const found = findMe(people, me);
+  if (found && found !== me) { people[me] = people[found]; delete people[found]; if (found in totals) { totals[me] = totals[found]; delete totals[found]; } }
+  const month = +j.month, year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be;
+  if (!(month >= 1 && month <= 12) || !year) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้");
+  return { year, month, people, totals };
+}
+async function readRoster(b64, d) {
+  const ai = d.settings.ai === "claude" ? "claude" : "gemini";
+  const k = getKey(ai);
+  if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (วางไว้บนสุดของสคริปต์ หรือใส่ในหน้าตั้งค่า)`);
+  const text = ai === "claude" ? await askClaude(b64, k) : await askGemini(b64, k);
+  return parseRoster(text, d.me);
+}
+
+// ---------------- ปฏิทิน iPhone + แจ้งเตือน ----------------
+async function syncCalendar(d) {
+  let cal = null;
+  try { cal = await Calendar.forEventsByTitle(CAL_NAME); } catch (e) {}
+  if (!d.settings.calendar && !cal) return;
+  if (!cal) cal = await Calendar.createForEvents(CAL_NAME);
+  const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setFullYear(end.getFullYear() + 2);
+  for (const e of await CalendarEvent.between(start, end, [cal])) e.remove();
+  if (!d.settings.calendar) return;
+  for (const x of allMyShifts(d).filter(x => x.st >= start)) {
+    const e = new CalendarEvent();
+    e.calendar = cal; e.title = SH[x.c].n; e.startDate = x.st; e.endDate = x.en; e.notes = "จากแอปเวรของฉัน";
+    e.save();
+  }
+}
+async function syncNotifications(d) {
+  const pend = await Notification.allPending();
+  const ids = pend.filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
+  if (ids.length) await Notification.removePending(ids);
+  const before = +d.settings.notify;
+  if (!before) return;
+  const now = new Date();
+  const list = allMyShifts(d).filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 50);
+  for (const x of list) {
+    const n = new Notification();
+    n.identifier = `shiftapp-${x.st.getTime()}-${x.c}`;
+    n.threadIdentifier = "shiftapp";
+    n.title = `${SH[x.c].n} เริ่ม ${hhmm(x.st)}`;
+    n.body = before >= 60 ? `อีก ${before / 60} ชั่วโมงขึ้นเวรแล้วนะ` : `อีก ${before} นาทีขึ้นเวรแล้วนะ`;
+    n.setTriggerDate(new Date(x.st.getTime() - before * 6e4));
+    await n.schedule();
+  }
+}
+async function syncAll(d) {
+  try { await syncCalendar(d); } catch (e) { console.log("calendar: " + e); }
+  try { await syncNotifications(d); } catch (e) { console.log("notify: " + e); }
+}
+
+// ---------------- หน้าแอป ----------------
+const APP_HTML = [
+"<!DOCTYPE html>",
+"<html lang=\"th\">",
+"<head>",
+"<meta charset=\"utf-8\">",
+"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover\">",
+"<link href=\"https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&family=Itim&family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">",
+"<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/duotone/style.css\">",
+"<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css\">",
+"<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css\">",
+"<style>",
+"*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}",
+"html,body{margin:0;min-height:100%}",
+"body{background:var(--body);color:var(--text);font-family:var(--font);padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 100px);-webkit-font-smoothing:antialiased}",
+"h1,h2,h3,p{margin:0}",
+"button{font:inherit;cursor:pointer;color:inherit}",
+"#decor{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}",
+".blob{position:absolute;border-radius:50%;filter:blur(40px);opacity:.85}",
+".page{display:none;animation:fade .25s ease}",
+".page.on{display:block}",
+"@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}",
+".card{background:var(--card);border:var(--cardBorder);box-shadow:var(--cardShadow);border-radius:var(--r);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);padding:16px;margin-bottom:14px}",
+".hello{font-size:16px;font-weight:500;color:var(--sub)}",
+".big{font-size:26px;font-weight:700;color:var(--title)}",
+".h3{font-size:17px;font-weight:700;color:var(--title)}",
+".between{display:flex;align-items:center;justify-content:space-between}",
+".row{display:flex;align-items:center;gap:8px}",
+".grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
+".btn{border:var(--nbBorder);border-radius:16px;padding:12px 14px;font-weight:600;font-size:15px;background:var(--nbBg);color:var(--title);display:inline-flex;align-items:center;justify-content:center;gap:6px}",
+".btn.main{background:var(--accent);color:var(--onAccent);border:none;box-shadow:0 6px 16px var(--accentGlow)}",
+".btn:active,.nb:active,.d:active{transform:scale(.97)}",
+".btn i{font-size:19px}",
+".nb{width:36px;height:36px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--nbBg);border:var(--nbBorder);color:var(--title);font-size:18px}",
+".p{display:inline-flex;align-items:center;justify-content:center;font-weight:700;border-radius:8px;font-size:12px;padding:0 5px;line-height:18px}",
+".m{background:var(--mBg);color:var(--mFg)}.a{background:var(--aBg);color:var(--aFg)}.n{background:var(--nBg);color:var(--nFg)}.o{background:var(--oBg);color:var(--oFg)}",
+"/* hero */",
+".hero{display:flex;justify-content:space-between;align-items:center;background:var(--heroBg)}",
+".hero .when{font-size:14px;font-weight:500;color:var(--heroSub)}",
+".hero .what{font-size:28px;font-weight:700;color:var(--heroTitle);margin-top:2px}",
+".hero .time{font-size:15px;color:var(--heroSub);margin-top:2px}",
+".cd{display:inline-flex;gap:5px;align-items:center;margin-top:10px;background:var(--cdBg);border-radius:12px;padding:4px 10px;font-size:13px;font-weight:500;color:var(--heroTitle)}",
+".orb{width:66px;height:66px;flex:0 0 66px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--orbBg);border:var(--orbBorder)}",
+".orb i{font-size:38px;color:var(--accent)}",
+"/* calendar */",
+".cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}",
+".cal-h .t{font-size:19px;font-weight:700;color:var(--title)}",
+".dow,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}",
+".dow div{font-size:13px;color:var(--sub);font-weight:600;padding-bottom:4px}",
+".d{height:56px;border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:3px;font-size:15px;font-weight:500;border:1px solid transparent}",
+".d.h{background:var(--dayBg);border:var(--dayBorder);box-shadow:var(--dayShadow)}",
+".d .nn{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}",
+".we{color:var(--we)}",
+".d.t .nn{background:var(--accent);color:var(--onAccent);font-weight:700;box-shadow:var(--todayShadow)}",
+".d.sel{outline:2px solid var(--accent);outline-offset:-1px}",
+".d .ps{display:flex;gap:2px}",
+".d .p{font-size:11px;padding:0 4px;line-height:16px;border-radius:7px}",
+".dot{width:5px;height:5px;border-radius:50%;background:var(--dot);margin-top:6px}",
+".chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}",
+".chip{display:inline-flex;align-items:center;gap:3px;border-radius:12px;padding:5px 7px;font-size:13px;font-weight:700;white-space:nowrap}",
+"/* sheet */",
+".mask{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:.2s;z-index:20}",
+".mask.on{opacity:1;pointer-events:auto}",
+".sheet{position:fixed;left:0;right:0;bottom:0;background:var(--sheet);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:28px 28px 0 0;padding:10px 18px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(105%);transition:.3s cubic-bezier(.2,.9,.3,1.05);z-index:21;max-height:86vh;overflow:auto}",
+".sheet.on{transform:none}",
+".grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}",
+".srow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;margin-bottom:8px}",
+".srow i{font-size:30px}",
+".srow .nm{font-weight:700;font-size:16px}",
+".srow .tm{font-size:14px}",
+".mates{font-size:13px;margin-top:4px}",
+".tog{display:flex;gap:8px;margin:10px 0 14px}",
+".tog button{flex:1;border:2px solid var(--line);background:transparent;border-radius:16px;padding:10px 0;font-size:15px;font-weight:600;color:var(--sub);display:flex;align-items:center;justify-content:center;gap:5px}",
+".tog button.on.cm{background:var(--mBg);border-color:var(--mFg);color:var(--mFg)}",
+".tog button.on.ca{background:var(--aBg);border-color:var(--aFg);color:var(--aFg)}",
+".tog button.on.cn{background:var(--nBg);border-color:var(--nFg);color:var(--nFg)}",
+"/* stats */",
+".stat{border-radius:20px;padding:14px}",
+".stat .k{font-size:14px;font-weight:500;display:flex;align-items:center;gap:5px}",
+".stat .v{font-size:30px;font-weight:700;line-height:1.25}",
+".bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden;display:flex}",
+".li{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1.5px dashed var(--line);font-size:15px}",
+".li:last-child{border:0}",
+".li span{display:flex;align-items:center;gap:7px}",
+".li i{font-size:19px;color:var(--accent)}",
+".li b{color:var(--title)}",
+"/* friends */",
+".strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none}",
+".strip::-webkit-scrollbar{display:none}",
+".sd{flex:0 0 50px;height:64px;border-radius:16px;background:var(--card);border:var(--cardBorder);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--sub)}",
+".sd b{font-size:18px;color:var(--text)}",
+".sd.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}",
+".sd.on b{color:var(--onAccent)}",
+".who{border-radius:20px;padding:12px 14px;margin-bottom:10px}",
+".who .h{font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}",
+".who .h i{font-size:20px}",
+".name{display:inline-block;background:var(--nameBg);border-radius:10px;padding:3px 9px;margin:0 4px 6px 0;font-size:14px;font-weight:500}",
+".name.me{background:var(--accent);color:var(--onAccent)}",
+".fchips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}",
+".fchip{flex:0 0 auto;border-radius:14px;border:2px solid var(--line);background:transparent;padding:6px 12px;font-size:14px;font-weight:500;color:var(--text)}",
+".fchip.on{border-color:var(--accent);background:var(--tint);color:var(--title);font-weight:700}",
+".together{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}",
+".together span{border-radius:12px;padding:5px 10px;font-size:14px;font-weight:600}",
+".note{font-size:13px;color:var(--sub);text-align:center;margin:6px 0 12px}",
+"/* settings */",
+".set{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1.5px dashed var(--line);gap:10px}",
+".set:last-child{border:0}",
+".set .l{font-size:15px;display:flex;align-items:center;gap:8px;font-weight:500}",
+".set .l i{font-size:20px;color:var(--accent)}",
+".set .r{font-size:14px;color:var(--sub);text-align:right}",
+"select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:12px;padding:6px 10px;background:var(--nbBg);color:var(--text);-webkit-appearance:none;appearance:none}",
+".sw{width:52px;height:32px;flex:0 0 52px;border-radius:16px;background:var(--line);position:relative;transition:.2s}",
+".sw::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 4px rgba(0,0,0,.15)}",
+".sw.on{background:var(--accent)}.sw.on::after{left:23px}",
+".lbl{font-size:14px;font-weight:600;color:var(--title);margin:0 0 8px}",
+".styles{display:flex;gap:6px;flex-wrap:wrap}",
+".stb{font-size:14px;font-weight:600;padding:7px 12px;border-radius:14px;border:1.5px solid var(--line);background:var(--nbBg);color:var(--text)}",
+".stb.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}",
+".swg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}",
+".swb{font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 0;border-radius:16px;border:2px solid transparent;background:var(--nbBg);color:var(--text)}",
+".swb span{width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}",
+".swb.on{border-color:var(--accent)}",
+"/* tabs */",
+".tabs{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;padding:7px;border-radius:30px;background:var(--tabBg);border:var(--cardBorder);box-shadow:var(--cardShadow);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);z-index:10}",
+".tab{flex:1;border:0;background:none;font-size:12px;font-weight:500;color:var(--tabFg);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:22px}",
+".tab i{font-size:24px}",
+".tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}",
+".toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-90px);background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:.3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}",
+".toast.on{transform:translate(-50%,0)}",
+".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
+".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
+"@keyframes sp{to{transform:rotate(360deg)}}",
+".msg{border-radius:14px;padding:10px 12px;font-size:14px;font-weight:500;margin:8px 0;display:flex;gap:6px;align-items:flex-start}",
+".msg i{font-size:18px;margin-top:1px}",
+"</style>",
+"<style id=\"themeVars\"></style>",
+"</head>",
+"<body>",
+"<div id=\"decor\"></div>",
+"",
+"<section class=\"page on\" id=\"p-cal\">",
+"  <div style=\"margin-bottom:14px\"><p class=\"hello\" id=\"hello\"></p><h1 class=\"big\">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e09\u0e31\u0e19</h1></div>",
+"  <div class=\"card hero\" id=\"hero\"></div>",
+"  <div class=\"card\" id=\"calCard\">",
+"    <div class=\"cal-h\"><button class=\"nb\" onclick=\"moveMonth(-1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\"><i data-i=\"l\"></i></button><span class=\"t\" id=\"calTitle\"></span><button class=\"nb\" onclick=\"moveMonth(1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
+"    <div class=\"dow\"><div class=\"we\">\u0e2d\u0e32</div><div>\u0e08</div><div>\u0e2d</div><div>\u0e1e</div><div>\u0e1e\u0e24</div><div>\u0e28</div><div class=\"we\">\u0e2a</div></div>",
+"    <div class=\"days\" id=\"days\"></div>",
+"    <div class=\"chips\" id=\"chips\"></div>",
+"  </div>",
+"  <div class=\"grid2\">",
+"    <button class=\"btn main\" onclick=\"pickPhoto()\"><i data-i=\"camera\"></i>\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23</button>",
+"    <button class=\"btn\" onclick=\"shareMonth()\"><i data-i=\"share\"></i>\u0e41\u0e0a\u0e23\u0e4c\u0e15\u0e32\u0e23\u0e32\u0e07</button>",
+"  </div>",
+"</section>",
+"",
+"<section class=\"page\" id=\"p-sum\">",
+"  <div class=\"between\" style=\"margin-bottom:14px\">",
+"    <div><p class=\"hello\" id=\"sumTitle\"></p><h1 class=\"big\">\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</h1></div>",
+"    <div class=\"row\"><button class=\"nb\" onclick=\"moveMonth(-1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\"><i data-i=\"l\"></i></button><button class=\"nb\" onclick=\"moveMonth(1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
+"  </div>",
+"  <div class=\"grid2\" id=\"sumStats\" style=\"margin-bottom:14px\"></div>",
+"  <div class=\"card\"><p class=\"h3\" style=\"margin-bottom:10px\">\u0e2a\u0e31\u0e14\u0e2a\u0e48\u0e27\u0e19\u0e40\u0e27\u0e23</p><div class=\"bar\" id=\"sumBar\"></div><div class=\"chips\" id=\"sumLegend\"></div></div>",
+"  <div class=\"card\" id=\"sumList\"></div>",
+"</section>",
+"",
+"<section class=\"page\" id=\"p-fr\">",
+"  <div style=\"margin-bottom:12px\"><p class=\"hello\" id=\"frTitle\"></p><h1 class=\"big\">\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e43\u0e19\u0e27\u0e2d\u0e23\u0e4c\u0e14</h1></div>",
+"  <div id=\"frPreview\"></div>",
+"  <div class=\"strip\" id=\"strip\"></div>",
+"  <div id=\"whoList\"></div>",
+"  <div class=\"card\" id=\"togetherCard\">",
+"    <p class=\"h3\">\u0e2b\u0e22\u0e38\u0e14\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e43\u0e04\u0e23</p>",
+"    <p class=\"hello\" style=\"font-size:14px;margin:2px 0 10px\">\u0e41\u0e15\u0e30\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e14\u0e39\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e17\u0e35\u0e48\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19</p>",
+"    <div class=\"fchips\" id=\"fchips\"></div>",
+"    <div class=\"together\" id=\"together\"></div>",
+"  </div>",
+"</section>",
+"",
+"<section class=\"page\" id=\"p-set\">",
+"  <div style=\"margin-bottom:14px\"><p class=\"hello\">\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32</p><h1 class=\"big\">\u0e02\u0e2d\u0e07\u0e09\u0e31\u0e19</h1></div>",
+"  <div class=\"card\">",
+"    <p class=\"lbl\">\u0e2a\u0e44\u0e15\u0e25\u0e4c</p><div class=\"styles\" id=\"styles\"></div>",
+"    <p class=\"lbl\" style=\"margin-top:14px\">\u0e42\u0e17\u0e19\u0e2a\u0e35</p><div class=\"swg\" id=\"swatches\"></div>",
+"  </div>",
+"  <div class=\"card\">",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"bell\"></i>\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e02\u0e36\u0e49\u0e19\u0e40\u0e27\u0e23</span>",
+"      <select id=\"setNotify\" onchange=\"saveSettings()\"><option value=\"0\">\u0e1b\u0e34\u0e14</option><option value=\"30\">30 \u0e19\u0e32\u0e17\u0e35</option><option value=\"60\">1 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"120\">2 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"720\">12 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option></select></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"calsync\"></i>\u0e43\u0e2a\u0e48\u0e40\u0e27\u0e23\u0e43\u0e19\u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 iPhone</span><div class=\"sw\" id=\"setCal\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"ai\"></i>AI \u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b</span>",
+"      <select id=\"setAI\" onchange=\"saveSettings()\"><option value=\"gemini\">Gemini (\u0e1f\u0e23\u0e35)</option><option value=\"claude\">Claude</option></select></div>",
+"  </div>",
+"  <div class=\"card\">",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"user\"></i>\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><span class=\"r\" id=\"setName\"></span></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"key\"></i>Gemini key</span><span class=\"r\" id=\"setKeyG\"></span></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"key\"></i>Claude key</span><span class=\"r\" id=\"setKeyC\"></span></div>",
+"  </div>",
+"  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"send('editSettings')\"><i data-i=\"edit\"></i>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d / API key</button>",
+"  <div class=\"card\">",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"sun\"></i>\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32</span><span class=\"r\">08:00 \u2013 16:00</span></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"sunset\"></i>\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22</span><span class=\"r\">16:00 \u2013 24:00</span></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"moon\"></i>\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01</span><span class=\"r\">00:00 \u2013 08:00</span></div>",
+"  </div>",
+"</section>",
+"",
+"<nav class=\"tabs\">",
+"  <button class=\"tab on\" data-p=\"p-cal\"><i data-i=\"cal\"></i>\u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19</button>",
+"  <button class=\"tab\" data-p=\"p-sum\"><i data-i=\"sum\"></i>\u0e2a\u0e23\u0e38\u0e1b</button>",
+"  <button class=\"tab\" data-p=\"p-fr\"><i data-i=\"fr\"></i>\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19</button>",
+"  <button class=\"tab\" data-p=\"p-set\"><i data-i=\"set\"></i>\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32</button>",
+"</nav>",
+"<div class=\"mask\" id=\"mask\" onclick=\"closeSheet()\"></div>",
+"<div class=\"sheet\" id=\"sheet\"></div>",
+"<div class=\"toast\" id=\"toast\"></div>",
+"<input type=\"file\" id=\"file\" accept=\"image/*\" style=\"position:absolute;left:-9999px;opacity:0\" onchange=\"gotPhoto(this)\">",
+"",
+"<script>",
+"let DATA = /*__DATA__*/null;",
+"const PALETTES = {",
+" sakura:{name:\"\u0e0a\u0e21\u0e1e\u0e39\u0e0b\u0e32\u0e01\u0e38\u0e23\u0e30\",accent:\"#E0457F\",title:\"#6A1C44\",sub:\"#8A3D63\",text:\"#3E2230\",body:\"#FDE7F0\",tint:\"#FCE4EC\",blobs:[\"#FF9EC4\",\"#C9B6FF\",\"#FFC8A8\",\"#A8D8FF\"],dark:{body:\"#1B1029\",card:\"#2A1A3D\",accent:\"#FF79B5\",title:\"#FFF0F7\",sub:\"#F2C9DF\",blobs:[\"#B0237A\",\"#5A2DB8\",\"#E0457E\",\"#3A54C9\"]}},",
+" sky:{name:\"\u0e1f\u0e49\u0e32\u0e43\u0e2a\",accent:\"#2F78D6\",title:\"#123563\",sub:\"#365B8C\",text:\"#1C2A3E\",body:\"#E6F0FD\",tint:\"#DDEBFC\",blobs:[\"#9CC8FF\",\"#B8E6FF\",\"#C9C2FF\",\"#A8F0E0\"],dark:{body:\"#0D1830\",card:\"#17264A\",accent:\"#6FB0FF\",title:\"#EEF5FF\",sub:\"#BCD4F2\",blobs:[\"#1F4FA8\",\"#3A2C9C\",\"#1C7FA0\",\"#2A3FB8\"]}},",
+" mint:{name:\"\u0e21\u0e34\u0e49\u0e19\u0e15\u0e4c\",accent:\"#14916B\",title:\"#0D4434\",sub:\"#2B6654\",text:\"#1A352C\",body:\"#E3F6EE\",tint:\"#D8F2E6\",blobs:[\"#9EEBCB\",\"#BDEBFF\",\"#FFF0A8\",\"#C8F0B0\"],dark:{body:\"#0C1F1A\",card:\"#14302A\",accent:\"#5FE0B0\",title:\"#EDFFF7\",sub:\"#B8E8D4\",blobs:[\"#137A5C\",\"#1E6A8C\",\"#4A7A1E\",\"#106E6E\"]}},",
+" lavender:{name:\"\u0e25\u0e32\u0e40\u0e27\u0e19\u0e40\u0e14\u0e2d\u0e23\u0e4c\",accent:\"#7A4FE0\",title:\"#35206A\",sub:\"#56408E\",text:\"#2A2040\",body:\"#EFE9FF\",tint:\"#E8E0FF\",blobs:[\"#C9B6FF\",\"#FFB8E0\",\"#B6D0FF\",\"#E0C8FF\"],dark:{body:\"#17112B\",card:\"#251C42\",accent:\"#B497FF\",title:\"#F4EFFF\",sub:\"#D4C6F5\",blobs:[\"#5A2DB8\",\"#8E2A88\",\"#3446B0\",\"#6A3AC0\"]}},",
+" peach:{name:\"\u0e1e\u0e35\u0e0a\",accent:\"#E0612F\",title:\"#662812\",sub:\"#8C4A2B\",text:\"#3C281E\",body:\"#FFEFE4\",tint:\"#FFE6D6\",blobs:[\"#FFC2A0\",\"#FFD9A0\",\"#FFB0C0\",\"#FFE7B0\"],dark:{body:\"#24130C\",card:\"#3A2216\",accent:\"#FF9D70\",title:\"#FFF3EC\",sub:\"#F2CDB8\",blobs:[\"#B04A1E\",\"#A8306A\",\"#B07A18\",\"#8A3A2A\"]}},",
+" mocha:{name:\"\u0e04\u0e23\u0e35\u0e21\u0e21\u0e2d\u0e04\u0e04\u0e48\u0e32\",accent:\"#9C6A45\",title:\"#47301F\",sub:\"#6E523E\",text:\"#352619\",body:\"#F5EDE4\",tint:\"#EFE3D6\",blobs:[\"#E8D2BC\",\"#F2DCC8\",\"#DCC4B0\",\"#EADBC8\"],dark:{body:\"#1C1511\",card:\"#2E241D\",accent:\"#D9A97F\",title:\"#FAF2EA\",sub:\"#DCC7B4\",blobs:[\"#6E4A30\",\"#5A3E2E\",\"#7A5638\",\"#4E3A2C\"]}},",
+"};",
+"",
+"",
+"/* ===== \u0e44\u0e2d\u0e04\u0e2d\u0e19 ===== */",
+"const ICON_NAMES = {sun:[\"sun\",\"sun\"],sunset:[\"sun-horizon\",\"sunset-2\"],moon:[\"moon-stars\",\"moon\"],off:[\"coffee\",\"zzz\"],alarm:[\"alarm\",\"alarm\"],",
+" l:[\"caret-left\",\"chevron-left\"],r:[\"caret-right\",\"chevron-right\"],cal:[\"calendar-heart\",\"calendar\"],sum:[\"chart-pie-slice\",\"chart-donut\"],fr:[\"users-three\",\"users\"],set:[\"gear-six\",\"settings\"],",
+" camera:[\"camera\",\"camera\"],share:[\"share-network\",\"share\"],bell:[\"bell-ringing\",\"bell\"],calsync:[\"calendar-plus\",\"calendar-plus\"],ai:[\"sparkle\",\"sparkles\"],user:[\"user-circle\",\"user-circle\"],",
+" key:[\"key\",\"key\"],edit:[\"pencil-simple\",\"pencil\"],work:[\"briefcase\",\"briefcase\"],timer:[\"timer\",\"clock-hour-4\"],double:[\"stack\",\"stack-2\"],beach:[\"umbrella\",\"beach\"],party:[\"confetti\",\"confetti\"],",
+" check:[\"check-circle\",\"circle-check\"],warn:[\"warning-circle\",\"alert-circle\"],flower:[\"flower-lotus\",\"flower\"],x:[\"x-circle\",\"circle-x\"],heart:[\"heart\",\"heart\"],users:[\"users\",\"users\"],list:[\"clipboard-text\",\"clipboard-text\"]};",
+"let ICON_SET = \"ph\";",
+"const icls = n => { const v = ICON_NAMES[n]; return ICON_SET===\"tb\" ? \"ti ti-\"+v[1] : (ICON_SET===\"phb\"?\"ph-bold ph-\":\"ph-duotone ph-\")+v[0]; };",
+"const ic = n => `<i data-i=\"${n}\" class=\"${icls(n)}\"></i>`;",
+"const applyIcons = () => document.querySelectorAll(\"[data-i]\").forEach(el=>el.className = icls(el.dataset.i));",
+"",
+"/* ===== \u0e18\u0e35\u0e21 ===== */",
+"const al = (hex, a) => { const n = parseInt(hex.slice(1),16); return `rgba(${n>>16},${n>>8&255},${n&255},${a})`; };",
+"const LIGHT_SHIFT = \"--mBg:#CDEFD9;--mFg:#1F5A3B;--aBg:#D3E3FF;--aFg:#24427E;--nBg:#E2D8FF;--nFg:#4A2F8C;--oBg:#FFE2CF;--oFg:#8E4A22;\";",
+"const DARK_SHIFT = \"--mBg:rgba(110,231,170,.22);--mFg:#A6F2CC;--aBg:rgba(120,170,255,.24);--aFg:#C0D6FF;--nBg:rgba(190,150,255,.27);--nFg:#DED0FF;--oBg:rgba(255,180,140,.22);--oFg:#FFD0B4;\";",
+"const common = p => `--accent:${p.accent};--we:${p.accent};--accentGlow:${al(p.accent,.4)};--tint:${p.tint};--onAccent:#fff;--heroTitle:${p.title};--heroSub:${p.sub};`;",
+"const STYLES = {",
+" glass:{name:\"\u0e01\u0e23\u0e30\u0e08\u0e01\",font:\"Mali\",icons:\"ph\",blobs:p=>p.blobs,v:p=>common(p)+`--body:${p.body};--card:rgba(255,255,255,.62);--cardBorder:1px solid rgba(255,255,255,.75);--cardShadow:inset 0 1px 0 rgba(255,255,255,.9),0 8px 32px ${al(p.accent,.12)};--r:28px;--blur:blur(22px) saturate(160%);",
+"  --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:rgba(255,255,255,.65);--orbBg:rgba(255,255,255,.65);--orbBorder:1px solid rgba(255,255,255,.9);",
+"  --nbBg:rgba(255,255,255,.65);--nbBorder:1px solid rgba(255,255,255,.9);--dayBg:rgba(255,255,255,.7);--dayBorder:1px solid rgba(255,255,255,.9);--dayShadow:none;--todayShadow:0 3px 10px ${al(p.accent,.45)};--dot:${al(p.accent,.45)};",
+"  --tabBg:rgba(255,255,255,.72);--tabFg:${p.sub};--tabOnBg:rgba(255,255,255,.95);--tabOnFg:${p.title};--tabOnShadow:0 2px 10px ${al(p.accent,.15)};--sheet:rgba(255,255,255,.9);--line:${al(p.accent,.2)};--nameBg:rgba(255,255,255,.75);${LIGHT_SHIFT}`},",
+" dark:{name:\"\u0e01\u0e23\u0e30\u0e08\u0e01\u0e21\u0e37\u0e14\",font:\"Mali\",icons:\"ph\",blobs:p=>p.dark.blobs,v:p=>{const d=p.dark;return common(p)+`--accent:${d.accent};--we:${d.accent};--accentGlow:${al(d.accent,.35)};--onAccent:${d.body};--tint:${al(d.accent,.2)};--heroTitle:${d.title};--heroSub:${d.sub};",
+"  --body:${d.body};--card:rgba(20,12,30,.5);--cardBorder:1px solid rgba(255,255,255,.16);--cardShadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 40px rgba(0,0,0,.35);--r:28px;--blur:blur(24px) saturate(150%);",
+"  --title:${d.title};--sub:${d.sub};--text:${d.title};--heroBg:var(--card);--cdBg:rgba(255,255,255,.12);--orbBg:${al(d.accent,.18)};--orbBorder:1px solid ${al(d.accent,.45)};",
+"  --nbBg:rgba(255,255,255,.1);--nbBorder:1px solid rgba(255,255,255,.18);--dayBg:rgba(255,255,255,.08);--dayBorder:1px solid rgba(255,255,255,.13);--dayShadow:none;--todayShadow:0 0 14px ${al(d.accent,.8)};--dot:${al(d.accent,.5)};",
+"  --tabBg:rgba(20,12,30,.6);--tabFg:${d.sub};--tabOnBg:${al(d.accent,.25)};--tabOnFg:${d.title};--tabOnShadow:none;--sheet:${al(d.card,.94)};--line:rgba(255,255,255,.18);--nameBg:rgba(255,255,255,.12);${DARK_SHIFT}`}},",
+" minimal:{name:\"\u0e21\u0e34\u0e19\u0e34\u0e21\u0e2d\u0e25\",font:\"IBM Plex Sans Thai\",icons:\"tb\",blobs:()=>[],extra:\".p,.chip{border:1.3px solid currentColor}\",v:p=>common(p)+`--body:#FAF8F7;--card:#FFFFFF;--cardBorder:1px solid #EEE8E8;--cardShadow:0 1px 2px rgba(0,0,0,.04);--r:20px;--blur:none;",
+"  --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:${p.tint};--orbBg:${p.tint};--orbBorder:none;",
+"  --nbBg:#F5F2F2;--nbBorder:none;--dayBg:transparent;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:none;--dot:${al(p.accent,.3)};",
+"  --mBg:transparent;--mFg:#237A50;--aBg:transparent;--aFg:#2C5DB8;--nBg:transparent;--nFg:#6A40C4;--oBg:transparent;--oFg:#B0602F;",
+"  --tabBg:rgba(255,255,255,.95);--tabFg:${p.sub};--tabOnBg:${p.tint};--tabOnFg:${p.accent};--tabOnShadow:none;--sheet:#FFFFFF;--line:#EEE4E6;--nameBg:#F5F2F2;`},",
+" planner:{name:\"\u0e41\u0e1e\u0e25\u0e19\u0e40\u0e19\u0e2d\u0e23\u0e4c\",font:\"Itim\",icons:\"ph\",blobs:()=>[],v:p=>common(p)+`--body:#FBF5EC;--card:#FFFDF8;--cardBorder:1.5px solid #E6DACA;--cardShadow:3px 4px 0 #E6DACA;--r:22px;--blur:none;",
+"  --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:${p.tint};--orbBg:${p.tint};--orbBorder:1.5px dashed ${p.accent};",
+"  --nbBg:#F6EEE2;--nbBorder:1.5px solid #E6DACA;--dayBg:#FFF8EF;--dayBorder:1.5px dashed #E6DACA;--dayShadow:none;--todayShadow:none;--dot:${al(p.accent,.35)};--washi:${al(p.accent,.4)};",
+"  --tabBg:#FFFDF8;--tabFg:${p.sub};--tabOnBg:${p.tint};--tabOnFg:${p.title};--tabOnShadow:none;--sheet:#FFFDF8;--line:#E6DACA;--nameBg:#FFFDF8;${LIGHT_SHIFT}`,",
+"  extra:\"body{background-image:radial-gradient(#E4D8C8 1.2px,transparent 1.2px);background-size:18px 18px}.hero{position:relative;margin-top:18px}.hero::before{content:'';position:absolute;top:-11px;left:30px;width:86px;height:22px;background:var(--washi);transform:rotate(-4deg);border-radius:3px}\"},",
+" clay:{name:\"Clay 3D\",font:\"Mitr\",icons:\"phb\",blobs:()=>[],v:p=>common(p)+`--body:${p.tint};--card:${p.body};--cardBorder:none;--cardShadow:10px 10px 24px ${al(p.accent,.22)},-8px -8px 20px rgba(255,255,255,.9),inset 2px 2px 4px rgba(255,255,255,.8);--r:30px;--blur:none;",
+"  --heroBg:linear-gradient(145deg,${p.accent},${al(p.accent,.78)});--heroTitle:#FFFFFF;--heroSub:rgba(255,255,255,.92);",
+"  --title:${p.title};--sub:${p.sub};--text:${p.text};--cdBg:rgba(255,255,255,.25);--orbBg:rgba(255,255,255,.88);--orbBorder:none;",
+"  --nbBg:${p.body};--nbBorder:none;--dayBg:${p.body};--dayBorder:1px solid transparent;--dayShadow:3px 3px 7px ${al(p.accent,.18)},-3px -3px 6px rgba(255,255,255,.9);--todayShadow:0 4px 10px ${al(p.accent,.5)};--dot:${al(p.accent,.35)};",
+"  --tabBg:${p.body};--tabFg:${p.sub};--tabOnBg:linear-gradient(145deg,${p.accent},${al(p.accent,.78)});--tabOnFg:#FFFFFF;--tabOnShadow:0 5px 12px ${al(p.accent,.4)};--sheet:${p.body};--line:${al(p.accent,.2)};--nameBg:rgba(255,255,255,.7);${LIGHT_SHIFT}`,",
+"  extra:\".nb,.btn:not(.main){box-shadow:4px 4px 8px rgba(0,0,0,.08),-3px -3px 6px rgba(255,255,255,.9)}\"},",
+"};",
+"function applyTheme(){",
+"  const t = DATA.settings.theme || {style:\"glass\", palette:\"sakura\"};",
+"  const s = STYLES[t.style] || STYLES.glass, p = PALETTES[t.palette] || PALETTES.sakura;",
+"  ICON_SET = s.icons;",
+"  $(\"themeVars\").textContent = `:root{--font:'${s.font}','Sukhumvit Set',system-ui,sans-serif;${s.v(p)}}` + (s.extra||\"\");",
+"  const pos = [\"left:-90px;top:-60px\",\"right:-80px;top:220px\",\"left:-60px;top:560px\",\"right:-50px;bottom:-40px\"], sz = [300,260,280,220];",
+"  $(\"decor\").innerHTML = s.blobs(p).map((c,i)=>`<div class=\"blob\" style=\"width:${sz[i]}px;height:${sz[i]}px;background:${c};${pos[i]}\"></div>`).join(\"\");",
+"  $(\"styles\").innerHTML = Object.entries(STYLES).map(([k,v])=>`<button class=\"stb ${k===t.style?\"on\":\"\"}\" onclick=\"setTheme('${k}',null)\">${v.name}</button>`).join(\"\");",
+"  $(\"swatches\").innerHTML = Object.entries(PALETTES).map(([k,v])=>`<button class=\"swb ${k===t.palette?\"on\":\"\"}\" onclick=\"setTheme(null,'${k}')\"><span style=\"background:linear-gradient(135deg,${v.blobs[0]},${v.accent})\"></span>${v.name}</button>`).join(\"\");",
+"  applyIcons();",
+"}",
+"function setTheme(style, palette){",
+"  const t = DATA.settings.theme = DATA.settings.theme || {style:\"glass\", palette:\"sakura\"};",
+"  if (style) t.style = style; if (palette) t.palette = palette;",
+"  renderAll(); send(\"saveSettings\", DATA.settings);",
+"}",
+"",
+"/* ===== \u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e1e\u0e37\u0e49\u0e19\u0e10\u0e32\u0e19 ===== */",
+"const SH = {\"\u0e14\":{n:\"\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\",i:\"moon\",t:\"00:00 \u2013 08:00\",s:0,c:\"n\"},\"\u0e0a\":{n:\"\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32\",i:\"sun\",t:\"08:00 \u2013 16:00\",s:8,c:\"m\"},\"\u0e1a\":{n:\"\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22\",i:\"sunset\",t:\"16:00 \u2013 24:00\",s:16,c:\"a\"}};",
+"const ORD = {\"\u0e14\":0,\"\u0e0a\":1,\"\u0e1a\":2};",
+"const MONTHS = [\"\u0e21\u0e01\u0e23\u0e32\u0e04\u0e21\",\"\u0e01\u0e38\u0e21\u0e20\u0e32\u0e1e\u0e31\u0e19\u0e18\u0e4c\",\"\u0e21\u0e35\u0e19\u0e32\u0e04\u0e21\",\"\u0e40\u0e21\u0e29\u0e32\u0e22\u0e19\",\"\u0e1e\u0e24\u0e29\u0e20\u0e32\u0e04\u0e21\",\"\u0e21\u0e34\u0e16\u0e38\u0e19\u0e32\u0e22\u0e19\",\"\u0e01\u0e23\u0e01\u0e0e\u0e32\u0e04\u0e21\",\"\u0e2a\u0e34\u0e07\u0e2b\u0e32\u0e04\u0e21\",\"\u0e01\u0e31\u0e19\u0e22\u0e32\u0e22\u0e19\",\"\u0e15\u0e38\u0e25\u0e32\u0e04\u0e21\",\"\u0e1e\u0e24\u0e28\u0e08\u0e34\u0e01\u0e32\u0e22\u0e19\",\"\u0e18\u0e31\u0e19\u0e27\u0e32\u0e04\u0e21\"];",
+"const DOWF = [\"\u0e2d\u0e32\u0e17\u0e34\u0e15\u0e22\u0e4c\",\"\u0e08\u0e31\u0e19\u0e17\u0e23\u0e4c\",\"\u0e2d\u0e31\u0e07\u0e04\u0e32\u0e23\",\"\u0e1e\u0e38\u0e18\",\"\u0e1e\u0e24\u0e2b\u0e31\u0e2a\u0e1a\u0e14\u0e35\",\"\u0e28\u0e38\u0e01\u0e23\u0e4c\",\"\u0e40\u0e2a\u0e32\u0e23\u0e4c\"], DOWS = [\"\u0e2d\u0e32\",\"\u0e08\",\"\u0e2d\",\"\u0e1e\",\"\u0e1e\u0e24\",\"\u0e28\",\"\u0e2a\"];",
+"const $ = id => document.getElementById(id);",
+"const key = (y,m) => `${y}-${String(m+1).padStart(2,\"0\")}`;",
+"const sortS = s => (s||\"\").split(\"\").filter(c=>ORD[c]!=null).sort((a,b)=>ORD[a]-ORD[b]);",
+"const first = n => n.replace(/^(\u0e19\u0e32\u0e07\u0e2a\u0e32\u0e27|\u0e19\u0e32\u0e07|\u0e19\u0e32\u0e22|\u0e19\\.\u0e2a\\.)\\s*/,\"\").split(\" \")[0];",
+"const pill = c => `<span class=\"p ${SH[c].c}\">${c}</span>`;",
+"",
+"/* ===== \u0e15\u0e31\u0e27\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21 Scriptable ===== */",
+"const Q = [];",
+"function send(type, payload){",
+"  if (DATA.preview){ previewHandler({type, payload}); return; }",
+"  Q.push({type, payload}); (window.__signal || (u => { window.location.href = u; }))(\"shiftapp://msg/\" + Date.now());",
+"}",
+"window.__drain = () => JSON.stringify(Q.splice(0));",
+"",
+"/* ===== \u0e2a\u0e16\u0e32\u0e19\u0e30 ===== */",
+"const now = () => DATA.preview ? new Date(DATA.today + \"T\" + (DATA.time||\"13:00\") + \":00\") : new Date();",
+"let viewY, viewM, selDay = null, frDay = null, frFriend = null;",
+"function initView(){",
+"  const n = now(), k = key(n.getFullYear(), n.getMonth()), ks = Object.keys(DATA.months).sort();",
+"  const pick = DATA.months[k] ? k : (ks.find(x=>x>k) || ks[ks.length-1] || k);",
+"  [viewY, viewM] = pick.split(\"-\").map(Number); viewM--;",
+"}",
+"const monthData = () => DATA.months[key(viewY,viewM)] || null;",
+"const mine = () => { const md = monthData(); return md ? (md.people[DATA.me] || {}) : {}; };",
+"const isToday = d => { const n = now(); return n.getFullYear()===viewY && n.getMonth()===viewM && n.getDate()===d; };",
+"const daysIn = () => new Date(viewY, viewM+1, 0).getDate();",
+"const firstDow = () => new Date(viewY, viewM, 1).getDay();",
+"",
+"/* ===== \u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b ===== */",
+"function allMyShifts(){",
+"  const list = [];",
+"  for (const [k, md] of Object.entries(DATA.months)){",
+"    const [y,m] = k.split(\"-\").map(Number), me = md.people[DATA.me] || {};",
+"    for (const [d, s] of Object.entries(me)) for (const c of sortS(s)){",
+"      const st = new Date(y, m-1, +d, SH[c].s); list.push({c, st, en:new Date(st.getTime()+8*3600e3)});",
+"    }",
+"  }",
+"  return list.sort((a,b)=>a.st-b.st);",
+"}",
+"const dayDiff = (a,b) => Math.round((new Date(b.getFullYear(),b.getMonth(),b.getDate()) - new Date(a.getFullYear(),a.getMonth(),a.getDate()))/864e5);",
+"function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math.floor(m%1440/60), mm = m%60;",
+"  return d ? `${d} \u0e27\u0e31\u0e19 ${h} \u0e0a\u0e21.` : h ? `${h} \u0e0a\u0e21. ${mm} \u0e19\u0e32\u0e17\u0e35` : `${mm} \u0e19\u0e32\u0e17\u0e35`; }",
+"function renderHero(){",
+"  const n = now(), list = allMyShifts(), cur = list.find(x=>x.st<=n && x.en>n), nxt = list.find(x=>x.st>n);",
+"  let h;",
+"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${SH[cur.c].n}</p><p class=\"time\">${SH[cur.c].t}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div><div class=\"orb\">${ic(SH[cur.c].i)}</div>`;",
+"  else if (nxt){",
+"    const dd = dayDiff(n, nxt.st), when = dd===0?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":dd===1?\"\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49\":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MONTHS[nxt.st.getMonth()].slice(0,3)}.`;",
+"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${SH[nxt.c].n}</p><p class=\"time\">${SH[nxt.c].t}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div><div class=\"orb\">${ic(SH[nxt.c].i)}</div>`;",
+"  } else h = `<div><p class=\"when\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e19\u0e49\u0e32</p><p class=\"what\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</p><p class=\"time\">\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p></div><div class=\"orb\">${ic(\"flower\")}</div>`;",
+"  $(\"hero\").innerHTML = h;",
+"}",
+"",
+"/* ===== \u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 ===== */",
+"function countMonth(me, days){",
+"  const c = {\"\u0e0a\":0,\"\u0e1a\":0,\"\u0e14\":0}; let off = 0;",
+"  for (let d=1; d<=days; d++){ const s = sortS(me[d]); if (!s.length) off++; for (const x of s) c[x]++; }",
+"  return {c, off, total:c[\"\u0e0a\"]+c[\"\u0e1a\"]+c[\"\u0e14\"]};",
+"}",
+"const chipsHTML = k => `<span class=\"chip m\">${ic(\"sun\")}\u0e40\u0e0a\u0e49\u0e32 ${k.c[\"\u0e0a\"]}</span><span class=\"chip a\">${ic(\"sunset\")}\u0e1a\u0e48\u0e32\u0e22 ${k.c[\"\u0e1a\"]}</span><span class=\"chip n\">${ic(\"moon\")}\u0e14\u0e36\u0e01 ${k.c[\"\u0e14\"]}</span><span class=\"chip o\">${ic(\"off\")}\u0e2b\u0e22\u0e38\u0e14 ${k.off}</span>`;",
+"function renderCal(){",
+"  const md = monthData(), me = mine(), f = firstDow(), days = daysIn();",
+"  $(\"calTitle\").textContent = `${MONTHS[viewM]} ${viewY+543}`;",
+"  let h = \"<div></div>\".repeat(f);",
+"  for (let d=1; d<=days; d++){",
+"    const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;",
+"    const ps = s.length ? `<div class=\"ps\">${s.map(pill).join(\"\")}</div>` : (md ? '<div class=\"dot\"></div>' : \"\");",
+"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${isToday(d)?\"t\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}</div>`;",
+"  }",
+"  $(\"days\").innerHTML = h;",
+"  $(\"chips\").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class=\"note\" style=\"width:100%\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49 \u0e01\u0e14 \"\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23\" \u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p>`;",
+"}",
+"function moveMonth(n){ viewM += n; if (viewM<0){viewM=11;viewY--} if (viewM>11){viewM=0;viewY++} selDay=null; frDay=null; renderAll(); }",
+"let tx = null;",
+"$(\"calCard\").addEventListener(\"touchstart\", e=>tx=e.touches[0].clientX, {passive:true});",
+"$(\"calCard\").addEventListener(\"touchend\", e=>{ if (tx==null) return; const dx = e.changedTouches[0].clientX-tx; if (Math.abs(dx)>60) moveMonth(dx<0?1:-1); tx=null; });",
+"",
+"/* ===== \u0e23\u0e32\u0e22\u0e25\u0e30\u0e40\u0e2d\u0e35\u0e22\u0e14\u0e27\u0e31\u0e19 + \u0e41\u0e01\u0e49\u0e40\u0e27\u0e23 ===== */",
+"let editSet = \"\";",
+"function openDay(d){",
+"  selDay = d; renderCal();",
+"  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d);",
+"  editSet = s.join(\"\");",
+"  let rows = s.map(c=>{",
+"    const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||\"\").includes(c)).map(([n])=>first(n)) : [];",
+"    return `<div class=\"srow ${SH[c].c}\">${ic(SH[c].i)}<div><p class=\"nm\">${SH[c].n}</p><p class=\"tm\">${SH[c].t}</p>${mates.length?`<p class=\"mates\">\u0e2d\u0e22\u0e39\u0e48\u0e14\u0e49\u0e27\u0e22\u0e01\u0e31\u0e19: ${mates.join(\", \")}</p>`:\"\"}</div></div>`;",
+"  }).join(\"\");",
+"  if (!s.length) rows = `<div class=\"srow o\">${ic(\"off\")}<div><p class=\"nm\">\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14</p><p class=\"tm\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e43\u0e2b\u0e49\u0e40\u0e15\u0e47\u0e21\u0e17\u0e35\u0e48\u0e19\u0e30</p></div></div>`;",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div>",
+"    <h2 class=\"big\" style=\"font-size:22px\">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>",
+"    <p class=\"hello\" style=\"margin-bottom:12px\">${isToday(d)?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}",
+"    <p class=\"h3\" style=\"margin-top:16px\">\u0e41\u0e01\u0e49\u0e40\u0e27\u0e23</p>",
+"    <div class=\"tog\">${[\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].map(c=>`<button class=\"c${SH[c].c} ${editSet.includes(c)?\"on\":\"\"}\" onclick=\"togEdit('${c}',this)\">${ic(SH[c].i)} ${c}</button>`).join(\"\")}</div>",
+"    <button class=\"btn main\" style=\"width:100%\" onclick=\"saveDay(${d})\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>`;",
+"  openSheet();",
+"}",
+"function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,\"\") : editSet + c; el.classList.toggle(\"on\"); }",
+"function saveDay(d){",
+"  const k = key(viewY,viewM);",
+"  if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};",
+"  const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};",
+"  const v = sortS(editSet).join(\"\"); if (v) me[d] = v; else delete me[d];",
+"  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
+"  closeSheet(); renderAll(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\");",
+"}",
+"function openSheet(){ $(\"mask\").classList.add(\"on\"); $(\"sheet\").classList.add(\"on\"); }",
+"function closeSheet(){ $(\"mask\").classList.remove(\"on\"); $(\"sheet\").classList.remove(\"on\"); selDay=null; renderCal(); }",
+"",
+"/* ===== \u0e2a\u0e23\u0e38\u0e1b ===== */",
+"function renderSum(){",
+"  const md = monthData(), me = mine(), days = daysIn(), f = firstDow();",
+"  $(\"sumTitle\").textContent = `${MONTHS[viewM]} ${viewY+543}`;",
+"  if (!md){ $(\"sumStats\").innerHTML=\"\"; $(\"sumBar\").innerHTML=\"\"; $(\"sumLegend\").innerHTML=\"\"; $(\"sumList\").innerHTML=`<p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</p>`; return; }",
+"  const k = countMonth(me, days), dbl = Object.values(me).filter(s=>sortS(s).length>1).length;",
+"  $(\"sumStats\").innerHTML = `",
+"    <div class=\"stat\" style=\"background:var(--tint);color:var(--title)\"><p class=\"k\">${ic(\"work\")}\u0e40\u0e27\u0e23\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14</p><p class=\"v\">${k.total}</p></div>",
+"    <div class=\"stat o\"><p class=\"k\">${ic(\"off\")}\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14</p><p class=\"v\">${k.off}</p></div>",
+"    <div class=\"stat m\"><p class=\"k\">${ic(\"timer\")}\u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07\u0e07\u0e32\u0e19</p><p class=\"v\">${k.total*8}</p></div>",
+"    <div class=\"stat n\"><p class=\"k\">${ic(\"double\")}\u0e27\u0e31\u0e19\u0e04\u0e27\u0e1a 2 \u0e40\u0e27\u0e23</p><p class=\"v\">${dbl}</p></div>`;",
+"  const pct = c => k.total ? k.c[c]/k.total*100 : 0;",
+"  $(\"sumBar\").innerHTML = [\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<div class=\"${SH[c].c}\" style=\"width:${pct(c)}%;background:var(--${SH[c].c}Fg)\"></div>`).join(\"\");",
+"  $(\"sumLegend\").innerHTML = [\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<span class=\"chip ${SH[c].c}\">${ic(SH[c].i)}${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")} ${k.c[c]} \u00b7 ${Math.round(pct(c))}%</span>`).join(\"\");",
+"  let run=0, best=0, weOff=0;",
+"  for (let d=1; d<=days; d++){ const off = !sortS(me[d]).length; run = off ? run+1 : 0; best = Math.max(best, run); const w=(f+d-1)%7; if (off && (w===0||w===6)) weOff++; }",
+"  const tot = md.totals ? md.totals[DATA.me] : null;",
+"  $(\"sumList\").innerHTML = `<p class=\"h3\" style=\"margin-bottom:4px\">\u0e40\u0e01\u0e23\u0e47\u0e14\u0e19\u0e48\u0e32\u0e23\u0e39\u0e49</p>",
+"    <div class=\"li\"><span>${ic(\"beach\")}\u0e2b\u0e22\u0e38\u0e14\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19\u0e19\u0e32\u0e19\u0e2a\u0e38\u0e14</span><b>${best} \u0e27\u0e31\u0e19</b></div>",
+"    <div class=\"li\"><span>${ic(\"party\")}\u0e40\u0e2a\u0e32\u0e23\u0e4c-\u0e2d\u0e32\u0e17\u0e34\u0e15\u0e22\u0e4c\u0e17\u0e35\u0e48\u0e44\u0e14\u0e49\u0e2b\u0e22\u0e38\u0e14</span><b>${weOff} \u0e27\u0e31\u0e19</b></div>",
+"    <div class=\"li\"><span>${ic(\"moon\")}\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\u0e17\u0e31\u0e49\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19</span><b>${k.c[\"\u0e14\"]} \u0e04\u0e37\u0e19</b></div>",
+"    ${tot!=null?`<div class=\"li\"><span>${ic(\"list\")}\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" \u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${tot} ${tot===k.total?\"\u0e15\u0e23\u0e07\":\"\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\"}</b></div>`:\"\"}`;",
+"}",
+"",
+"/* ===== \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 ===== */",
+"function renderFr(){",
+"  const md = monthData(), days = daysIn(), f = firstDow();",
+"  $(\"frTitle\").textContent = `${MONTHS[viewM]} ${viewY+543}`;",
+"  $(\"frPreview\").innerHTML = DATA.preview ? `<p class=\"note\">* \u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e43\u0e19\u0e20\u0e32\u0e1e\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07</p>` : \"\";",
+"  if (!md || Object.keys(md.people).length<2){ $(\"strip\").innerHTML=\"\"; $(\"whoList\").innerHTML=`<div class=\"card\"><p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49<br>\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e43\u0e2b\u0e49 AI \u0e2d\u0e48\u0e32\u0e19\u0e17\u0e38\u0e01\u0e41\u0e16\u0e27</p></div>`; $(\"togetherCard\").style.display=\"none\"; return; }",
+"  $(\"togetherCard\").style.display = \"\";",
+"  if (!frDay) frDay = isToday(now().getDate()) ? now().getDate() : 1;",
+"  let h = \"\";",
+"  for (let d=1; d<=days; d++) h += `<div class=\"sd ${d===frDay?\"on\":\"\"}\" id=\"sd${d}\" onclick=\"frDay=${d};renderFr()\"><span>${DOWS[(f+d-1)%7]}</span><b>${d}</b></div>`;",
+"  $(\"strip\").innerHTML = h;",
+"  setTimeout(()=>{ const el=$(\"sd\"+frDay); if (el && el.scrollIntoView) el.scrollIntoView({inline:\"center\",block:\"nearest\"}); },0);",
+"  const g = {\"\u0e0a\":[],\"\u0e1a\":[],\"\u0e14\":[],off:[]};",
+"  for (const [n,v] of Object.entries(md.people)){ const s = sortS(v[frDay]); if (!s.length) g.off.push(n); for (const c of s) g[c].push(n); }",
+"  const tag = n => `<span class=\"name ${n===DATA.me?\"me\":\"\"}\">${n===DATA.me?\"\u0e09\u0e31\u0e19\":first(n)}</span>`;",
+"  $(\"whoList\").innerHTML = [\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<div class=\"who ${SH[c].c}\"><p class=\"h\">${ic(SH[c].i)}${SH[c].n} \u00b7 ${g[c].length} \u0e04\u0e19</p>${g[c].map(tag).join(\"\")||\"-\"}</div>`).join(\"\")",
+"    + `<div class=\"who o\"><p class=\"h\">${ic(\"off\")}\u0e2b\u0e22\u0e38\u0e14 \u00b7 ${g.off.length} \u0e04\u0e19</p>${g.off.map(tag).join(\"\")||\"-\"}</div>`;",
+"  const friends = Object.keys(md.people).filter(n=>n!==DATA.me);",
+"  if (!frFriend || !friends.includes(frFriend)) frFriend = friends[0];",
+"  $(\"fchips\").innerHTML = friends.map((n,i)=>`<button class=\"fchip ${n===frFriend?\"on\":\"\"}\" onclick=\"pickFriend(${i})\">${first(n)}</button>`).join(\"\");",
+"  const me = mine(), fr = md.people[frFriend], both = [];",
+"  for (let d=1; d<=days; d++) if (!sortS(me[d]).length && !sortS(fr[d]).length) both.push(d);",
+"  $(\"together\").innerHTML = both.length ? both.map(d=>`<span class=\"o\">${d} ${MONTHS[viewM].slice(0,3)}.</span>`).join(\"\") : `<p class=\"note\" style=\"width:100%\">\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19</p>`;",
+"}",
+"function pickFriend(i){ const md = monthData(); frFriend = Object.keys(md.people).filter(n=>n!==DATA.me)[i]; renderFr(); }",
+"",
+"/* ===== \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 ===== */",
+"function renderSet(){",
+"  $(\"setName\").textContent = DATA.me;",
+"  $(\"setKeyG\").textContent = DATA.hasKey.gemini ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e15\u0e31\u0e49\u0e07\";",
+"  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e49\";",
+"  $(\"setNotify\").value = String(DATA.settings.notify);",
+"  $(\"setCal\").classList.toggle(\"on\", !!DATA.settings.calendar);",
+"  $(\"setAI\").value = DATA.settings.ai || \"gemini\";",
+"}",
+"function saveSettings(){",
+"  DATA.settings.notify = +$(\"setNotify\").value;",
+"  DATA.settings.calendar = $(\"setCal\").classList.contains(\"on\");",
+"  DATA.settings.ai = $(\"setAI\").value;",
+"  send(\"saveSettings\", DATA.settings); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e01\u0e32\u0e23\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e41\u0e25\u0e49\u0e27\");",
+"}",
+"",
+"/* ===== \u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b ===== */",
+"function pickPhoto(){ $(\"file\").click(); }",
+"function gotPhoto(inp){",
+"  const f = inp.files && inp.files[0]; if (!f) return;",
+"  onReading();",
+"  const img = new Image(), url = URL.createObjectURL(f);",
+"  img.onload = () => {",
+"    const sc = Math.min(1, 2400/Math.max(img.naturalWidth, img.naturalHeight));",
+"    const cv = document.createElement(\"canvas\"); cv.width = Math.round(img.naturalWidth*sc); cv.height = Math.round(img.naturalHeight*sc);",
+"    const x = cv.getContext(\"2d\"); x.fillStyle = \"#fff\"; x.fillRect(0,0,cv.width,cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);",
+"    URL.revokeObjectURL(url); inp.value = \"\";",
+"    send(\"readPhoto\", cv.toDataURL(\"image/jpeg\", .9).split(\",\")[1]);",
+"  };",
+"  img.onerror = () => { inp.value = \"\"; onParsed({error:\"\u0e40\u0e1b\u0e34\u0e14\u0e23\u0e39\u0e1b\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 \u0e25\u0e2d\u0e07\u0e41\u0e04\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e15\u0e32\u0e23\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e41\u0e04\u0e1b\u0e41\u0e17\u0e19\"}); };",
+"  img.src = url;",
+"}",
+"window.onReading = function(){",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><div class=\"loading\"><i class=\"${icls(\"flower\")} spin\"></i><p class=\"h3\">\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e48\u0e32\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u2026</p><p style=\"font-size:14px\">\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13 20\u201340 \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35</p></div>`;",
+"  openSheet();",
+"};",
+"let PARSED = null;",
+"window.onParsed = function(r){",
+"  const close = `<button class=\"btn\" style=\"width:100%\" onclick=\"closeSheet()\">\u0e1b\u0e34\u0e14</button>`;",
+"  if (r.error){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08</p><div class=\"msg o\">${ic(\"warn\")}<span>${r.error}</span></div>${close}`; openSheet(); return; }",
+"  PARSED = r;",
+"  const me = r.people[DATA.me];",
+"  if (!me){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\u0e0a\u0e37\u0e48\u0e2d \"${DATA.me}\"</p><div class=\"msg o\">${ic(\"warn\")}<span>\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49: ${Object.keys(r.people).join(\", \")}<br>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e41\u0e25\u0e49\u0e27\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e43\u0e2b\u0e21\u0e48</span></div>${close}`; openSheet(); return; }",
+"  const cnt = Object.values(me).map(sortS).flat().length, tot = r.totals ? r.totals[DATA.me] : null;",
+"  const chk = tot==null ? \"\" : tot===cnt ? `<div class=\"msg m\">${ic(\"check\")}<span>${cnt} \u0e40\u0e27\u0e23 \u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\"</span></div>` : `<div class=\"msg o\">${ic(\"warn\")}<span>\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${cnt} \u0e40\u0e27\u0e23 \u0e41\u0e15\u0e48\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" = ${tot} \u0e25\u0e2d\u0e07\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2d\u0e35\u0e01\u0e17\u0e35 \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\u0e41\u0e15\u0e30\u0e41\u0e01\u0e49\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19\u0e44\u0e14\u0e49</span></div>`;",
+"  const list = Object.keys(me).map(Number).sort((a,b)=>a-b).map(d=>`<span style=\"display:inline-flex;gap:3px;align-items:center;margin:0 12px 8px 0;font-weight:600\">${d} ${sortS(me[d]).map(pill).join(\"\")}</span>`).join(\"\");",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">${MONTHS[r.month-1]} ${r.year+543}</p>",
+"    <p class=\"hello\" style=\"font-size:14px\">\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${Object.keys(r.people).length} \u0e04\u0e19\u0e43\u0e19\u0e27\u0e2d\u0e23\u0e4c\u0e14 \u00b7 \u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}</p>${chk}",
+"    <div style=\"margin:10px 0\">${list}</div>",
+"    <div class=\"grid2\"><button class=\"btn\" onclick=\"closeSheet()\">\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01</button><button class=\"btn main\" onclick=\"confirmParsed()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button></div>`;",
+"  openSheet();",
+"};",
+"function confirmParsed(){",
+"  const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,\"0\")}`;",
+"  DATA.months[k] = {people:r.people, totals:r.totals||{}};",
+"  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
+"  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e40\u0e27\u0e23\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e49\u0e27\");",
+"}",
+"",
+"/* ===== \u0e41\u0e0a\u0e23\u0e4c\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b ===== */",
+"async function shareMonth(){",
+"  try { await Promise.all([\"400\",\"500\",\"700\"].map(w=>document.fonts.load(`${w} 30px Mali`, \"\u0e01\u0e020123\"))); } catch(e){}",
+"  const t = DATA.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;",
+"  const me = mine(), days = daysIn(), f = firstDow();",
+"  const W = 1080, cell = 140, top = 300, rows = Math.ceil((f+days)/7), H = top + rows*cell + 200;",
+"  const cv = document.createElement(\"canvas\"); cv.width = W; cv.height = H; const x = cv.getContext(\"2d\");",
+"  const font = (s,w=600) => `${w} ${s}px Mali, \"Sukhumvit Set\", sans-serif`;",
+"  const col = {\"\u0e0a\":[\"#CDEFD9\",\"#1F5A3B\"],\"\u0e1a\":[\"#D3E3FF\",\"#24427E\"],\"\u0e14\":[\"#E2D8FF\",\"#4A2F8C\"]};",
+"  x.fillStyle = p.body; x.fillRect(0,0,W,H);",
+"  x.textAlign = \"center\";",
+"  x.fillStyle = p.title; x.font = font(64,700); x.fillText(`\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}`, W/2, 120);",
+"  x.fillStyle = p.sub; x.font = font(44,500); x.fillText(`${MONTHS[viewM]} ${viewY+543}`, W/2, 190);",
+"  const ox = (W - cell*7)/2;",
+"  x.font = font(34); DOWS.forEach((d,i)=>{ x.fillStyle = (i===0||i===6)?p.accent:p.sub; x.fillText(d, ox+cell*i+cell/2, top-30); });",
+"  for (let d=1; d<=days; d++){",
+"    const i = f+d-1, cx = ox + (i%7)*cell, cy = top + Math.floor(i/7)*cell;",
+"    x.fillStyle = \"#FFFFFF\"; rr(x, cx+6, cy+6, cell-12, cell-12, 26); x.fill();",
+"    x.fillStyle = (i%7===0||i%7===6)?p.accent:p.text; x.font = font(36,500); x.fillText(d, cx+cell/2, cy+52);",
+"    const s = sortS(me[d]);",
+"    if (!s.length){ x.fillStyle = al(p.accent,.35); x.beginPath(); x.arc(cx+cell/2, cy+94, 7, 0, 7); x.fill(); }",
+"    const pw = 46, gap = 6, sx = cx + cell/2 - (s.length*pw + (s.length-1)*gap)/2;",
+"    s.forEach((c,j)=>{ x.fillStyle = col[c][0]; rr(x, sx+j*(pw+gap), cy+72, pw, 44, 14); x.fill(); x.fillStyle = col[c][1]; x.font = font(30,700); x.fillText(c, sx+j*(pw+gap)+pw/2, cy+104); });",
+"  }",
+"  const k = countMonth(me, days);",
+"  x.fillStyle = p.title; x.font = font(38,500);",
+"  x.fillText(`\u0e40\u0e0a\u0e49\u0e32 ${k.c[\"\u0e0a\"]}   \u00b7   \u0e1a\u0e48\u0e32\u0e22 ${k.c[\"\u0e1a\"]}   \u00b7   \u0e14\u0e36\u0e01 ${k.c[\"\u0e14\"]}   \u00b7   \u0e2b\u0e22\u0e38\u0e14 ${k.off}`, W/2, H-90);",
+"  send(\"share\", cv.toDataURL(\"image/png\").split(\",\")[1]);",
+"}",
+"function rr(x, a, b, w, h, r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }",
+"",
+"/* ===== \u0e2d\u0e37\u0e48\u0e19\u0e46 ===== */",
+"window.toastErr = t => { $(\"toast\").innerHTML = ic(\"warn\") + t; $(\"toast\").classList.add(\"on\"); clearTimeout(tt); tt = setTimeout(()=>$(\"toast\").classList.remove(\"on\"), 4000); };",
+"let tt; function toast(t){ $(\"toast\").innerHTML = ic(\"check\") + t; $(\"toast\").classList.add(\"on\"); clearTimeout(tt); tt = setTimeout(()=>$(\"toast\").classList.remove(\"on\"), 1800); }",
+"document.querySelectorAll(\".tab\").forEach(b=>b.onclick=()=>{",
+"  document.querySelectorAll(\".tab\").forEach(x=>x.classList.toggle(\"on\", x===b));",
+"  document.querySelectorAll(\".page\").forEach(p=>p.classList.toggle(\"on\", p.id===b.dataset.p));",
+"  window.scrollTo(0,0);",
+"});",
+"function renderAll(){",
+"  applyTheme();",
+"  const h = now().getHours();",
+"  $(\"hello\").textContent = `${h<12?\"\u0e2d\u0e23\u0e38\u0e13\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e34\u0e4c\":h<17?\"\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e15\u0e2d\u0e19\u0e1a\u0e48\u0e32\u0e22\":\"\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e15\u0e2d\u0e19\u0e40\u0e22\u0e47\u0e19\"} ${first(DATA.me)}`;",
+"  renderHero(); renderCal(); renderSum(); renderFr(); renderSet();",
+"}",
+"window.setData = function(d){ DATA = d; renderAll(); };",
+"",
+"/* ===== \u0e42\u0e2b\u0e21\u0e14\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07 (\u0e40\u0e1b\u0e34\u0e14\u0e43\u0e19\u0e40\u0e1a\u0e23\u0e32\u0e27\u0e4c\u0e40\u0e0b\u0e2d\u0e23\u0e4c \u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19 Scriptable) ===== */",
+"function previewHandler(msg){",
+"  if (msg.type===\"share\"){ window.__share = msg.payload; }",
+"  if (msg.type===\"readPhoto\"){ setTimeout(()=>onParsed({year:2027, month:1, people:{[DATA.me]:{2:\"\u0e0a\",3:\"\u0e1a\u0e14\"}}, totals:{[DATA.me]:3}}), 1200); }",
+"}",
+"if (!DATA){",
+"  const me = \"\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07 \u0e43\u0e08\u0e14\u0e35\";",
+"  const my = {1:\"\u0e0a\u0e14\",2:\"\u0e1a\u0e14\",4:\"\u0e0a\",5:\"\u0e0a\",6:\"\u0e14\u0e1a\",8:\"\u0e1a\u0e0a\",10:\"\u0e0a\",11:\"\u0e0a\u0e14\",12:\"\u0e1a\u0e14\",13:\"\u0e1a\",17:\"\u0e1a\u0e0a\",18:\"\u0e0a\u0e1a\",19:\"\u0e0a\",23:\"\u0e0a\",24:\"\u0e1a\",25:\"\u0e0a\",26:\"\u0e0a\u0e1a\",28:\"\u0e0a\",29:\"\u0e1a\u0e14\",30:\"\u0e14\"};",
+"  const others = [\"\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e40\u0e2d\",\"\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e1a\u0e35\",\"\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e0b\u0e35\",\"\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e14\u0e35\",\"\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e2d\u0e35\",\"\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e40\u0e2d\u0e1f\"];",
+"  let seed = 7; const rnd = () => (seed = (seed*9301+49297)%233280)/233280;",
+"  const people = {[me]:my};",
+"  others.forEach(n=>{ const v={}; for (let d=1; d<=31; d++){ const r=rnd(); if (r<.3) continue; v[d] = r<.5?\"\u0e0a\":r<.65?\"\u0e1a\":r<.8?\"\u0e14\":r<.9?\"\u0e0a\u0e1a\":\"\u0e1a\u0e14\"; } people[n]=v; });",
+"  const q = new URLSearchParams(location.search);",
+"  DATA = {preview:true, today:\"2026-12-03\", time:\"13:00\", me, hasKey:{gemini:true, claude:false},",
+"    settings:{notify:60, calendar:true, ai:\"gemini\", theme:{style:q.get(\"s\")||\"glass\", palette:q.get(\"p\")||\"sakura\"}},",
+"    months:{\"2026-12\":{people, totals:{[me]:30}}}};",
+"}",
+"initView(); renderAll();",
+"</script>",
+"</body>",
+"</html>",
+""
+].join("\n");
+
+async function runApp() {
+  let d = loadData();
+  const wv = new WebView();
+  const payload = () => Object.assign({}, d, { hasKey: hasKey() });
+  const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
+  const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
+  const call = s => wv.evaluateJavaScript(s, false);
+  let busy = false;
+
+  async function handle(m) {
+    if (m.type === "saveMonth") {
+      d.months[m.payload.key] = m.payload.month; saveData(d); await syncAll(d);
+    } else if (m.type === "saveSettings") {
+      d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
+    } else if (m.type === "readPhoto") {
+      let r;
+      try { r = await readRoster(m.payload, d); } catch (e) { r = { error: String(e.message || e) }; }
+      await call(`onParsed(${js(r)})`);
+    } else if (m.type === "share") {
+      const img = Image.fromData(Data.fromBase64String(m.payload));
+      await ShareSheet.present([img]);
+    } else if (m.type === "editSettings") {
+      const a = new Alert();
+      a.title = "ชื่อ และ API key";
+      a.message = "ชื่อให้ตรงกับในตารางเวร\nGemini key ขอฟรีได้ที่ aistudio.google.com\nClaude key ไม่ใส่ก็ได้";
+      a.addTextField("ชื่อ นามสกุล", d.me);
+      a.addSecureTextField("Gemini API key", Keychain.contains(K_GEMINI) ? Keychain.get(K_GEMINI) : "");
+      a.addSecureTextField("Claude API key (ไม่บังคับ)", Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : "");
+      a.addAction("บันทึก"); a.addCancelAction("ยกเลิก");
+      if (await a.presentAlert() === -1) return;
+      const name = a.textFieldValue(0).trim(), g = a.textFieldValue(1).trim(), c = a.textFieldValue(2).trim();
+      if (name && name !== d.me) {                 // เปลี่ยนชื่อ: ย้ายเวรของชื่อเดิมไปชื่อใหม่ถ้าตรงกัน
+        for (const md of Object.values(d.months)) {
+          const f = findMe(md.people, name);
+          if (f && f !== name) { md.people[name] = md.people[f]; delete md.people[f]; }
+        }
+        d.me = name;
+      }
+      if (g) Keychain.set(K_GEMINI, g); else if (Keychain.contains(K_GEMINI)) Keychain.remove(K_GEMINI);
+      if (c) Keychain.set(K_CLAUDE, c); else if (Keychain.contains(K_CLAUDE)) Keychain.remove(K_CLAUDE);
+      saveData(d); await syncAll(d);
+    }
+    await call(`setData(${js(payload())})`);
+  }
+  async function pump() {
+    if (busy) return; busy = true;
+    try {
+      while (true) {
+        const q = JSON.parse(await call("__drain()"));
+        if (!q.length) break;
+        for (const m of q) { try { await handle(m); } catch (e) { console.log(e); try { await call(`toastErr(${js(String(e.message || e))})`); } catch (_) {} } }
+      }
+    } finally { busy = false; }
+  }
+  wv.shouldAllowRequest = req => {
+    if (req.url.startsWith("shiftapp://")) { pump(); return false; }
+    return true;
+  };
+  await wv.loadHTML(html, "https://localhost/");
+  let open = true;
+  const shown = wv.present(true).then(() => { open = false; });
+  const sleep = ms => new Promise(r => Timer.schedule(ms, false, r));
+  while (open) {                                   // เช็กคำสั่งจากหน้าแอปทุก 0.4 วินาที (กันกรณีสัญญาณไม่ถึง)
+    try { await pump(); } catch (e) { console.log(e); }
+    await sleep(400);
+  }
+  await shown;
+}
+
+// ---------------- วิดเจ็ต ----------------
+function theme(d) {
+  const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
+  if (t.style === "dark") return { dark: true, bg: p.dark.body, card: p.dark.card, title: p.dark.title, sub: p.dark.sub, text: p.dark.title, accent: p.dark.accent, onAccent: p.dark.body, dot: p.dark.accent,
+    shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] }, off: ["#4A3226", "#FFD0B4"] };
+  const bg = t.style === "minimal" ? "#FAF8F7" : t.style === "planner" ? "#FBF5EC" : t.style === "clay" ? p.tint : p.body;
+  return { dark: false, bg, card: "#FFFFFF", title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF", dot: p.accent,
+    shift: { "ช": ["#CDEFD9", "#1F5A3B"], "บ": ["#D3E3FF", "#24427E"], "ด": ["#E2D8FF", "#4A2F8C"] }, off: ["#FFE2CF", "#8E4A22"] };
+}
+const C = h => new Color(h);
+const F = (w, s) => new Font(`SukhumvitSet-${w}`, s);
+function txt(stack, s, font, color, opts = {}) { const t = stack.addText(s); t.font = font; t.textColor = color; if (opts.lines) t.lineLimit = opts.lines; if (opts.min) t.minimumScaleFactor = opts.min; return t; }
+function badge(stack, c, T, size = 11) {
+  const b = stack.addStack(); b.backgroundColor = C(T.shift[c][0]); b.cornerRadius = size * 0.65; b.setPadding(0, size * 0.35, 0, size * 0.35);
+  txt(b, c, F("Bold", size), C(T.shift[c][1])); return b;
+}
+function sym(stack, name, size, color) { const i = stack.addImage(SFSymbol.named(name).image); i.imageSize = new Size(size, size); i.tintColor = color; return i; }
+const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พรุ่งนี้" : `${DOW[date.getDay()]} ${date.getDate()}`;
+
+function nextShift(d, now) {
+  const list = allMyShifts(d);
+  return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) };
+}
+
+function widgetSmall(d, now, T) {
+  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(14, 14, 12, 14);
+  const { cur, nxt } = nextShift(d, now), x = cur || nxt;
+  const top = w.addStack(); top.centerAlignContent();
+  txt(top, cur ? "ตอนนี้" : "เวรถัดไป", F("Medium", 12), C(T.sub)); top.addSpacer();
+  if (x) sym(top, SH[x.c].sym, 18, C(T.accent));
+  w.addSpacer(4);
+  if (!x) { txt(w, "ยังไม่มีเวร", F("Bold", 18), C(T.title)); txt(w, "แตะเพื่ออัปรูปตาราง", F("Text", 12), C(T.sub)); return w; }
+  const dd = Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+  txt(w, SH[x.c].n, F("Bold", 22), C(T.title), { lines: 1, min: 0.7 });
+  txt(w, `${dayLabel(dd, x.st)} · ${hhmm(x.st)}–${x.c === "บ" ? "24:00" : hhmm(x.en)}`, F("Medium", 13), C(T.text), { lines: 1, min: 0.7 });
+  w.addSpacer();
+  const ms = (cur ? x.en : x.st) - now, h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4);
+  const pill = w.addStack(); pill.backgroundColor = C(T.accent); pill.cornerRadius = 10; pill.setPadding(3, 8, 3, 8);
+  txt(pill, cur ? `อีก ${h} ชม. ${m} น. เลิก` : h >= 48 ? `อีก ${Math.floor(h / 24)} วัน` : `อีก ${h} ชม. ${m} น.`, F("Bold", 12), C(T.onAccent), { lines: 1, min: 0.7 });
+  w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);
+  return w;
+}
+
+function widgetMedium(d, now, T) {
+  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(12, 10, 12, 10);
+  const head = w.addStack(); head.centerAlignContent(); head.setPadding(0, 4, 0, 4);
+  txt(head, "เวร 7 วันข้างหน้า", F("Bold", 15), C(T.title)); head.addSpacer();
+  txt(head, `${MONTHS[now.getMonth()]} ${now.getFullYear() + 543}`, F("Text", 12), C(T.sub));
+  w.addSpacer(8);
+  const row = w.addStack();
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const s = shiftsOn(d, date), today = i === 0;
+    const col = row.addStack(); col.layoutVertically(); col.size = new Size(44, 98); col.cornerRadius = 14;
+    col.backgroundColor = today ? C(T.accent) : C(T.dark ? T.card : "#FFFFFF");
+    col.setPadding(6, 0, 6, 0);
+    const fg = today ? C(T.onAccent) : C(T.text), we = date.getDay() === 0 || date.getDay() === 6;
+    const r1 = col.addStack(); r1.addSpacer(); txt(r1, DOW[date.getDay()], F("Medium", 11), today ? fg : C(we ? T.accent : T.sub)); r1.addSpacer();
+    const r2 = col.addStack(); r2.addSpacer(); txt(r2, String(date.getDate()), F("Bold", 17), fg); r2.addSpacer();
+    col.addSpacer(4);
+    if (!s || !s.length) { const r = col.addStack(); r.addSpacer(); txt(r, s ? "หยุด" : "-", F("Medium", 11), today ? fg : C(T.sub)); r.addSpacer(); }
+    else for (const c of s) { const r = col.addStack(); r.addSpacer(); badge(r, c, T, 12); r.addSpacer(); col.addSpacer(2); }
+    col.addSpacer();
+    if (i < 6) row.addSpacer(4);
+  }
+  const next = new Date(now); next.setHours(24, 1, 0, 0); w.refreshAfterDate = next;
+  return w;
+}
+
+function widgetLarge(d, now, T) {
+  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(12, 8, 8, 8);
+  const cur = key(now.getFullYear(), now.getMonth()), ks = Object.keys(d.months).sort();
+  const k = d.months[cur] ? cur : (ks.find(x => x > cur) || ks[ks.length - 1]);
+  if (!k) { txt(w, "ยังไม่มีข้อมูลเวร\nแตะเพื่อเปิดแอปแล้วอัปรูปตาราง", F("Medium", 14), C(T.title)); return w; }
+  const [y, mm] = k.split("-").map(Number), m = mm - 1, me = d.months[k].people[d.me] || {};
+  const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate(), rows = Math.ceil((first + days) / 7);
+  const isThis = now.getFullYear() === y && now.getMonth() === m;
+  let total = 0; for (const s of Object.values(me)) total += sortS(s).length;
+
+  const head = w.addStack(); head.centerAlignContent(); head.setPadding(0, 6, 0, 6);
+  const L = head.addStack(); L.layoutVertically();
+  txt(L, `${MONTHS[m]} ${y + 543}`, F("Bold", 16), C(T.title));
+  txt(L, `เวรของ${d.me.replace(/^(นางสาว|นาง|นาย)/, "").split(" ")[0]}`, F("Text", 11), C(T.sub));
+  head.addSpacer();
+  const R = head.addStack(); R.layoutVertically();
+  const r1 = R.addStack(); r1.addSpacer(); txt(r1, String(total), F("Bold", 18), C(T.title));
+  const r2 = R.addStack(); r2.addSpacer(); txt(r2, "เวร", F("Text", 11), C(T.sub));
+  w.addSpacer(6);
+
+  const CW = 40, CH = rows === 6 ? 36 : 40;
+  const dr = w.addStack();
+  for (let i = 0; i < 7; i++) { const c = dr.addStack(); c.size = new Size(CW, 14); c.centerAlignContent(); txt(c, DOW[i], F("Medium", 10), C(i === 0 || i === 6 ? T.accent : T.sub)); }
+  w.addSpacer(2);
+  let day = 1 - first;
+  while (day <= days) {
+    const row = w.addStack();
+    for (let i = 0; i < 7; i++, day++) {
+      const cell = row.addStack(); cell.size = new Size(CW, CH); cell.layoutVertically();
+      if (day < 1 || day > days) continue;
+      const today = isThis && day === now.getDate();
+      const nr = cell.addStack(); nr.addSpacer();
+      const circ = nr.addStack(); circ.size = new Size(20, 18); circ.cornerRadius = 9; circ.centerAlignContent();
+      if (today) circ.backgroundColor = C(T.accent);
+      txt(circ, String(day), F(today ? "Bold" : "Text", 11), today ? C(T.onAccent) : C(i === 0 || i === 6 ? T.accent : T.text));
+      nr.addSpacer(); cell.addSpacer(2);
+      const s = sortS(me[day]), sr = cell.addStack(); sr.addSpacer(); sr.centerAlignContent();
+      if (!s.length) { const dot = sr.addStack(); dot.size = new Size(4, 4); dot.cornerRadius = 2; dot.backgroundColor = new Color(T.dot, 0.4); }
+      s.forEach((c, j) => { if (j) sr.addSpacer(2); badge(sr, c, T, 10); });
+      sr.addSpacer();
+    }
+  }
+  if (rows <= 5) {
+    w.addSpacer(6);
+    const lg = w.addStack(); lg.addSpacer(); lg.centerAlignContent();
+    [["ช", "เช้า"], ["บ", "บ่าย"], ["ด", "ดึก"]].forEach(([c, l], j) => { if (j) lg.addSpacer(10); badge(lg, c, T, 10); lg.addSpacer(3); txt(lg, l, F("Text", 11), C(T.text)); });
+    lg.addSpacer();
+  }
+  const next = new Date(now); next.setHours(24, 1, 0, 0); w.refreshAfterDate = next;
+  return w;
+}
+
+function widgetLock(d, now, family) {
+  const w = new ListWidget();
+  const { cur, nxt } = nextShift(d, now), x = cur || nxt;
+  const dd = x ? Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5) : 0;
+  if (family === "accessoryInline") {
+    txt(w, x ? `${SH[x.c].n} ${dayLabel(dd, x.st)} ${hhmm(x.st)}` : "ยังไม่มีเวร", Font.systemFont(12), Color.white());
+  } else if (family === "accessoryCircular") {
+    w.addAccessoryWidgetBackground = true;
+    const s = w.addStack(); s.layoutVertically(); s.centerAlignContent();
+    const a = s.addStack(); a.addSpacer(); txt(a, x ? x.c : "-", F("Bold", 20), Color.white()); a.addSpacer();
+    const b = s.addStack(); b.addSpacer(); txt(b, x ? (dd === 0 ? "วันนี้" : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`) : "", F("Medium", 10), Color.white()); b.addSpacer();
+  } else {
+    const r = w.addStack(); r.centerAlignContent();
+    if (x) sym(r, SH[x.c].sym, 14, Color.white());
+    r.addSpacer(4); txt(r, cur ? "ตอนนี้" : "เวรถัดไป", F("Medium", 12), Color.white());
+    txt(w, x ? SH[x.c].n : "ยังไม่มีเวร", F("Bold", 16), Color.white());
+    if (x) txt(w, `${dayLabel(dd, x.st)} · ${hhmm(x.st)}`, F("Medium", 13), Color.white());
+  }
+  w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);
+  return w;
+}
+
+function buildWidget(d, now, family) {
+  if (String(family).startsWith("accessory")) return widgetLock(d, now, family);
+  const T = theme(d);
+  if (family === "small") return widgetSmall(d, now, T);
+  if (family === "medium") return widgetMedium(d, now, T);
+  return widgetLarge(d, now, T);
+}
+
+// ---------------- เริ่มทำงาน ----------------
+if (config.runsInWidget || config.runsInAccessoryWidget) {
+  Script.setWidget(buildWidget(loadData(), new Date(), config.widgetFamily));
+} else {
+  await runApp();
+}
+Script.complete();
+// ===== จบไฟล์ (ถ้าไม่เห็นบรรทัดนี้ แปลว่าไฟล์มาไม่ครบ) =====

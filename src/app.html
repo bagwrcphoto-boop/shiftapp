@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&family=Itim&family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{background:var(--body);color:var(--text);font-family:var(--font);padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 100px);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+button{font:inherit;cursor:pointer;color:inherit}
+#decor{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(40px);opacity:.85}
+.page{display:none;animation:fade .25s ease}
+.page.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border:var(--cardBorder);box-shadow:var(--cardShadow);border-radius:var(--r);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);padding:16px;margin-bottom:14px}
+.hello{font-size:16px;font-weight:500;color:var(--sub)}
+.big{font-size:26px;font-weight:700;color:var(--title)}
+.h3{font-size:17px;font-weight:700;color:var(--title)}
+.between{display:flex;align-items:center;justify-content:space-between}
+.row{display:flex;align-items:center;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{border:var(--nbBorder);border-radius:16px;padding:12px 14px;font-weight:600;font-size:15px;background:var(--nbBg);color:var(--title);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.main{background:var(--accent);color:var(--onAccent);border:none;box-shadow:0 6px 16px var(--accentGlow)}
+.btn:active,.nb:active,.d:active{transform:scale(.97)}
+.btn i{font-size:19px}
+.nb{width:36px;height:36px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--nbBg);border:var(--nbBorder);color:var(--title);font-size:18px}
+.p{display:inline-flex;align-items:center;justify-content:center;font-weight:700;border-radius:8px;font-size:12px;padding:0 5px;line-height:18px}
+.m{background:var(--mBg);color:var(--mFg)}.a{background:var(--aBg);color:var(--aFg)}.n{background:var(--nBg);color:var(--nFg)}.o{background:var(--oBg);color:var(--oFg)}
+/* hero */
+.hero{display:flex;justify-content:space-between;align-items:center;background:var(--heroBg)}
+.hero .when{font-size:14px;font-weight:500;color:var(--heroSub)}
+.hero .what{font-size:28px;font-weight:700;color:var(--heroTitle);margin-top:2px}
+.hero .time{font-size:15px;color:var(--heroSub);margin-top:2px}
+.cd{display:inline-flex;gap:5px;align-items:center;margin-top:10px;background:var(--cdBg);border-radius:12px;padding:4px 10px;font-size:13px;font-weight:500;color:var(--heroTitle)}
+.orb{width:66px;height:66px;flex:0 0 66px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--orbBg);border:var(--orbBorder)}
+.orb i{font-size:38px;color:var(--accent)}
+/* calendar */
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-h .t{font-size:19px;font-weight:700;color:var(--title)}
+.dow,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.dow div{font-size:13px;color:var(--sub);font-weight:600;padding-bottom:4px}
+.d{height:56px;border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:3px;font-size:15px;font-weight:500;border:1px solid transparent}
+.d.h{background:var(--dayBg);border:var(--dayBorder);box-shadow:var(--dayShadow)}
+.d .nn{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.we{color:var(--we)}
+.d.t .nn{background:var(--accent);color:var(--onAccent);font-weight:700;box-shadow:var(--todayShadow)}
+.d.sel{outline:2px solid var(--accent);outline-offset:-1px}
+.d .ps{display:flex;gap:2px}
+.d .p{font-size:11px;padding:0 4px;line-height:16px;border-radius:7px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--dot);margin-top:6px}
+.chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:3px;border-radius:12px;padding:5px 7px;font-size:13px;font-weight:700;white-space:nowrap}
+/* sheet */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:.2s;z-index:20}
+.mask.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:var(--sheet);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:28px 28px 0 0;padding:10px 18px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(105%);transition:.3s cubic-bezier(.2,.9,.3,1.05);z-index:21;max-height:86vh;overflow:auto}
+.sheet.on{transform:none}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.srow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;margin-bottom:8px}
+.srow i{font-size:30px}
+.srow .nm{font-weight:700;font-size:16px}
+.srow .tm{font-size:14px}
+.mates{font-size:13px;margin-top:4px}
+.tog{display:flex;gap:8px;margin:10px 0 14px}
+.tog button{flex:1;border:2px solid var(--line);background:transparent;border-radius:16px;padding:10px 0;font-size:15px;font-weight:600;color:var(--sub);display:flex;align-items:center;justify-content:center;gap:5px}
+.tog button.on.cm{background:var(--mBg);border-color:var(--mFg);color:var(--mFg)}
+.tog button.on.ca{background:var(--aBg);border-color:var(--aFg);color:var(--aFg)}
+.tog button.on.cn{background:var(--nBg);border-color:var(--nFg);color:var(--nFg)}
+/* stats */
+.stat{border-radius:20px;padding:14px}
+.stat .k{font-size:14px;font-weight:500;display:flex;align-items:center;gap:5px}
+.stat .v{font-size:30px;font-weight:700;line-height:1.25}
+.bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden;display:flex}
+.li{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1.5px dashed var(--line);font-size:15px}
+.li:last-child{border:0}
+.li span{display:flex;align-items:center;gap:7px}
+.li i{font-size:19px;color:var(--accent)}
+.li b{color:var(--title)}
+/* friends */
+.strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.sd{flex:0 0 50px;height:64px;border-radius:16px;background:var(--card);border:var(--cardBorder);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--sub)}
+.sd b{font-size:18px;color:var(--text)}
+.sd.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
+.sd.on b{color:var(--onAccent)}
+.who{border-radius:20px;padding:12px 14px;margin-bottom:10px}
+.who .h{font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.who .h i{font-size:20px}
+.name{display:inline-block;background:var(--nameBg);border-radius:10px;padding:3px 9px;margin:0 4px 6px 0;font-size:14px;font-weight:500}
+.name.me{background:var(--accent);color:var(--onAccent)}
+.fchips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.fchip{flex:0 0 auto;border-radius:14px;border:2px solid var(--line);background:transparent;padding:6px 12px;font-size:14px;font-weight:500;color:var(--text)}
+.fchip.on{border-color:var(--accent);background:var(--tint);color:var(--title);font-weight:700}
+.together{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.together span{border-radius:12px;padding:5px 10px;font-size:14px;font-weight:600}
+.note{font-size:13px;color:var(--sub);text-align:center;margin:6px 0 12px}
+/* settings */
+.set{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1.5px dashed var(--line);gap:10px}
+.set:last-child{border:0}
+.set .l{font-size:15px;display:flex;align-items:center;gap:8px;font-weight:500}
+.set .l i{font-size:20px;color:var(--accent)}
+.set .r{font-size:14px;color:var(--sub);text-align:right}
+select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:12px;padding:6px 10px;background:var(--nbBg);color:var(--text);-webkit-appearance:none;appearance:none}
+.sw{width:52px;height:32px;flex:0 0 52px;border-radius:16px;background:var(--line);position:relative;transition:.2s}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 4px rgba(0,0,0,.15)}
+.sw.on{background:var(--accent)}.sw.on::after{left:23px}
+.lbl{font-size:14px;font-weight:600;color:var(--title);margin:0 0 8px}
+.styles{display:flex;gap:6px;flex-wrap:wrap}
+.stb{font-size:14px;font-weight:600;padding:7px 12px;border-radius:14px;border:1.5px solid var(--line);background:var(--nbBg);color:var(--text)}
+.stb.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
+.swg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.swb{font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 0;border-radius:16px;border:2px solid transparent;background:var(--nbBg);color:var(--text)}
+.swb span{width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
+.swb.on{border-color:var(--accent)}
+/* tabs */
+.tabs{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;padding:7px;border-radius:30px;background:var(--tabBg);border:var(--cardBorder);box-shadow:var(--cardShadow);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);z-index:10}
+.tab{flex:1;border:0;background:none;font-size:12px;font-weight:500;color:var(--tabFg);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:22px}
+.tab i{font-size:24px}
+.tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-90px);background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:.3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.toast.on{transform:translate(-50%,0)}
+.loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
+.spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.msg{border-radius:14px;padding:10px 12px;font-size:14px;font-weight:500;margin:8px 0;display:flex;gap:6px;align-items:flex-start}
+.msg i{font-size:18px;margin-top:1px}
+</style>
+<style id="themeVars"></style>
+</head>
+<body>
+<div id="decor"></div>
+
+<section class="page on" id="p-cal">
+  <div style="margin-bottom:14px"><p class="hello" id="hello"></p><h1 class="big">ตารางเวรของฉัน</h1></div>
+  <div class="card hero" id="hero"></div>
+  <div class="card" id="calCard">
+    <div class="cal-h"><button class="nb" onclick="moveMonth(-1)" aria-label="เดือนก่อน"><i data-i="l"></i></button><span class="t" id="calTitle"></span><button class="nb" onclick="moveMonth(1)" aria-label="เดือนถัดไป"><i data-i="r"></i></button></div>
+    <div class="dow"><div class="we">อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div class="we">ส</div></div>
+    <div class="days" id="days"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="grid2">
+    <button class="btn main" onclick="pickPhoto()"><i data-i="camera"></i>อัปรูปเวร</button>
+    <button class="btn" onclick="shareMonth()"><i data-i="share"></i>แชร์ตาราง</button>
+  </div>
+</section>
+
+<section class="page" id="p-sum">
+  <div class="between" style="margin-bottom:14px">
+    <div><p class="hello" id="sumTitle"></p><h1 class="big">สรุปเดือนนี้</h1></div>
+    <div class="row"><button class="nb" onclick="moveMonth(-1)" aria-label="เดือนก่อน"><i data-i="l"></i></button><button class="nb" onclick="moveMonth(1)" aria-label="เดือนถัดไป"><i data-i="r"></i></button></div>
+  </div>
+  <div class="grid2" id="sumStats" style="margin-bottom:14px"></div>
+  <div class="card"><p class="h3" style="margin-bottom:10px">สัดส่วนเวร</p><div class="bar" id="sumBar"></div><div class="chips" id="sumLegend"></div></div>
+  <div class="card" id="sumList"></div>
+</section>
+
+<section class="page" id="p-fr">
+  <div style="margin-bottom:12px"><p class="hello" id="frTitle"></p><h1 class="big">เวรเพื่อนในวอร์ด</h1></div>
+  <div id="frPreview"></div>
+  <div class="strip" id="strip"></div>
+  <div id="whoList"></div>
+  <div class="card" id="togetherCard">
+    <p class="h3">หยุดตรงกับใคร</p>
+    <p class="hello" style="font-size:14px;margin:2px 0 10px">แตะชื่อเพื่อดูวันหยุดที่ตรงกัน</p>
+    <div class="fchips" id="fchips"></div>
+    <div class="together" id="together"></div>
+  </div>
+</section>
+
+<section class="page" id="p-set">
+  <div style="margin-bottom:14px"><p class="hello">ตั้งค่า</p><h1 class="big">ของฉัน</h1></div>
+  <div class="card">
+    <p class="lbl">สไตล์</p><div class="styles" id="styles"></div>
+    <p class="lbl" style="margin-top:14px">โทนสี</p><div class="swg" id="swatches"></div>
+  </div>
+  <div class="card">
+    <div class="set"><span class="l"><i data-i="bell"></i>เตือนก่อนขึ้นเวร</span>
+      <select id="setNotify" onchange="saveSettings()"><option value="0">ปิด</option><option value="30">30 นาที</option><option value="60">1 ชั่วโมง</option><option value="120">2 ชั่วโมง</option><option value="720">12 ชั่วโมง</option></select></div>
+    <div class="set"><span class="l"><i data-i="calsync"></i>ใส่เวรในปฏิทิน iPhone</span><div class="sw" id="setCal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l"><i data-i="ai"></i>AI อ่านรูป</span>
+      <select id="setAI" onchange="saveSettings()"><option value="gemini">Gemini (ฟรี)</option><option value="claude">Claude</option></select></div>
+  </div>
+  <div class="card">
+    <div class="set"><span class="l"><i data-i="user"></i>ชื่อในตาราง</span><span class="r" id="setName"></span></div>
+    <div class="set"><span class="l"><i data-i="key"></i>Gemini key</span><span class="r" id="setKeyG"></span></div>
+    <div class="set"><span class="l"><i data-i="key"></i>Claude key</span><span class="r" id="setKeyC"></span></div>
+  </div>
+  <button class="btn" style="width:100%;margin-bottom:14px" onclick="send('editSettings')"><i data-i="edit"></i>แก้ชื่อ / API key</button>
+  <div class="card">
+    <div class="set"><span class="l"><i data-i="sun"></i>เวรเช้า</span><span class="r">08:00 – 16:00</span></div>
+    <div class="set"><span class="l"><i data-i="sunset"></i>เวรบ่าย</span><span class="r">16:00 – 24:00</span></div>
+    <div class="set"><span class="l"><i data-i="moon"></i>เวรดึก</span><span class="r">00:00 – 08:00</span></div>
+  </div>
+</section>
+
+<nav class="tabs">
+  <button class="tab on" data-p="p-cal"><i data-i="cal"></i>ปฏิทิน</button>
+  <button class="tab" data-p="p-sum"><i data-i="sum"></i>สรุป</button>
+  <button class="tab" data-p="p-fr"><i data-i="fr"></i>เพื่อน</button>
+  <button class="tab" data-p="p-set"><i data-i="set"></i>ตั้งค่า</button>
+</nav>
+<div class="mask" id="mask" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0" onchange="gotPhoto(this)">
+
+<script>
+let DATA = /*__DATA__*/null;
+/*__PALETTES__*/
+
+/* ===== ไอคอน ===== */
+const ICON_NAMES = {sun:["sun","sun"],sunset:["sun-horizon","sunset-2"],moon:["moon-stars","moon"],off:["coffee","zzz"],alarm:["alarm","alarm"],
+ l:["caret-left","chevron-left"],r:["caret-right","chevron-right"],cal:["calendar-heart","calendar"],sum:["chart-pie-slice","chart-donut"],fr:["users-three","users"],set:["gear-six","settings"],
+ camera:["camera","camera"],share:["share-network","share"],bell:["bell-ringing","bell"],calsync:["calendar-plus","calendar-plus"],ai:["sparkle","sparkles"],user:["user-circle","user-circle"],
+ key:["key","key"],edit:["pencil-simple","pencil"],work:["briefcase","briefcase"],timer:["timer","clock-hour-4"],double:["stack","stack-2"],beach:["umbrella","beach"],party:["confetti","confetti"],
+ check:["check-circle","circle-check"],warn:["warning-circle","alert-circle"],flower:["flower-lotus","flower"],x:["x-circle","circle-x"],heart:["heart","heart"],users:["users","users"],list:["clipboard-text","clipboard-text"]};
+let ICON_SET = "ph";
+const icls = n => { const v = ICON_NAMES[n]; return ICON_SET==="tb" ? "ti ti-"+v[1] : (ICON_SET==="phb"?"ph-bold ph-":"ph-duotone ph-")+v[0]; };
+const ic = n => `<i data-i="${n}" class="${icls(n)}"></i>`;
+const applyIcons = () => document.querySelectorAll("[data-i]").forEach(el=>el.className = icls(el.dataset.i));
+
+/* ===== ธีม ===== */
+const al = (hex, a) => { const n = parseInt(hex.slice(1),16); return `rgba(${n>>16},${n>>8&255},${n&255},${a})`; };
+const LIGHT_SHIFT = "--mBg:#CDEFD9;--mFg:#1F5A3B;--aBg:#D3E3FF;--aFg:#24427E;--nBg:#E2D8FF;--nFg:#4A2F8C;--oBg:#FFE2CF;--oFg:#8E4A22;";
+const DARK_SHIFT = "--mBg:rgba(110,231,170,.22);--mFg:#A6F2CC;--aBg:rgba(120,170,255,.24);--aFg:#C0D6FF;--nBg:rgba(190,150,255,.27);--nFg:#DED0FF;--oBg:rgba(255,180,140,.22);--oFg:#FFD0B4;";
+const common = p => `--accent:${p.accent};--we:${p.accent};--accentGlow:${al(p.accent,.4)};--tint:${p.tint};--onAccent:#fff;--heroTitle:${p.title};--heroSub:${p.sub};`;
+const STYLES = {
+ glass:{name:"กระจก",font:"Mali",icons:"ph",blobs:p=>p.blobs,v:p=>common(p)+`--body:${p.body};--card:rgba(255,255,255,.62);--cardBorder:1px solid rgba(255,255,255,.75);--cardShadow:inset 0 1px 0 rgba(255,255,255,.9),0 8px 32px ${al(p.accent,.12)};--r:28px;--blur:blur(22px) saturate(160%);
+  --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:rgba(255,255,255,.65);--orbBg:rgba(255,255,255,.65);--orbBorder:1px solid rgba(255,255,255,.9);
+  --nbBg:rgba(255,255,255,.65);--nbBorder:1px solid rgba(255,255,255,.9);--dayBg:rgba(255,255,255,.7);--dayBorder:1px solid rgba(255,255,255,.9);--dayShadow:none;--todayShadow:0 3px 10px ${al(p.accent,.45)};--dot:${al(p.accent,.45)};
+  --tabBg:rgba(255,255,255,.72);--tabFg:${p.sub};--tabOnBg:rgba(255,255,255,.95);--tabOnFg:${p.title};--tabOnShadow:0 2px 10px ${al(p.accent,.15)};--sheet:rgba(255,255,255,.9);--line:${al(p.accent,.2)};--nameBg:rgba(255,255,255,.75);${LIGHT_SHIFT}`},
+ dark:{name:"กระจกมืด",font:"Mali",icons:"ph",blobs:p=>p.dark.blobs,v:p=>{const d=p.dark;return common(p)+`--accent:${d.accent};--we:${d.accent};--accentGlow:${al(d.accent,.35)};--onAccent:${d.body};--tint:${al(d.accent,.2)};--heroTitle:${d.title};--heroSub:${d.sub};
+  --body:${d.body};--card:rgba(20,12,30,.5);--cardBorder:1px solid rgba(255,255,255,.16);--cardShadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 40px rgba(0,0,0,.35);--r:28px;--blur:blur(24px) saturate(150%);
+  --title:${d.title};--sub:${d.sub};--text:${d.title};--heroBg:var(--card);--cdBg:rgba(255,255,255,.12);--orbBg:${al(d.accent,.18)};--orbBorder:1px solid ${al(d.accent,.45)};
+  --nbBg:rgba(255,255,255,.1);--nbBorder:1px solid rgba(255,255,255,.18);--dayBg:rgba(255,255,255,.08);--dayBorder:1px solid rgba(255,255,255,.13);--dayShadow:none;--todayShadow:0 0 14px ${al(d.accent,.8)};--dot:${al(d.accent,.5)};
+  --tabBg:rgba(20,12,30,.6);--tabFg:${d.sub};--tabOnBg:${al(d.accent,.25)};--tabOnFg:${d.title};--tabOnShadow:none;--sheet:${al(d.card,.94)};--line:rgba(255,255,255,.18);--nameBg:rgba(255,255,255,.12);${DARK_SHIFT}`}},
+ minimal:{name:"มินิมอล",font:"IBM Plex Sans Thai",icons:"tb",blobs:()=>[],extra:".p,.chip{border:1.3px solid currentColor}",v:p=>common(p)+`--body:#FAF8F7;--card:#FFFFFF;--cardBorder:1px solid #EEE8E8;--cardShadow:0 1px 2px rgba(0,0,0,.04);--r:20px;--blur:none;
+  --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:${p.tint};--orbBg:${p.tint};--orbBorder:none;
+  --nbBg:#F5F2F2;--nbBorder:none;--dayBg:transparent;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:none;--dot:${al(p.accent,.3)};
+  --mBg:transparent;--mFg:#237A50;--aBg:transparent;--aFg:#2C5DB8;--nBg:transparent;--nFg:#6A40C4;--oBg:transparent;--oFg:#B0602F;
+  --tabBg:rgba(255,255,255,.95);--tabFg:${p.sub};--tabOnBg:${p.tint};--tabOnFg:${p.accent};--tabOnShadow:none;--sheet:#FFFFFF;--line:#EEE4E6;--nameBg:#F5F2F2;`},
+ planner:{name:"แพลนเนอร์",font:"Itim",icons:"ph",blobs:()=>[],v:p=>common(p)+`--body:#FBF5EC;--card:#FFFDF8;--cardBorder:1.5px solid #E6DACA;--cardShadow:3px 4px 0 #E6DACA;--r:22px;--blur:none;
+  --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:${p.tint};--orbBg:${p.tint};--orbBorder:1.5px dashed ${p.accent};
+  --nbBg:#F6EEE2;--nbBorder:1.5px solid #E6DACA;--dayBg:#FFF8EF;--dayBorder:1.5px dashed #E6DACA;--dayShadow:none;--todayShadow:none;--dot:${al(p.accent,.35)};--washi:${al(p.accent,.4)};
+  --tabBg:#FFFDF8;--tabFg:${p.sub};--tabOnBg:${p.tint};--tabOnFg:${p.title};--tabOnShadow:none;--sheet:#FFFDF8;--line:#E6DACA;--nameBg:#FFFDF8;${LIGHT_SHIFT}`,
+  extra:"body{background-image:radial-gradient(#E4D8C8 1.2px,transparent 1.2px);background-size:18px 18px}.hero{position:relative;margin-top:18px}.hero::before{content:'';position:absolute;top:-11px;left:30px;width:86px;height:22px;background:var(--washi);transform:rotate(-4deg);border-radius:3px}"},
+ clay:{name:"Clay 3D",font:"Mitr",icons:"phb",blobs:()=>[],v:p=>common(p)+`--body:${p.tint};--card:${p.body};--cardBorder:none;--cardShadow:10px 10px 24px ${al(p.accent,.22)},-8px -8px 20px rgba(255,255,255,.9),inset 2px 2px 4px rgba(255,255,255,.8);--r:30px;--blur:none;
+  --heroBg:linear-gradient(145deg,${p.accent},${al(p.accent,.78)});--heroTitle:#FFFFFF;--heroSub:rgba(255,255,255,.92);
+  --title:${p.title};--sub:${p.sub};--text:${p.text};--cdBg:rgba(255,255,255,.25);--orbBg:rgba(255,255,255,.88);--orbBorder:none;
+  --nbBg:${p.body};--nbBorder:none;--dayBg:${p.body};--dayBorder:1px solid transparent;--dayShadow:3px 3px 7px ${al(p.accent,.18)},-3px -3px 6px rgba(255,255,255,.9);--todayShadow:0 4px 10px ${al(p.accent,.5)};--dot:${al(p.accent,.35)};
+  --tabBg:${p.body};--tabFg:${p.sub};--tabOnBg:linear-gradient(145deg,${p.accent},${al(p.accent,.78)});--tabOnFg:#FFFFFF;--tabOnShadow:0 5px 12px ${al(p.accent,.4)};--sheet:${p.body};--line:${al(p.accent,.2)};--nameBg:rgba(255,255,255,.7);${LIGHT_SHIFT}`,
+  extra:".nb,.btn:not(.main){box-shadow:4px 4px 8px rgba(0,0,0,.08),-3px -3px 6px rgba(255,255,255,.9)}"},
+};
+function applyTheme(){
+  const t = DATA.settings.theme || {style:"glass", palette:"sakura"};
+  const s = STYLES[t.style] || STYLES.glass, p = PALETTES[t.palette] || PALETTES.sakura;
+  ICON_SET = s.icons;
+  $("themeVars").textContent = `:root{--font:'${s.font}','Sukhumvit Set',system-ui,sans-serif;${s.v(p)}}` + (s.extra||"");
+  const pos = ["left:-90px;top:-60px","right:-80px;top:220px","left:-60px;top:560px","right:-50px;bottom:-40px"], sz = [300,260,280,220];
+  $("decor").innerHTML = s.blobs(p).map((c,i)=>`<div class="blob" style="width:${sz[i]}px;height:${sz[i]}px;background:${c};${pos[i]}"></div>`).join("");
+  $("styles").innerHTML = Object.entries(STYLES).map(([k,v])=>`<button class="stb ${k===t.style?"on":""}" onclick="setTheme('${k}',null)">${v.name}</button>`).join("");
+  $("swatches").innerHTML = Object.entries(PALETTES).map(([k,v])=>`<button class="swb ${k===t.palette?"on":""}" onclick="setTheme(null,'${k}')"><span style="background:linear-gradient(135deg,${v.blobs[0]},${v.accent})"></span>${v.name}</button>`).join("");
+  applyIcons();
+}
+function setTheme(style, palette){
+  const t = DATA.settings.theme = DATA.settings.theme || {style:"glass", palette:"sakura"};
+  if (style) t.style = style; if (palette) t.palette = palette;
+  renderAll(); send("saveSettings", DATA.settings);
+}
+
+/* ===== ข้อมูลพื้นฐาน ===== */
+const SH = {"ด":{n:"เวรดึก",i:"moon",t:"00:00 – 08:00",s:0,c:"n"},"ช":{n:"เวรเช้า",i:"sun",t:"08:00 – 16:00",s:8,c:"m"},"บ":{n:"เวรบ่าย",i:"sunset",t:"16:00 – 24:00",s:16,c:"a"}};
+const ORD = {"ด":0,"ช":1,"บ":2};
+const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const DOWF = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"], DOWS = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+const $ = id => document.getElementById(id);
+const key = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
+const sortS = s => (s||"").split("").filter(c=>ORD[c]!=null).sort((a,b)=>ORD[a]-ORD[b]);
+const first = n => n.replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/,"").split(" ")[0];
+const pill = c => `<span class="p ${SH[c].c}">${c}</span>`;
+
+/* ===== ตัวเชื่อม Scriptable ===== */
+const Q = [];
+function send(type, payload){
+  if (DATA.preview){ previewHandler({type, payload}); return; }
+  Q.push({type, payload}); (window.__signal || (u => { window.location.href = u; }))("shiftapp://msg/" + Date.now());
+}
+window.__drain = () => JSON.stringify(Q.splice(0));
+
+/* ===== สถานะ ===== */
+const now = () => DATA.preview ? new Date(DATA.today + "T" + (DATA.time||"13:00") + ":00") : new Date();
+let viewY, viewM, selDay = null, frDay = null, frFriend = null;
+function initView(){
+  const n = now(), k = key(n.getFullYear(), n.getMonth()), ks = Object.keys(DATA.months).sort();
+  const pick = DATA.months[k] ? k : (ks.find(x=>x>k) || ks[ks.length-1] || k);
+  [viewY, viewM] = pick.split("-").map(Number); viewM--;
+}
+const monthData = () => DATA.months[key(viewY,viewM)] || null;
+const mine = () => { const md = monthData(); return md ? (md.people[DATA.me] || {}) : {}; };
+const isToday = d => { const n = now(); return n.getFullYear()===viewY && n.getMonth()===viewM && n.getDate()===d; };
+const daysIn = () => new Date(viewY, viewM+1, 0).getDate();
+const firstDow = () => new Date(viewY, viewM, 1).getDay();
+
+/* ===== เวรถัดไป ===== */
+function allMyShifts(){
+  const list = [];
+  for (const [k, md] of Object.entries(DATA.months)){
+    const [y,m] = k.split("-").map(Number), me = md.people[DATA.me] || {};
+    for (const [d, s] of Object.entries(me)) for (const c of sortS(s)){
+      const st = new Date(y, m-1, +d, SH[c].s); list.push({c, st, en:new Date(st.getTime()+8*3600e3)});
+    }
+  }
+  return list.sort((a,b)=>a.st-b.st);
+}
+const dayDiff = (a,b) => Math.round((new Date(b.getFullYear(),b.getMonth(),b.getDate()) - new Date(a.getFullYear(),a.getMonth(),a.getDate()))/864e5);
+function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math.floor(m%1440/60), mm = m%60;
+  return d ? `${d} วัน ${h} ชม.` : h ? `${h} ชม. ${mm} นาที` : `${mm} นาที`; }
+function renderHero(){
+  const n = now(), list = allMyShifts(), cur = list.find(x=>x.st<=n && x.en>n), nxt = list.find(x=>x.st>n);
+  let h;
+  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${SH[cur.c].n}</p><p class="time">${SH[cur.c].t}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div><div class="orb">${ic(SH[cur.c].i)}</div>`;
+  else if (nxt){
+    const dd = dayDiff(n, nxt.st), when = dd===0?"วันนี้":dd===1?"พรุ่งนี้":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MONTHS[nxt.st.getMonth()].slice(0,3)}.`;
+    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${SH[nxt.c].n}</p><p class="time">${SH[nxt.c].t}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div><div class="orb">${ic(SH[nxt.c].i)}</div>`;
+  } else h = `<div><p class="when">ยังไม่มีเวรข้างหน้า</p><p class="what">พักผ่อนเยอะๆ นะ</p><p class="time">อัปรูปตารางเดือนใหม่ได้เลย</p></div><div class="orb">${ic("flower")}</div>`;
+  $("hero").innerHTML = h;
+}
+
+/* ===== ปฏิทิน ===== */
+function countMonth(me, days){
+  const c = {"ช":0,"บ":0,"ด":0}; let off = 0;
+  for (let d=1; d<=days; d++){ const s = sortS(me[d]); if (!s.length) off++; for (const x of s) c[x]++; }
+  return {c, off, total:c["ช"]+c["บ"]+c["ด"]};
+}
+const chipsHTML = k => `<span class="chip m">${ic("sun")}เช้า ${k.c["ช"]}</span><span class="chip a">${ic("sunset")}บ่าย ${k.c["บ"]}</span><span class="chip n">${ic("moon")}ดึก ${k.c["ด"]}</span><span class="chip o">${ic("off")}หยุด ${k.off}</span>`;
+function renderCal(){
+  const md = monthData(), me = mine(), f = firstDow(), days = daysIn();
+  $("calTitle").textContent = `${MONTHS[viewM]} ${viewY+543}`;
+  let h = "<div></div>".repeat(f);
+  for (let d=1; d<=days; d++){
+    const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;
+    const ps = s.length ? `<div class="ps">${s.map(pill).join("")}</div>` : (md ? '<div class="dot"></div>' : "");
+    h += `<div class="d ${s.length?"h":""} ${isToday(d)?"t":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}</div>`;
+  }
+  $("days").innerHTML = h;
+  $("chips").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class="note" style="width:100%">ยังไม่มีตารางเดือนนี้ กด "อัปรูปเวร" ได้เลย</p>`;
+}
+function moveMonth(n){ viewM += n; if (viewM<0){viewM=11;viewY--} if (viewM>11){viewM=0;viewY++} selDay=null; frDay=null; renderAll(); }
+let tx = null;
+$("calCard").addEventListener("touchstart", e=>tx=e.touches[0].clientX, {passive:true});
+$("calCard").addEventListener("touchend", e=>{ if (tx==null) return; const dx = e.changedTouches[0].clientX-tx; if (Math.abs(dx)>60) moveMonth(dx<0?1:-1); tx=null; });
+
+/* ===== รายละเอียดวัน + แก้เวร ===== */
+let editSet = "";
+function openDay(d){
+  selDay = d; renderCal();
+  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d);
+  editSet = s.join("");
+  let rows = s.map(c=>{
+    const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||"").includes(c)).map(([n])=>first(n)) : [];
+    return `<div class="srow ${SH[c].c}">${ic(SH[c].i)}<div><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}</div></div>`;
+  }).join("");
+  if (!s.length) rows = `<div class="srow o">${ic("off")}<div><p class="nm">วันหยุด</p><p class="tm">พักผ่อนให้เต็มที่นะ</p></div></div>`;
+  $("sheet").innerHTML = `<div class="grab"></div>
+    <h2 class="big" style="font-size:22px">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>
+    <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}
+    <p class="h3" style="margin-top:16px">แก้เวร</p>
+    <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${ic(SH[c].i)} ${c}</button>`).join("")}</div>
+    <button class="btn main" style="width:100%" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
+  openSheet();
+}
+function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,"") : editSet + c; el.classList.toggle("on"); }
+function saveDay(d){
+  const k = key(viewY,viewM);
+  if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};
+  const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};
+  const v = sortS(editSet).join(""); if (v) me[d] = v; else delete me[d];
+  send("saveMonth", {key:k, month:DATA.months[k]});
+  closeSheet(); renderAll(); toast("บันทึกแล้ว");
+}
+function openSheet(){ $("mask").classList.add("on"); $("sheet").classList.add("on"); }
+function closeSheet(){ $("mask").classList.remove("on"); $("sheet").classList.remove("on"); selDay=null; renderCal(); }
+
+/* ===== สรุป ===== */
+function renderSum(){
+  const md = monthData(), me = mine(), days = daysIn(), f = firstDow();
+  $("sumTitle").textContent = `${MONTHS[viewM]} ${viewY+543}`;
+  if (!md){ $("sumStats").innerHTML=""; $("sumBar").innerHTML=""; $("sumLegend").innerHTML=""; $("sumList").innerHTML=`<p class="note">ยังไม่มีข้อมูลเดือนนี้</p>`; return; }
+  const k = countMonth(me, days), dbl = Object.values(me).filter(s=>sortS(s).length>1).length;
+  $("sumStats").innerHTML = `
+    <div class="stat" style="background:var(--tint);color:var(--title)"><p class="k">${ic("work")}เวรทั้งหมด</p><p class="v">${k.total}</p></div>
+    <div class="stat o"><p class="k">${ic("off")}วันหยุด</p><p class="v">${k.off}</p></div>
+    <div class="stat m"><p class="k">${ic("timer")}ชั่วโมงงาน</p><p class="v">${k.total*8}</p></div>
+    <div class="stat n"><p class="k">${ic("double")}วันควบ 2 เวร</p><p class="v">${dbl}</p></div>`;
+  const pct = c => k.total ? k.c[c]/k.total*100 : 0;
+  $("sumBar").innerHTML = ["ช","บ","ด"].map(c=>`<div class="${SH[c].c}" style="width:${pct(c)}%;background:var(--${SH[c].c}Fg)"></div>`).join("");
+  $("sumLegend").innerHTML = ["ช","บ","ด"].map(c=>`<span class="chip ${SH[c].c}">${ic(SH[c].i)}${SH[c].n.replace("เวร","")} ${k.c[c]} · ${Math.round(pct(c))}%</span>`).join("");
+  let run=0, best=0, weOff=0;
+  for (let d=1; d<=days; d++){ const off = !sortS(me[d]).length; run = off ? run+1 : 0; best = Math.max(best, run); const w=(f+d-1)%7; if (off && (w===0||w===6)) weOff++; }
+  const tot = md.totals ? md.totals[DATA.me] : null;
+  $("sumList").innerHTML = `<p class="h3" style="margin-bottom:4px">เกร็ดน่ารู้</p>
+    <div class="li"><span>${ic("beach")}หยุดติดกันนานสุด</span><b>${best} วัน</b></div>
+    <div class="li"><span>${ic("party")}เสาร์-อาทิตย์ที่ได้หยุด</span><b>${weOff} วัน</b></div>
+    <div class="li"><span>${ic("moon")}เวรดึกทั้งเดือน</span><b>${k.c["ด"]} คืน</b></div>
+    ${tot!=null?`<div class="li"><span>${ic("list")}ช่อง "ทำงานจริง" ในตาราง</span><b>${tot} ${tot===k.total?"ตรง":"ไม่ตรง"}</b></div>`:""}`;
+}
+
+/* ===== เพื่อน ===== */
+function renderFr(){
+  const md = monthData(), days = daysIn(), f = firstDow();
+  $("frTitle").textContent = `${MONTHS[viewM]} ${viewY+543}`;
+  $("frPreview").innerHTML = DATA.preview ? `<p class="note">* เวรเพื่อนในภาพนี้เป็นข้อมูลตัวอย่าง</p>` : "";
+  if (!md || Object.keys(md.people).length<2){ $("strip").innerHTML=""; $("whoList").innerHTML=`<div class="card"><p class="note">ยังไม่มีเวรของเพื่อนเดือนนี้<br>อัปรูปตารางเพื่อให้ AI อ่านทุกแถว</p></div>`; $("togetherCard").style.display="none"; return; }
+  $("togetherCard").style.display = "";
+  if (!frDay) frDay = isToday(now().getDate()) ? now().getDate() : 1;
+  let h = "";
+  for (let d=1; d<=days; d++) h += `<div class="sd ${d===frDay?"on":""}" id="sd${d}" onclick="frDay=${d};renderFr()"><span>${DOWS[(f+d-1)%7]}</span><b>${d}</b></div>`;
+  $("strip").innerHTML = h;
+  setTimeout(()=>{ const el=$("sd"+frDay); if (el && el.scrollIntoView) el.scrollIntoView({inline:"center",block:"nearest"}); },0);
+  const g = {"ช":[],"บ":[],"ด":[],off:[]};
+  for (const [n,v] of Object.entries(md.people)){ const s = sortS(v[frDay]); if (!s.length) g.off.push(n); for (const c of s) g[c].push(n); }
+  const tag = n => `<span class="name ${n===DATA.me?"me":""}">${n===DATA.me?"ฉัน":first(n)}</span>`;
+  $("whoList").innerHTML = ["ช","บ","ด"].map(c=>`<div class="who ${SH[c].c}"><p class="h">${ic(SH[c].i)}${SH[c].n} · ${g[c].length} คน</p>${g[c].map(tag).join("")||"-"}</div>`).join("")
+    + `<div class="who o"><p class="h">${ic("off")}หยุด · ${g.off.length} คน</p>${g.off.map(tag).join("")||"-"}</div>`;
+  const friends = Object.keys(md.people).filter(n=>n!==DATA.me);
+  if (!frFriend || !friends.includes(frFriend)) frFriend = friends[0];
+  $("fchips").innerHTML = friends.map((n,i)=>`<button class="fchip ${n===frFriend?"on":""}" onclick="pickFriend(${i})">${first(n)}</button>`).join("");
+  const me = mine(), fr = md.people[frFriend], both = [];
+  for (let d=1; d<=days; d++) if (!sortS(me[d]).length && !sortS(fr[d]).length) both.push(d);
+  $("together").innerHTML = both.length ? both.map(d=>`<span class="o">${d} ${MONTHS[viewM].slice(0,3)}.</span>`).join("") : `<p class="note" style="width:100%">เดือนนี้ไม่มีวันหยุดตรงกัน</p>`;
+}
+function pickFriend(i){ const md = monthData(); frFriend = Object.keys(md.people).filter(n=>n!==DATA.me)[i]; renderFr(); }
+
+/* ===== ตั้งค่า ===== */
+function renderSet(){
+  $("setName").textContent = DATA.me;
+  $("setKeyG").textContent = DATA.hasKey.gemini ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง";
+  $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ไม่ใช้";
+  $("setNotify").value = String(DATA.settings.notify);
+  $("setCal").classList.toggle("on", !!DATA.settings.calendar);
+  $("setAI").value = DATA.settings.ai || "gemini";
+}
+function saveSettings(){
+  DATA.settings.notify = +$("setNotify").value;
+  DATA.settings.calendar = $("setCal").classList.contains("on");
+  DATA.settings.ai = $("setAI").value;
+  send("saveSettings", DATA.settings); toast("บันทึกการตั้งค่าแล้ว");
+}
+
+/* ===== อัปรูป ===== */
+function pickPhoto(){ $("file").click(); }
+function gotPhoto(inp){
+  const f = inp.files && inp.files[0]; if (!f) return;
+  onReading();
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    const sc = Math.min(1, 2400/Math.max(img.naturalWidth, img.naturalHeight));
+    const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth*sc); cv.height = Math.round(img.naturalHeight*sc);
+    const x = cv.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0,0,cv.width,cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
+    URL.revokeObjectURL(url); inp.value = "";
+    send("readPhoto", cv.toDataURL("image/jpeg", .9).split(",")[1]);
+  };
+  img.onerror = () => { inp.value = ""; onParsed({error:"เปิดรูปนี้ไม่ได้ ลองแคปหน้าจอตารางแล้วเลือกรูปที่แคปแทน"}); };
+  img.src = url;
+}
+window.onReading = function(){
+  $("sheet").innerHTML = `<div class="grab"></div><div class="loading"><i class="${icls("flower")} spin"></i><p class="h3">กำลังอ่านตารางเวร…</p><p style="font-size:14px">ประมาณ 20–40 วินาที</p></div>`;
+  openSheet();
+};
+let PARSED = null;
+window.onParsed = function(r){
+  const close = `<button class="btn" style="width:100%" onclick="closeSheet()">ปิด</button>`;
+  if (r.error){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">อ่านรูปไม่สำเร็จ</p><div class="msg o">${ic("warn")}<span>${r.error}</span></div>${close}`; openSheet(); return; }
+  PARSED = r;
+  const me = r.people[DATA.me];
+  if (!me){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">ไม่เจอชื่อ "${DATA.me}"</p><div class="msg o">${ic("warn")}<span>ชื่อที่อ่านได้: ${Object.keys(r.people).join(", ")}<br>แก้ชื่อในหน้าตั้งค่าให้ตรงกับตาราง แล้วอัปรูปใหม่</span></div>${close}`; openSheet(); return; }
+  const cnt = Object.values(me).map(sortS).flat().length, tot = r.totals ? r.totals[DATA.me] : null;
+  const chk = tot==null ? "" : tot===cnt ? `<div class="msg m">${ic("check")}<span>${cnt} เวร ตรงกับช่อง "ทำงานจริง"</span></div>` : `<div class="msg o">${ic("warn")}<span>อ่านได้ ${cnt} เวร แต่ช่อง "ทำงานจริง" = ${tot} ลองเทียบกับตารางอีกที บันทึกแล้วแตะแก้รายวันได้</span></div>`;
+  const list = Object.keys(me).map(Number).sort((a,b)=>a-b).map(d=>`<span style="display:inline-flex;gap:3px;align-items:center;margin:0 12px 8px 0;font-weight:600">${d} ${sortS(me[d]).map(pill).join("")}</span>`).join("");
+  $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">${MONTHS[r.month-1]} ${r.year+543}</p>
+    <p class="hello" style="font-size:14px">อ่านได้ ${Object.keys(r.people).length} คนในวอร์ด · เวรของ${first(DATA.me)}</p>${chk}
+    <div style="margin:10px 0">${list}</div>
+    <div class="grid2"><button class="btn" onclick="closeSheet()">ยกเลิก</button><button class="btn main" onclick="confirmParsed()">${ic("check")}บันทึก</button></div>`;
+  openSheet();
+};
+function confirmParsed(){
+  const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,"0")}`;
+  DATA.months[k] = {people:r.people, totals:r.totals||{}};
+  send("saveMonth", {key:k, month:DATA.months[k]});
+  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll(); toast("บันทึกเวรเดือนใหม่แล้ว");
+}
+
+/* ===== แชร์เป็นรูป ===== */
+async function shareMonth(){
+  try { await Promise.all(["400","500","700"].map(w=>document.fonts.load(`${w} 30px Mali`, "กข0123"))); } catch(e){}
+  const t = DATA.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
+  const me = mine(), days = daysIn(), f = firstDow();
+  const W = 1080, cell = 140, top = 300, rows = Math.ceil((f+days)/7), H = top + rows*cell + 200;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
+  const font = (s,w=600) => `${w} ${s}px Mali, "Sukhumvit Set", sans-serif`;
+  const col = {"ช":["#CDEFD9","#1F5A3B"],"บ":["#D3E3FF","#24427E"],"ด":["#E2D8FF","#4A2F8C"]};
+  x.fillStyle = p.body; x.fillRect(0,0,W,H);
+  x.textAlign = "center";
+  x.fillStyle = p.title; x.font = font(64,700); x.fillText(`เวรของ${first(DATA.me)}`, W/2, 120);
+  x.fillStyle = p.sub; x.font = font(44,500); x.fillText(`${MONTHS[viewM]} ${viewY+543}`, W/2, 190);
+  const ox = (W - cell*7)/2;
+  x.font = font(34); DOWS.forEach((d,i)=>{ x.fillStyle = (i===0||i===6)?p.accent:p.sub; x.fillText(d, ox+cell*i+cell/2, top-30); });
+  for (let d=1; d<=days; d++){
+    const i = f+d-1, cx = ox + (i%7)*cell, cy = top + Math.floor(i/7)*cell;
+    x.fillStyle = "#FFFFFF"; rr(x, cx+6, cy+6, cell-12, cell-12, 26); x.fill();
+    x.fillStyle = (i%7===0||i%7===6)?p.accent:p.text; x.font = font(36,500); x.fillText(d, cx+cell/2, cy+52);
+    const s = sortS(me[d]);
+    if (!s.length){ x.fillStyle = al(p.accent,.35); x.beginPath(); x.arc(cx+cell/2, cy+94, 7, 0, 7); x.fill(); }
+    const pw = 46, gap = 6, sx = cx + cell/2 - (s.length*pw + (s.length-1)*gap)/2;
+    s.forEach((c,j)=>{ x.fillStyle = col[c][0]; rr(x, sx+j*(pw+gap), cy+72, pw, 44, 14); x.fill(); x.fillStyle = col[c][1]; x.font = font(30,700); x.fillText(c, sx+j*(pw+gap)+pw/2, cy+104); });
+  }
+  const k = countMonth(me, days);
+  x.fillStyle = p.title; x.font = font(38,500);
+  x.fillText(`เช้า ${k.c["ช"]}   ·   บ่าย ${k.c["บ"]}   ·   ดึก ${k.c["ด"]}   ·   หยุด ${k.off}`, W/2, H-90);
+  send("share", cv.toDataURL("image/png").split(",")[1]);
+}
+function rr(x, a, b, w, h, r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }
+
+/* ===== อื่นๆ ===== */
+window.toastErr = t => { $("toast").innerHTML = ic("warn") + t; $("toast").classList.add("on"); clearTimeout(tt); tt = setTimeout(()=>$("toast").classList.remove("on"), 4000); };
+let tt; function toast(t){ $("toast").innerHTML = ic("check") + t; $("toast").classList.add("on"); clearTimeout(tt); tt = setTimeout(()=>$("toast").classList.remove("on"), 1800); }
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===b));
+  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id===b.dataset.p));
+  window.scrollTo(0,0);
+});
+function renderAll(){
+  applyTheme();
+  const h = now().getHours();
+  $("hello").textContent = `${h<12?"อรุณสวัสดิ์":h<17?"สวัสดีตอนบ่าย":"สวัสดีตอนเย็น"} ${first(DATA.me)}`;
+  renderHero(); renderCal(); renderSum(); renderFr(); renderSet();
+}
+window.setData = function(d){ DATA = d; renderAll(); };
+
+/* ===== โหมดตัวอย่าง (เปิดในเบราว์เซอร์ ไม่ได้อยู่ใน Scriptable) ===== */
+function previewHandler(msg){
+  if (msg.type==="share"){ window.__share = msg.payload; }
+  if (msg.type==="readPhoto"){ setTimeout(()=>onParsed({year:2027, month:1, people:{[DATA.me]:{2:"ช",3:"บด"}}, totals:{[DATA.me]:3}}), 1200); }
+}
+if (!DATA){
+  const me = "ตัวอย่าง ใจดี";
+  const my = {1:"ชด",2:"บด",4:"ช",5:"ช",6:"ดบ",8:"บช",10:"ช",11:"ชด",12:"บด",13:"บ",17:"บช",18:"ชบ",19:"ช",23:"ช",24:"บ",25:"ช",26:"ชบ",28:"ช",29:"บด",30:"ด"};
+  const others = ["เพื่อน เอ","เพื่อน บี","เพื่อน ซี","เพื่อน ดี","เพื่อน อี","เพื่อน เอฟ"];
+  let seed = 7; const rnd = () => (seed = (seed*9301+49297)%233280)/233280;
+  const people = {[me]:my};
+  others.forEach(n=>{ const v={}; for (let d=1; d<=31; d++){ const r=rnd(); if (r<.3) continue; v[d] = r<.5?"ช":r<.65?"บ":r<.8?"ด":r<.9?"ชบ":"บด"; } people[n]=v; });
+  const q = new URLSearchParams(location.search);
+  DATA = {preview:true, today:"2026-12-03", time:"13:00", me, hasKey:{gemini:true, claude:false},
+    settings:{notify:60, calendar:true, ai:"gemini", theme:{style:q.get("s")||"glass", palette:q.get("p")||"sakura"}},
+    months:{"2026-12":{people, totals:{[me]:30}}}};
+}
+initView(); renderAll();
+</script>
+</body>
+</html>
