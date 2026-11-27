@@ -45,7 +45,7 @@ button{font:inherit;cursor:pointer;color:inherit}
 .cal-h .t{font-size:19px;font-weight:700;color:var(--title)}
 .dow,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
 .dow div{font-size:13px;color:var(--sub);font-weight:600;padding-bottom:4px}
-.d{height:56px;border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:3px;font-size:15px;font-weight:500;border:1px solid transparent}
+.d{height:66px;border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:3px;font-size:15px;font-weight:500;border:1px solid transparent}
 .d.h{background:var(--dayBg);border:var(--dayBorder);box-shadow:var(--dayShadow)}
 .d .nn{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .we{color:var(--we)}
@@ -57,7 +57,7 @@ button{font:inherit;cursor:pointer;color:inherit}
 .cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}
 .d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}
 .d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}
-.d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .lv{position:absolute;bottom:2px;right:3px;font-size:9px;font-weight:700;line-height:12px;padding:0 3px;border-radius:5px;background:#FFE1EA;color:#B23A68}
+.d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .ab{font-size:11px;font-weight:700;letter-spacing:.5px;line-height:12px;margin-top:-1px;color:var(--title)}.d .ab.lvt{color:#C2477D}
 .lvb{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}.lvb button{border:1.5px solid var(--line);background:none;border-radius:12px;padding:6px 12px;font:inherit;font-size:14px;color:var(--text)}.lvb button.on{background:#FFE1EA;border-color:#F48FB1;color:#B23A68;font-weight:700}
 .d.hol .nn{color:#D9821A;font-weight:700}.d.hol.t .nn{color:var(--onAccent)}.d.hol:after{content:"";position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:#F2A23A}
 .holb{display:flex;align-items:center;gap:8px;background:#FFF1DC;color:#9A5A0C;border-radius:14px;padding:8px 12px;font-size:14px;font-weight:600;margin-bottom:10px}
@@ -782,9 +782,10 @@ function renderCal(){
     const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;
     const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());
     const ps = s.length ? `<div class="ics">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join("")}</div>` : (md ? `<div class="ics" style="opacity:.75">${cute("off",17)}</div>` : "");
-    const pin = (noteOf(new Date(viewY, viewM, d)) ? `<span class="pin">${CUTE.note}</span>` : "") + (leaveOf(new Date(viewY, viewM, d)) ? `<span class="lv">ลา</span>` : "");
+    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class="pin">${CUTE.note}</span>` : "";
+    const lvT = leaveOf(new Date(viewY, viewM, d)) ? "ลา" : "", ab = s.join("") + (s.length && lvT ? " " : "") + lvT;   // ตัวย่อเวรใต้ไอคอน เช่น ชด บด
     const lb = LB.some(r => new Date(viewY, viewM, d) >= r.st && new Date(viewY, viewM, d) <= r.en);
-    h += `<div class="d ${s.length?"h":""} ${lb?"lb":""} ${holOf(viewY,viewM,d)?"hol":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${pin}</div>`;
+    h += `<div class="d ${s.length?"h":""} ${lb?"lb":""} ${holOf(viewY,viewM,d)?"hol":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${ab?`<span class="ab${lvT?" lvt":""}">${ab}</span>`:""}${pin}</div>`;
   }
   $("days").innerHTML = h;
   $("chips").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class="note" style="width:100%">ยังไม่มีตารางเดือนนี้ กด "อัปรูปเวร" ได้เลย</p>`;

@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 44";
+const APP_VERSION = "28 พ.ย. 69 · 45";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -574,7 +574,7 @@ const APP_HTML = [
 ".cal-h .t{font-size:19px;font-weight:700;color:var(--title)}",
 ".dow,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}",
 ".dow div{font-size:13px;color:var(--sub);font-weight:600;padding-bottom:4px}",
-".d{height:56px;border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:3px;font-size:15px;font-weight:500;border:1px solid transparent}",
+".d{height:66px;border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:4px;gap:3px;font-size:15px;font-weight:500;border:1px solid transparent}",
 ".d.h{background:var(--dayBg);border:var(--dayBorder);box-shadow:var(--dayShadow)}",
 ".d .nn{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}",
 ".we{color:var(--we)}",
@@ -586,7 +586,7 @@ const APP_HTML = [
 ".cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}",
 ".d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}",
 ".d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}",
-".d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .lv{position:absolute;bottom:2px;right:3px;font-size:9px;font-weight:700;line-height:12px;padding:0 3px;border-radius:5px;background:#FFE1EA;color:#B23A68}",
+".d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .ab{font-size:11px;font-weight:700;letter-spacing:.5px;line-height:12px;margin-top:-1px;color:var(--title)}.d .ab.lvt{color:#C2477D}",
 ".lvb{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}.lvb button{border:1.5px solid var(--line);background:none;border-radius:12px;padding:6px 12px;font:inherit;font-size:14px;color:var(--text)}.lvb button.on{background:#FFE1EA;border-color:#F48FB1;color:#B23A68;font-weight:700}",
 ".d.hol .nn{color:#D9821A;font-weight:700}.d.hol.t .nn{color:var(--onAccent)}.d.hol:after{content:\"\";position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:#F2A23A}",
 ".holb{display:flex;align-items:center;gap:8px;background:#FFF1DC;color:#9A5A0C;border-radius:14px;padding:8px 12px;font-size:14px;font-weight:600;margin-bottom:10px}",
@@ -1311,9 +1311,10 @@ const APP_HTML = [
 "    const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;",
 "    const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());",
 "    const ps = s.length ? `<div class=\"ics\">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join(\"\")}</div>` : (md ? `<div class=\"ics\" style=\"opacity:.75\">${cute(\"off\",17)}</div>` : \"\");",
-"    const pin = (noteOf(new Date(viewY, viewM, d)) ? `<span class=\"pin\">${CUTE.note}</span>` : \"\") + (leaveOf(new Date(viewY, viewM, d)) ? `<span class=\"lv\">\u0e25\u0e32</span>` : \"\");",
+"    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class=\"pin\">${CUTE.note}</span>` : \"\";",
+"    const lvT = leaveOf(new Date(viewY, viewM, d)) ? \"\u0e25\u0e32\" : \"\", ab = s.join(\"\") + (s.length && lvT ? \" \" : \"\") + lvT;   // \u0e15\u0e31\u0e27\u0e22\u0e48\u0e2d\u0e40\u0e27\u0e23\u0e43\u0e15\u0e49\u0e44\u0e2d\u0e04\u0e2d\u0e19 \u0e40\u0e0a\u0e48\u0e19 \u0e0a\u0e14 \u0e1a\u0e14",
 "    const lb = LB.some(r => new Date(viewY, viewM, d) >= r.st && new Date(viewY, viewM, d) <= r.en);",
-"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${lb?\"lb\":\"\"} ${holOf(viewY,viewM,d)?\"hol\":\"\"} ${isToday(d)?\"t\":\"\"} ${past&&!isToday(d)?\"past\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}${pin}</div>`;",
+"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${lb?\"lb\":\"\"} ${holOf(viewY,viewM,d)?\"hol\":\"\"} ${isToday(d)?\"t\":\"\"} ${past&&!isToday(d)?\"past\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}${ab?`<span class=\"ab${lvT?\" lvt\":\"\"}\">${ab}</span>`:\"\"}${pin}</div>`;",
 "  }",
 "  $(\"days\").innerHTML = h;",
 "  $(\"chips\").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class=\"note\" style=\"width:100%\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49 \u0e01\u0e14 \"\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23\" \u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p>`;",
