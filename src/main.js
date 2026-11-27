@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 28";
+const APP_VERSION = "27 พ.ย. 69 · 29";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -272,23 +272,29 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
     const ink = JSON.parse(await page(`halfInk(${+j.label}, ${days})`)), glyphs = [];
     for (let dd = 1; dd <= days; dd++){ const s = sortS(final[dd]), h = ink[dd] || {};
       if (s.length === 2) { glyphs.push({ d: dd, half: "top", c: s[0] }, { d: dd, half: "bot", c: s[1] }); }
-      else if (s.length === 1) { if (h.bot && !h.top) glyphs.push({ d: dd, half: "bot", c: s[0] }); else if (h.top && !h.bot) glyphs.push({ d: dd, half: "top", c: s[0] }); } }
+      else if (s.length === 1) { if (h.bot && !h.top) glyphs.push({ d: dd, half: "bot", c: s[0] }); else if (h.top && !h.bot) glyphs.push({ d: dd, half: "top", c: s[0] }); else if (h.top && h.bot) glyphs.push({ d: dd, half: "top", c: "?" , pair: s[0] }, { d: dd, half: "bot", c: "?", pair: s[0] }); }
+      else if (s.length === 0 && (h.top || h.bot)) for (const half of ["top", "bot"]) if (h[half]) glyphs.push({ d: dd, half, c: "" }); }
     const agree = g => val(r1, g.d) === val(r2, g.d) && !uncertain.includes(g.d), legend = {};
-    for (const c of ["ช", "บ", "ด"]) legend[c] = glyphs.filter(g => g.c === c && agree(g)).slice(0, 4);
+    for (const c of ["ช", "บ", "ด"]) legend[c] = glyphs.filter(g => g.c === c && agree(g)).slice(0, 6);
     const exm = new Set(Object.values(legend).flat()), items = glyphs.filter(g => !exm.has(g));
     if (items.length && legend["ช"].length && legend["บ"].length) {
       const [L, Q] = JSON.parse(await page(`glyphSheet(${+j.label}, ${JSON.stringify(items.map(g => ({ d: g.d, half: g.half })))}, ${JSON.stringify(Object.fromEntries(Object.entries(legend).map(([c, a]) => [c, a.map(g => ({ d: g.d, half: g.half }))])))})`));
       const t = await claudeCallN(CLAUDE_STRONG, [L, Q],
 `รูปที่ 1 คือตัวอย่างตัวอักษรจากตารางเดียวกัน (ฟอนต์และขนาดเดียวกัน) แยกเป็นตัว ช, ตัว บ, ตัว ด
 รูปที่ 2 คือตัวอักษรที่ต้องตรวจ มีเลขกำกับ #1, #2, ...
-เทียบรูปร่างกับตัวอย่างทีละตัว (ไม่ต้องดูสีพื้น) แล้วบอกว่าแต่ละตัวคือ ช, บ หรือ ด
+เทียบรูปร่างกับตัวอย่างทีละตัว (ไม่ต้องดูสีพื้น) แล้วบอกว่าแต่ละตัวคือ ช, บ, ด หรือ x (กากบาท/ว่าง/ข้อความอื่นที่ไม่ใช่เวร)
 ระวัง ช กับ บ: ช สูงกว่าและแคบกว่า มีหางขาขวาชี้ขึ้น หัวซ้ายมีหยัก ส่วน บ เตี้ยกว่า กว้างกว่า หัวเรียบ ให้เทียบความสูง/ความกว้างกับตัวอย่างด้วย
-ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด`, key, 1500);
-      const fix = {};
-      for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบด])/g)) { const g = items[+x[1] - 1]; if (g && g.c !== x[2]) fix[g.d + g.half] = x[2]; }
-      for (const g of glyphs) if (fix[g.d + g.half]) {
-        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = fix[g.d + g.half];
-        final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); }
+ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด #4=x`, key, 1500);
+      const ans = {};
+      for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบดxX])/g)) { const g = items[+x[1] - 1]; if (g) ans[g.d + g.half] = x[2].toLowerCase(); }
+      const known = g => g.c === "ช" || g.c === "บ" || g.c === "ด";
+      // 1) ตัวที่อ่านไว้แล้ว แต่เทียบแล้วเป็นตัวอื่น (ช ↔ บ ↔ ด)
+      for (const g of glyphs) { const a = ans[g.d + g.half]; if (!known(g) || !a || a === "x" || a === g.c) continue;
+        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = a; final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); }
+      // 2) ครึ่งที่มีตัวอักษรแต่ยังไม่ได้อ่าน (เช่น ช ล่างหายไป) → เติมตามลำดับบน/ล่าง
+      for (let dd = 1; dd <= days; dd++) { const top = ans[dd + "top"], bot = ans[dd + "bot"], gs = glyphs.filter(g => g.d === dd && !known(g)); if (!gs.length) continue;
+        const want = [top, bot].filter(a => a && a !== "x"), cur = sortS(final[dd]).join("");
+        if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); } }
     }
   } catch (e) { console.log("glyph check: " + e); }
   const my = { days: final, count: cnt(final) };

@@ -156,6 +156,16 @@ function inkTile(c){
   x.fillStyle = "#e0457c"; x.font = "600 15px sans-serif"; x.textAlign = "left"; x.textBaseline = "top"; x.fillText("บน", 4, 3); x.textBaseline = "top"; x.fillText("ล่าง", 4, by + 4);
   return c;
 }
+// ทำให้ตัวอักษรเข้มขึ้นบนพื้นสีเข้ม (ส้ม/ฟ้า) โดยยังเก็บสีพื้นไว้
+function darkenInk(c){
+  const x = c.getContext("2d"), W = c.width, H = c.height, im = x.getImageData(0, 0, W, H), p = im.data, mid = Math.round(H/2);
+  for (const [ya, yb] of [[0, mid], [mid, H]]){
+    const v = []; for (let y = ya; y < yb; y++) for (let xx = 0; xx < W; xx += 2){ const i = (y*W + xx)*4; v.push(Math.max(p[i], p[i+1], p[i+2])); }
+    v.sort((a2, b2) => a2 - b2); const bg = v[Math.floor(v.length*0.6)];
+    for (let y = ya; y < yb; y++) for (let xx = 0; xx < W; xx++){ const i = (y*W + xx)*4, V = Math.max(p[i], p[i+1], p[i+2]);
+      if (V < bg*0.85){ const f = Math.pow(V / bg, 2.2); p[i] *= f; p[i+1] *= f; p[i+2] *= f; } } }
+  x.putImageData(im, 0, 0); return c;
+}
 window.makeTiles2 = function(k, days, mode){
   const g = GRID.g, [y0, y1] = g.bands[k-1], n = Math.min(days || 31, g.xs.length - 1);
   const tw = 200, cwAvg = (g.xs[n] - g.xs[0]) / n, th = Math.round(tw * (y1 - y0) / cwAvg), lab = 52, per = 7, gap = 14;
@@ -169,7 +179,7 @@ window.makeTiles2 = function(k, days, mode){
       x.fillStyle = "#c2185b"; x.font = "700 44px sans-serif"; x.textAlign = "center"; x.textBaseline = "top"; x.fillText(String(d), cx + tw/2, cy + 2);
       const pad = (g.xs[xi+1] - g.xs[xi]) * 0.06;
       const cell = gridCrop(g.xs[xi] + pad, y0 + pad, g.xs[xi+1] - g.xs[xi] - pad*2, y1 - y0 - pad*2, tw, th);
-      x.drawImage(mode === "ink" ? inkTile(cell) : cell, cx, cy + lab);
+      x.drawImage(mode === "ink" ? inkTile(cell) : mode === "plain" ? cell : darkenInk(cell), cx, cy + lab);
       x.strokeStyle = "#999"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, tw, th);
     }
     return c.toDataURL("image/jpeg", .92).split(",")[1];
@@ -195,7 +205,7 @@ window.halfInk = function(k, days){
 // รูปตัวอย่าง (legend) + รูปตัวที่ต้องตรวจ แต่ละตัวขยายใหญ่ มีเลขกำกับ
 window.glyphSheet = function(k, items, legend){
   const S = 110, gap = 12, lab = 34;
-  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(k, it.d, it.half); return gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw)); };
+  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(k, it.d, it.half); return darkenInk(gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw))); };
   const draw = (rows) => {
     const per = 8, hh = Math.round(S * 0.95), H = rows.reduce((a, r) => a + Math.ceil(r.items.length / per) * (hh + lab + gap) + 40, gap), W = per * (S + gap) + gap + 10;
     const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
