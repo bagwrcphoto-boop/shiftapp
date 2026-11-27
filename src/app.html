@@ -136,13 +136,16 @@ body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;poin
 .tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}
 .toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.restw{display:flex;gap:8px;align-items:flex-start;background:#FDEBD8;color:#7A3E12;border-radius:16px;padding:10px 12px;margin-top:8px;font-size:13.5px;font-weight:600}.restw span{font-weight:500;opacity:.85}
-.swaprow{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.swaprow>.p{flex:none;width:auto;padding:0 10px;border-radius:12px;height:30px;line-height:30px;font-size:13px}
 .trow{display:flex;gap:8px;align-items:center;border-radius:16px;padding:10px 12px;margin-bottom:8px;font-size:13.5px;background:var(--mBg);color:var(--mFg)}.trow.sell{background:var(--oBg);color:var(--oFg)}.trow>div{flex:1}.trow span{opacity:.85}
 .tpaid{border:0;border-radius:12px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;background:var(--oBg);color:var(--oFg)}.tpaid.on{background:var(--mBg);color:var(--mFg)}
 .tdel{border:0;background:transparent;color:inherit;font-size:18px;padding:4px}
-.tform{display:flex;flex-direction:column;gap:8px;background:var(--nbBg);border:var(--nbBorder);border-radius:18px;padding:10px}
-.tform input{font:inherit;font-size:15px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text)}
 .tog2{display:flex;gap:6px}.tog2 button{flex:1;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:13.5px;font-weight:600;padding:8px 4px;border-radius:12px}.tog2 button.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
+.sact{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.sact button{border:0;border-radius:11px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.7);color:inherit;display:inline-flex;gap:4px;align-items:center}
+.buyb{width:100%;margin-top:10px;border:1.5px dashed var(--line);background:transparent;color:var(--text);font:inherit;font-weight:700;font-size:14px;border-radius:16px;padding:11px;display:flex;gap:6px;justify-content:center;align-items:center}
+.backb{border:0;background:transparent;color:var(--sub);font:inherit;font-weight:700;font-size:14px;padding:4px 0;display:inline-flex;gap:4px;align-items:center}
+.lab{font-size:13px;font-weight:700;color:var(--sub);margin:14px 0 6px}
+.pchips{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto}.pchip{border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:14px;font-weight:600;border-radius:12px;padding:7px 12px}.pchip.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
+.sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}
 .toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
 .loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
 .spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
@@ -443,20 +446,17 @@ function openDay(d){
   editSet = s.join("");
   let rows = s.map(c=>{
     const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||"").includes(c)).map(([n])=>first(n)) : [];
-    return `<div class="srow ${SH[c].c}">${cute(SH[c].k,40)}<div><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}</div></div>`;
+    const acts = md && Object.keys(md.people).length > 1 ? `<div class="sact"><button onclick="openAct(${d},'swap','${c}')">${ic("users")}ขอแลก</button><button onclick="openAct(${d},'sell','${c}')">${ic("share")}ขาย / หาคนแทน</button></div>` : "";
+    return `<div class="srow ${SH[c].c}">${cute(SH[c].k,40)}<div style="flex:1"><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}${acts}</div></div>`;
   }).join("");
   if (!s.length) rows = `<div class="srow o">${cute("off",38)}<div><p class="nm">วันหยุด</p><p class="tm">พักผ่อนให้เต็มที่นะ</p></div></div>`;
   const warn = restIssues().filter(w => w.kind !== "run" && sameDay(w.d, dt));
   if (warn.length) rows += `<div class="restw">${ic("warn")}<div>${warn.map(w=>esc(w.t)).join("<br>")}<br><span>พักผ่อนให้พอ ดื่มน้ำเยอะๆ นะ</span></div></div>`;
-  const offN = md && s.length ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && !sortS(v[d]).length && Object.values(v).some(x=>sortS(x).length)).map(([n])=>n) : [];
-  window.__swap = {d, offN};
-  if (s.length && md && Object.keys(md.people).length > 1) rows += `<p class="h3" style="margin-top:14px">ขอแลกเวร</p>
-    <p class="hello" style="margin:2px 0 8px">คนที่หยุดวันนี้ แตะชื่อเพื่อส่งข้อความขอแลก</p>
-    ${s.map(c=>`<div class="swaprow"><span class="p ${SH[c].c}">${SH[c].n}</span><div class="fchips" style="flex-wrap:wrap">${offN.map((n,i)=>`<button class="fchip" onclick="askSwap('${c}',${i})">${esc(first(n))}</button>`).join("") || `<span class="note">ไม่มีใครหยุดวันนี้</span>`}</div></div>`).join("")}`;
+  rows += tradeRows(d);
+  if (md && Object.keys(md.people).length > 1 && s.length < 3) rows += `<button class="buyb" onclick="openAct(${d},'buy')">${ic("work")}ซื้อเวร (ขึ้นแทนคนอื่น)</button>`;
   $("sheet").innerHTML = `<div class="grab"></div>
     <h2 class="big" style="font-size:22px">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>
     <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}
-    ${tradeSection(d, s)}
     <p class="h3" style="margin-top:16px">แก้เวร</p>
     <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${cute(SH[c].k,24)} ${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
     <p class="h3" style="margin-top:6px;display:flex;align-items:center;gap:6px">${cute("note",24)}โน้ต</p>
@@ -465,62 +465,78 @@ function openDay(d){
     <button class="btn main" style="width:100%;margin-top:8px" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
   openSheet();
 }
-function askSwap(c, i){
-  const {d, offN} = window.__swap, n = offN[i];
-  send("shareText", `สวัสดีค่ะ ${first(n)} วันที่ ${d} ${MONTHS[viewM]} ว่างไหมคะ ขอแลก${SH[c].n} (${SH[c].t}) หน่อยได้ไหมคะ`);
-}
-/* ===== ซื้อ-ขายเวร: ซื้อ = เราขึ้นแทนคนอื่น (ได้เงิน), ขาย = คนอื่นขึ้นแทนเรา (จ่ายเงิน) ===== */
+/* ===== ขอแลก / ขาย / ซื้อเวร: ซื้อ = เราขึ้นแทนคนอื่น (ได้เงิน), ขาย = คนอื่นขึ้นแทนเรา (จ่ายเงิน) ===== */
 const trades = () => (DATA.trades = DATA.trades || []);
 const baht = n => (+n||0).toLocaleString("th-TH") + " บาท";
-function tradeSection(d, s){
-  const date = dk(new Date(viewY, viewM, d)), list = trades().filter(t=>t.date===date), md = monthData();
-  const names = md ? Object.keys(md.people).filter(n=>n!==DATA.me) : [];
-  return `<p class="h3" style="margin-top:16px">ซื้อ-ขายเวร</p>
-    ${list.map(t=>`<div class="trow ${t.type}"><div><b>${t.type==="buy"?"ซื้อ":"ขาย"}${SH[t.c].n}</b> ${t.type==="buy"?"แทน":"ให้"} ${esc(t.who||"-")}<br><span>${t.type==="buy"?"ได้":"จ่าย"} ${baht(t.price)}</span></div>
-      <button class="tpaid ${t.paid?"on":""}" onclick="togPaid('${t.id}')">${t.paid?(t.type==="buy"?"รับเงินแล้ว":"จ่ายแล้ว"):(t.type==="buy"?"ค้างรับ":"ค้างจ่าย")}</button><button class="tdel" onclick="delTrade('${t.id}')" aria-label="ลบ">${ic("x")}</button></div>`).join("")}
-    <div class="tform">
-      <div class="tog2"><button id="tfBuy" class="on" onclick="tfType('buy')">ซื้อ (ขึ้นแทนเขา)</button><button id="tfSell" onclick="tfType('sell')">ขาย (เขาขึ้นแทนเรา)</button></div>
-      <div class="tog2" id="tfShift">${["ด","ช","บ"].map(c=>`<button data-c="${c}" onclick="tfShift('${c}')">${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
-      <input id="tfWho" list="tfNames" placeholder="กับใคร" autocomplete="off"><datalist id="tfNames">${names.map(n=>`<option value="${esc(first(n))}">`).join("")}</datalist>
-      <input id="tfPrice" type="number" inputmode="numeric" placeholder="ราคา (บาท)">
-      <div style="display:flex;gap:8px"><button class="btn main" style="flex:1" onclick="addTrade(${d})">${ic("check")}จดรายการ</button>
-      ${s.length?`<button class="btn" style="flex:1" onclick="announceSell(${d})">${ic("share")}ประกาศขาย</button>`:""}</div>
-    </div>`;
+const dShort = d => `${d} ${MONTHS[viewM].slice(0,3)}.`;
+function tradeRows(d){
+  const date = dk(new Date(viewY, viewM, d)), list = trades().filter(t=>t.date===date);
+  return list.map(t=>`<div class="trow ${t.type}"><div><b>${t.type==="buy"?"ซื้อ":"ขาย"}${SH[t.c].n}</b> · ${t.type==="buy"?`ขึ้นแทน ${esc(t.who||"-")}`:`${esc(t.who||"-")} ขึ้นแทน`}<br><span>${t.type==="buy"?"ได้":"จ่าย"} ${baht(t.price)}</span></div>
+    <button class="tpaid ${t.paid?"on":""}" onclick="togPaid('${t.id}')">${t.paid?(t.type==="buy"?"รับแล้ว":"จ่ายแล้ว"):(t.type==="buy"?"ค้างรับ":"ค้างจ่าย")}</button><button class="tdel" onclick="delTrade('${t.id}')" aria-label="ลบ">${ic("x")}</button></div>`).join("");
 }
-let TF = {type:"buy", c:null};
-function tfType(t){ TF.type = t; $("tfBuy").classList.toggle("on", t==="buy"); $("tfSell").classList.toggle("on", t==="sell"); }
-function tfShift(c){ TF.c = c; document.querySelectorAll("#tfShift button").forEach(b=>b.classList.toggle("on", b.dataset.c===c)); }
+let ACT = null;
+function peopleOn(d, c){ const md = monthData(); return md ? Object.keys(md.people).filter(n=>n!==DATA.me && sortS(md.people[n][d]).includes(c)) : []; }
+function peopleOff(d){ const md = monthData(); return md ? Object.keys(md.people).filter(n=>n!==DATA.me && !sortS(md.people[n][d]).length && Object.values(md.people[n]).some(x=>sortS(x).length)) : []; }
+function openAct(d, mode, c){ ACT = {d, mode, c: c || null, who: "", price: ""}; renderAct(); }
+function renderAct(){
+  const {d, mode, c} = ACT, mineS = sortS(mine()[d]);
+  const title = mode==="swap" ? `ขอแลก${SH[c].n}` : mode==="sell" ? `ขาย${SH[c].n}` : "ซื้อเวร (ขึ้นแทนคนอื่น)";
+  const sub = mode==="swap" ? "แตะชื่อคนที่หยุดวันนี้ แล้วส่งข้อความขอแลก" : mode==="sell" ? "เลือกคนที่จะขึ้นแทนเรา แล้วจดราคาไว้" : "เลือกเวร แล้วเลือกคนที่เราขึ้นแทน";
+  const chip = (n, on, fn) => `<button class="pchip ${on?"on":""}" onclick="${fn}">${esc(first(n))}</button>`;
+  let body = "";
+  if (mode === "swap"){
+    const off = peopleOff(d);
+    body = off.length ? `<div class="pchips">${off.map((n,i)=>chip(n,false,`askSwap(${i})`)).join("")}</div>` : `<p class="note">ไม่มีใครหยุดวันนี้</p>`;
+    body += `<button class="btn" style="width:100%;margin-top:12px" onclick="announce('swap')">${ic("share")}ประกาศหาคนแลกในกลุ่ม</button>`;
+  } else {
+    if (mode === "buy") body += `<p class="lab">เวรที่จะขึ้นแทน</p><div class="tog2">${["ด","ช","บ"].filter(x=>!mineS.includes(x)).map(x=>`<button class="${x===c?"on":""}" onclick="ACT.c='${x}';ACT.who='';renderAct()">${SH[x].n.replace("เวร","")} · ${peopleOn(d,x).length} คน</button>`).join("")}</div>`;
+    if (c){
+      const list = mode === "buy" ? peopleOn(d, c) : peopleOff(d);
+      body += `<p class="lab">${mode==="buy"?"ขึ้นแทนใคร":"ใครขึ้นแทนเรา"}</p>
+        <div class="pchips">${list.map(n=>chip(n, ACT.who===first(n), `ACT.who='${esc(first(n)).replace(/'/g,"")}';renderAct()`)).join("") || `<span class="note">ไม่มีรายชื่อ</span>`}</div>
+        <input id="actWho" placeholder="หรือพิมพ์ชื่อเอง" value="${list.some(n=>first(n)===ACT.who)?"":esc(ACT.who)}" oninput="ACT.who=this.value">
+        <p class="lab">ราคา</p><input id="actPrice" type="number" inputmode="numeric" placeholder="เช่น 800" value="${esc(ACT.price)}" oninput="ACT.price=this.value">
+        <button class="btn main" style="width:100%;margin-top:12px" onclick="saveAct()">${ic("check")}${mode==="buy"?"บันทึกการซื้อ":"บันทึกการขาย"}</button>
+        ${mode==="sell"?`<button class="btn" style="width:100%;margin-top:8px" onclick="announce('sell')">${ic("share")}ยังไม่มีคน? ประกาศขายในกลุ่ม</button>`:""}`;
+    }
+  }
+  $("sheet").innerHTML = `<div class="grab"></div><button class="backb" onclick="openDay(${d})">${ic("l")}กลับ</button>
+    <h2 class="big" style="font-size:22px;margin-top:6px">${title}</h2><p class="hello" style="margin-bottom:12px">${DOWF[new Date(viewY,viewM,d).getDay()]} ${dShort(d)} · ${sub}</p>${body}`;
+  openSheet();
+}
+function askSwap(i){
+  const {d, c} = ACT, n = peopleOff(d)[i];
+  send("shareText", `สวัสดีค่ะ ${first(n)} วันที่ ${d} ${MONTHS[viewM]} ว่างไหมคะ ขอแลก${SH[c].n} (${SH[c].t}) หน่อยได้ไหมคะ`);
+}
+function announce(kind){
+  const {d, c} = ACT, pr = +ACT.price, day = `วัน${DOWF[new Date(viewY,viewM,d).getDay()]}ที่ ${d} ${MONTHS[viewM]}`;
+  send("shareText", kind==="swap" ? `หาคนแลก${SH[c].n} ${day} (${SH[c].t}) ใครว่างทักได้นะคะ` : `ขาย${SH[c].n} ${day} (${SH[c].t})${pr?` ราคา ${baht(pr)}`:""} ใครสนใจทักได้นะคะ`);
+}
 function applyTrade(t, undo){       // ปรับปฏิทิน: ซื้อ = เพิ่มเวรเรา ตัดเวรเขา / ขาย = ตัดเวรเรา เพิ่มเวรเขา
   const [y,m,dd] = t.date.split("-").map(Number), k = `${y}-${String(m).padStart(2,"0")}`;
   if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};
   const P = DATA.months[k].people, me = P[DATA.me] = P[DATA.me] || {};
   const gain0 = (t.type==="buy") !== !!undo, cand = Object.keys(P).filter(n=>n!==DATA.me && first(n)===t.who);
   const who = cand.find(n=>sortS((P[n]||{})[dd]).includes(t.c) === gain0) || cand[0];   // ชื่อซ้ำ: เลือกคนที่มี/ไม่มีเวรนั้นจริง
-  const add = (o, n) => { const v = sortS((o[n]||"") + t.c).filter((x,i,a)=>a.indexOf(x)===i).join(""); o[n] = v; };
+  const add = (o, n) => { o[n] = sortS((o[n]||"") + t.c).filter((x,i,a)=>a.indexOf(x)===i).join(""); };
   const rem = (o, n) => { const v = sortS(o[n]).filter(x=>x!==t.c).join(""); if (v) o[n] = v; else delete o[n]; };
-  const gain = (t.type==="buy") !== !!undo;
-  if (gain){ add(me, dd); if (who && P[who]) rem(P[who], dd); } else { rem(me, dd); if (who && P[who]) add(P[who], dd); }
+  if (gain0){ add(me, dd); if (who && P[who]) rem(P[who], dd); } else { rem(me, dd); if (who && P[who]) add(P[who], dd); }
   send("saveMonth", {key:k, month:DATA.months[k]});
 }
-function addTrade(d){
-  const s = sortS(mine()[d]);
-  if (!TF.c) return toastErr("เลือกเวรก่อนนะ");
-  if (TF.type==="sell" && !s.includes(TF.c)) return toastErr("วันนี้ไม่มี" + SH[TF.c].n + "ให้ขาย");
-  if (TF.type==="buy" && s.includes(TF.c)) return toastErr("วันนี้มี" + SH[TF.c].n + "อยู่แล้ว");
-  const t = {id:Date.now().toString(36), date:dk(new Date(viewY, viewM, d)), c:TF.c, type:TF.type, who:$("tfWho").value.trim(), price:+$("tfPrice").value||0, paid:false};
+function saveAct(){
+  const {d, mode, c} = ACT, who = (ACT.who||"").trim();
+  if (!c) return toastErr("เลือกเวรก่อนนะ");
+  if (!who) return toastErr("เลือกหรือพิมพ์ชื่อก่อนนะ");
+  const t = {id:Date.now().toString(36), date:dk(new Date(viewY, viewM, d)), c, type:mode, who, price:+ACT.price||0, paid:false};
   trades().push(t); applyTrade(t); send("saveTrades", trades());
-  TF = {type:"buy", c:null}; openDay(d); renderAll(); openSheet(); toast("จดรายการแล้ว");
+  ACT = null; renderAll(); openDay(d); toast(mode==="buy" ? "บันทึกการซื้อแล้ว" : "บันทึกการขายแล้ว");
 }
 function delTrade(id){
   const i = trades().findIndex(t=>t.id===id); if (i<0) return; const t = trades()[i];
   trades().splice(i,1); applyTrade(t, true); send("saveTrades", trades());
-  const d = +t.date.slice(8); renderAll(); if (selDay) { openDay(d); openSheet(); } toast("ลบรายการแล้ว");
+  renderAll(); if (selDay) openDay(+t.date.slice(8)); toast("ลบรายการแล้ว");
 }
-function togPaid(id){ const t = trades().find(x=>x.id===id); if (!t) return; t.paid = !t.paid; send("saveTrades", trades()); renderAll(); if (selDay){ const d = selDay; openDay(d); openSheet(); } }
-function announceSell(d){
-  const s = sortS(mine()[d]), c = TF.c && s.includes(TF.c) ? TF.c : s[0], pr = +($("tfPrice")||{}).value;
-  send("shareText", `ขาย${SH[c].n} วัน${DOWF[new Date(viewY,viewM,d).getDay()]}ที่ ${d} ${MONTHS[viewM]} (${SH[c].t})${pr?` ราคา ${baht(pr)}`:""} ใครสนใจทักได้นะคะ`);
-}
+function togPaid(id){ const t = trades().find(x=>x.id===id); if (!t) return; t.paid = !t.paid; send("saveTrades", trades()); renderAll(); if (selDay) openDay(selDay); }
 function addQuick(q){ const t = $("noteText"); t.value = (t.value.trim() ? t.value.trim() + " · " : "") + q + " "; t.focus(); }
 function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,"") : editSet + c; el.classList.toggle("on"); }
 function saveDay(d){
