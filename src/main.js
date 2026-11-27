@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 43";
+const APP_VERSION = "28 พ.ย. 69 · 44";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -546,6 +546,10 @@ async function runApp() {
       const k = m.payload.key; restored[k] = true; delete pendingFriends[k];
       if (m.payload.month) d.months[k] = m.payload.month; else delete d.months[k];
       saveData(d); await syncAll(d);
+    } else if (m.type === "saveLeave") {         // วันลา: { "YYYY-MM-DD": "พักผ่อน" | "ป่วย" | "กิจ" }
+      d.leave = d.leave || {};
+      if (m.payload.type) d.leave[m.payload.date] = m.payload.type; else delete d.leave[m.payload.date];
+      saveData(d);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
       if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];

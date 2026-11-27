@@ -57,6 +57,8 @@ button{font:inherit;cursor:pointer;color:inherit}
 .cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}
 .d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}
 .d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}
+.d.lb{box-shadow:inset 0 -4px 0 #7FD3A0}.d .lv{position:absolute;bottom:2px;right:3px;font-size:9px;font-weight:700;line-height:12px;padding:0 3px;border-radius:5px;background:#FFE1EA;color:#B23A68}
+.lvb{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}.lvb button{border:1.5px solid var(--line);background:none;border-radius:12px;padding:6px 12px;font:inherit;font-size:14px;color:var(--text)}.lvb button.on{background:#FFE1EA;border-color:#F48FB1;color:#B23A68;font-weight:700}
 .d.hol .nn{color:#D9821A;font-weight:700}.d.hol.t .nn{color:var(--onAccent)}.d.hol:after{content:"";position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:#F2A23A}
 .holb{display:flex;align-items:center;gap:8px;background:#FFF1DC;color:#9A5A0C;border-radius:14px;padding:8px 12px;font-size:14px;font-weight:600;margin-bottom:10px}
 .li .hn{color:#C2700F}
@@ -637,6 +639,20 @@ const HOL_FIX = {"1-1":"วันขึ้นปีใหม่","4-6":"วั�
 const HOL_YEAR = {
   2026: {"1-2":"วันหยุดพิเศษ","3-3":"วันมาฆบูชา","5-31":"วันวิสาขบูชา","6-1":"ชดเชยวันวิสาขบูชา","6-2":"วันหยุดพิเศษ","7-29":"วันอาสาฬหบูชา","7-30":"วันเข้าพรรษา","12-7":"ชดเชยวันพ่อแห่งชาติ"},
   2027: {"2-21":"วันมาฆบูชา","2-22":"ชดเชยวันมาฆบูชา","5-3":"ชดเชยวันแรงงาน","5-20":"วันวิสาขบูชา","7-18":"วันอาสาฬหบูชา","7-19":"วันเข้าพรรษา · ชดเชยอาสาฬหบูชา","10-25":"ชดเชยวันปิยมหาราช","12-6":"ชดเชยวันพ่อแห่งชาติ"}};
+const LEAVES = ["พักผ่อน","ป่วย","กิจ"];
+const leaveOf = dt => (DATA.leave||{})[dk(dt)] || null;
+function longBreaks(){      // หยุดติดกัน 3 วันขึ้นไป (นับข้ามเดือนได้ ถ้ามีตารางทั้งสองเดือน)
+  const R = []; let run = null;
+  for (const k of Object.keys(DATA.months).sort()){
+    const [y, m] = k.split("-").map(Number), me = DATA.months[k].people[DATA.me]; if (!me) { run = null; continue; }
+    for (let d=1; d<=new Date(y, m, 0).getDate(); d++){
+      const dt = new Date(y, m-1, d);
+      if (sortS(me[d]).length){ run = null; continue; }
+      if (run && dt - run.en === 864e5) { run.en = dt; run.n++; } else { run = {st: dt, en: dt, n: 1}; R.push(run); }
+    }
+  }
+  return R.filter(r => r.n >= 3);
+}
 const holOf = (y, m, d) => { const k = `${m+1}-${d}`; return (HOL_YEAR[y]||{})[k] || HOL_FIX[k] || null; };
 const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const MSH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
@@ -756,7 +772,9 @@ function countMonth(me, days){
   return {c, off, total:c["ช"]+c["บ"]+c["ด"]};
 }
 const chipsHTML = k => `<span class="chip m">${ic("sun")}เช้า ${k.c["ช"]}</span><span class="chip a">${ic("sunset")}บ่าย ${k.c["บ"]}</span><span class="chip n">${ic("moon")}ดึก ${k.c["ด"]}</span><span class="chip o">${ic("off")}หยุด ${k.off}</span>`;
+let LB = [];
 function renderCal(){
+  LB = longBreaks();
   const md = monthData(), me = mine(), f = firstDow(), days = daysIn();
   $("calTitle").textContent = `${MONTHS[viewM]} ${viewY+543}`;
   let h = "<div></div>".repeat(f);
@@ -764,8 +782,9 @@ function renderCal(){
     const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;
     const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());
     const ps = s.length ? `<div class="ics">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join("")}</div>` : (md ? `<div class="ics" style="opacity:.75">${cute("off",17)}</div>` : "");
-    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class="pin">${CUTE.note}</span>` : "";
-    h += `<div class="d ${s.length?"h":""} ${holOf(viewY,viewM,d)?"hol":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${pin}</div>`;
+    const pin = (noteOf(new Date(viewY, viewM, d)) ? `<span class="pin">${CUTE.note}</span>` : "") + (leaveOf(new Date(viewY, viewM, d)) ? `<span class="lv">ลา</span>` : "");
+    const lb = LB.some(r => new Date(viewY, viewM, d) >= r.st && new Date(viewY, viewM, d) <= r.en);
+    h += `<div class="d ${s.length?"h":""} ${lb?"lb":""} ${holOf(viewY,viewM,d)?"hol":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${pin}</div>`;
   }
   $("days").innerHTML = h;
   $("chips").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class="note" style="width:100%">ยังไม่มีตารางเดือนนี้ กด "อัปรูปเวร" ได้เลย</p>`;
@@ -778,7 +797,7 @@ $("calCard").addEventListener("touchend", e=>{ if (tx==null) return; const dx = 
 /* ===== รายละเอียดวัน + แก้เวร ===== */
 let editSet = "";
 function openDay(d){
-  selDay = d; renderCal();
+  selDay = d; renderCal(); LEAVE_SEL = leaveOf(new Date(viewY, viewM, d)) || "";
   const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d), seq = seqInfo(viewY, viewM+1, d, s.join(""));
   editSet = s.join("");
   const tOf = c => { const x = seq.L.find(z=>z.c===c), e = new Date(x.st.getTime()+8*3600e3), eh = hm(e); return `${x.st.getDate()!==d?"24:00":hm(x.st)} – ${eh==="00:00"?"24:00":eh}${e.getDate()!==d && eh!=="00:00"?" (เช้าวันถัดไป)":""}`; };
@@ -798,6 +817,8 @@ function openDay(d){
     <p class="h3" style="margin-top:18px;display:flex;align-items:center;gap:6px">${cute("note",24)}โน้ต</p>
     <textarea class="notebox" id="noteText" placeholder="จดอะไรก็ได้ เช่น แลกเวร นัดหมอ ซื้อของ" style="margin-top:8px">${esc(noteOf(dt))}</textarea>
     <div class="qchips">${["แลกเวร","OT","ลา","นัดหมอ","วันเกิด","ประชุม"].map(q=>`<button class="qchip" onclick="addQuick('${q}')">+ ${q}</button>`).join("")}</div>
+    <p class="h3" style="margin-top:14px">วันลา</p>
+    <div class="lvb">${LEAVES.map(t=>`<button class="${leaveOf(dt)===t?"on":""}" onclick="pickLeave(this,'${t}')">ลา${t}</button>`).join("")}</div>
     <details class="editd"${s.length?"":" open"}><summary>${ic("edit")}แก้เวรเอง <span>(ใช้เมื่อตารางอ่านผิด หรือเปลี่ยนเวร)</span></summary>
     <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${cute(SH[c].k,24)} ${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
     <label class="trail"><input type="checkbox" id="trailN" ${s.length>1&&s[s.length-1]==="ด"?"checked":""}> ดึกต่อท้าย (เข้าเที่ยงคืนหลังเวรอื่น เช่น บ่าย → ดึก)</label>
@@ -900,6 +921,8 @@ function delTrade(id){
 function togPaid(id){ const t = trades().find(x=>x.id===id); if (!t) return; t.paid = !t.paid; send("saveTrades", trades()); renderAll(); if (selDay) openDay(selDay); }
 function addQuick(q){ const t = $("noteText"); t.value = (t.value.trim() ? t.value.trim() + " · " : "") + q + " "; t.focus(); }
 function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,"") : editSet + c; el.classList.toggle("on"); }
+let LEAVE_SEL;
+function pickLeave(el, t){ LEAVE_SEL = LEAVE_SEL === t ? "" : t; el.parentNode.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === el && LEAVE_SEL === t)); }
 function saveDay(d){
   const k = key(viewY,viewM);
   if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};
@@ -911,6 +934,7 @@ function saveDay(d){
   const date = dk(new Date(viewY, viewM, d)), text = ($("noteText") ? $("noteText").value : "").trim();
   DATA.notes = DATA.notes || {};
   if (text !== ((DATA.notes[date]||"").trim())){ if (text) DATA.notes[date] = text; else delete DATA.notes[date]; send("saveNote", {date, text}); }
+  if (LEAVE_SEL !== undefined && LEAVE_SEL !== (leaveOf(new Date(viewY, viewM, d)) || "")){ DATA.leave = DATA.leave || {}; if (LEAVE_SEL) DATA.leave[date] = LEAVE_SEL; else delete DATA.leave[date]; send("saveLeave", {date, type: LEAVE_SEL}); }
   closeSheet(); renderAll(); toast("บันทึกแล้ว");
 }
 function openSheet(){
@@ -969,6 +993,7 @@ function renderYear(){
     <div class="li"><span>${ic("double")}ควบ 16 ชม.ขึ้นไป</span><b>${long} ครั้ง</b></div>
     <div class="li"><span>${ic("moon")}เวรดึกทั้งปี</span><b>${tot["ด"]} คืน</b></div>
     <div class="li"><span>${ic("off")}วันหยุดรวม</span><b>${per.reduce((a,k)=>a+(k?k.off:0),0)} วัน</b></div>
+    ${leaveList(y, null)}
     ${tr.length?`<div class="li"><span>${ic("work")}ซื้อเวร / ขายเวร</span><b>${buy.length} / ${sell.length}</b></div><div class="li"><span>${ic("check")}เงินซื้อ-ขายสุทธิ</span><b>${net>=0?"+":"−"}${baht(Math.abs(net))}</b></div>`:""}`;
 }
 function renderSum(){
@@ -999,12 +1024,26 @@ function renderSum(){
     ${tot!=null?`<div class="li"><span>${ic("list")}ช่อง "ทำงานจริง" ในตาราง${vd?` (รวม v ${vd} วัน)`:""}</span><b>${tot} ${tot===k.total+vd?"ตรง":"ไม่ตรง"}</b></div>`:""}
     ${work!=null?`<div class="li"><span>${ic("work")}วันทำงานตามตาราง</span><b>${work} วัน</b></div>
     <div class="li"><span>${ic("timer")}เวรเกิน (OT)</span><b>${over>0?`${over} เวร · ${over*8} ชม.`:"ไม่มี"}</b></div>`:""}
+    ${breakList()}
+    ${leaveList(viewY, viewM)}
     ${holList(me, days)}
     ${tradeSummary()}
     ${rest.length?`<p class="h3" style="margin:14px 0 4px">ควรพักผ่อน</p>${rest.map(w=>`<div class="li"><span>${ic("warn")}${esc(w.t)}</span></div>`).join("")}`:""}`;
 }
 
 function restoreSumBar(){ const c = ($("sumBar")||{}).parentNode || document.querySelector("#p-sum .card"); c.style.display = ""; c.innerHTML = `<p class="h3" style="margin-bottom:10px">สัดส่วนเวร</p><div class="bar" id="sumBar"></div><div class="chips" id="sumLegend"></div>`; }
+function breakList(){
+  const L = longBreaks().filter(r => (r.st.getFullYear()===viewY && r.st.getMonth()===viewM) || (r.en.getFullYear()===viewY && r.en.getMonth()===viewM));
+  if (!L.length) return "";
+  const f = dt => `${dt.getDate()} ${MSH[dt.getMonth()]}`;
+  return `<p class="h3" style="margin:14px 0 4px">หยุดยาว (3 วันขึ้นไป)</p>` + L.map(r=>`<div class="li"><span>${ic("beach")}${f(r.st)} – ${f(r.en)}</span><b>${r.n} วัน</b></div>`).join("");
+}
+function leaveList(y, m){       // m = null → ทั้งปี
+  const pre = m == null ? `${y}-` : `${key(y, m)}-`, c = {}; let n = 0;
+  for (const [k, t] of Object.entries(DATA.leave||{})) if (k.startsWith(pre)){ c[t] = (c[t]||0) + 1; n++; }
+  if (!n) return "";
+  return `<p class="h3" style="margin:14px 0 4px">วันลา${m == null ? "ทั้งปี" : ""} · ${n} วัน</p>` + LEAVES.filter(t=>c[t]).map(t=>`<div class="li"><span>${ic("list")}ลา${t}</span><b>${c[t]} วัน</b></div>`).join("");
+}
 function holList(me, days){
   const L = []; for (let d=1; d<=days; d++){ const h = holOf(viewY, viewM, d); if (h) L.push({d, h, s: sortS(me[d])}); }
   if (!L.length) return "";
