@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 10";
+const APP_VERSION = "27 พ.ย. 69 · 11";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -225,20 +225,24 @@ async function readByTiles(b64, d, key, page) {
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
 ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
 1=ดช 2=บ 3=- 4=ช`, key, 2000);
-    const out = {};
-    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
-    return { days: out, count: Object.values(out).join("").length };
+    const out = {}, seen = new Set();
+    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { seen.add(+x[1]); const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
+    return { days: out, count: Object.values(out).join("").length, full: seen.has(days) };
+  };
+  const askFull = async (hint, model) => {     // คำตอบไม่ครบถึงวันสุดท้าย → ถามใหม่ 1 ครั้ง
+    const r = await ask(hint, model); if (r.full) return r;
+    const r2 = await ask((hint ? hint + " " : "") + `ต้องตอบให้ครบถึงวันที่ ${days}`, model); return r2.full || r2.count >= r.count ? r2 : r;
   };
   // อ่าน 2 รอบพร้อมกันแล้วเทียบ วันไหนไม่ตรงกันให้อ่านรอบ 3 แล้วใช้เสียงข้างมาก
   progress("กำลังอ่านเวรทีละวัน (2 รอบ)…");
-  const [r1, r2] = await Promise.all([ask(), ask()]);
+  const [r1, r2] = await Promise.all([askFull(), askFull()]);
   const val = (r, dd) => r.days[dd] || "";
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
   const cnt = o => Object.values(o).join("").length;
   let final = Object.assign({}, r1.days), uncertain = [];
   if (diff.length || (total != null && r1.count !== total)) {
     progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…");
-    const r3 = await ask(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
+    const r3 = await askFull(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
     final = {};
     for (let dd = 1; dd <= days; dd++) {
       const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
@@ -314,10 +318,21 @@ async function syncNotifications(d) {
   const pend = await Notification.allPending();
   const ids = pend.filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
   if (ids.length) await Notification.removePending(ids);
-  const before = +d.settings.notify;
+  const before = +d.settings.notify, now = new Date(), all = allMyShifts(d);
+  if (d.settings.eve !== false) {              // เตือนเวรพรุ่งนี้ 20:00 (ล่วงหน้า 14 วัน)
+    const byDay = {};
+    for (const x of all) { const t = new Date(x.st); t.setHours(0, 0, 0, 0); (byDay[t.getTime()] = byDay[t.getTime()] || []).push(x); }
+    for (const [t, xs] of Object.entries(byDay)) {
+      const at = new Date(+t - 4 * 3600e3);     // 20:00 ของคืนก่อน
+      if (at <= now || at.getTime() - now.getTime() > 14 * 864e5) continue;
+      const n = new Notification();
+      n.identifier = `shiftapp-eve-${t}`; n.threadIdentifier = "shiftapp";
+      n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
+      n.setTriggerDate(at); await n.schedule();
+    }
+  }
   if (!before) return;
-  const now = new Date();
-  const list = allMyShifts(d).filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 50);
+  const list = all.filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 40);
   for (const x of list) {
     const n = new Notification();
     n.identifier = `shiftapp-${x.st.getTime()}-${x.c}`;
@@ -344,12 +359,16 @@ async function runApp() {
   const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const call = s => wv.evaluateJavaScript(s, false);
   let busy = false;
-  const pendingFriends = {};
+  const pendingFriends = {}, restored = {};
 
   async function handle(m) {
     if (m.type === "saveMonth") {
-      d.months[m.payload.key] = m.payload.month;
+      d.months[m.payload.key] = m.payload.month; delete restored[m.payload.key];
       if (pendingFriends[m.payload.key]) { for (const [n, v] of Object.entries(pendingFriends[m.payload.key])) if (n !== d.me) d.months[m.payload.key].people[n] = v; delete pendingFriends[m.payload.key]; }
+      saveData(d); await syncAll(d);
+    } else if (m.type === "restoreMonth") {       // ย้อนกลับ: คืนเดือนเดิมก่อนบันทึกทับ
+      const k = m.payload.key; restored[k] = true; delete pendingFriends[k];
+      if (m.payload.month) d.months[k] = m.payload.month; else delete d.months[k];
       saveData(d); await syncAll(d);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
@@ -365,6 +384,7 @@ async function runApp() {
       await call(`onParsed(${js(r)})`);
       if (later) later.then(async all => {          // เวรเพื่อนอ่านเสร็จทีหลัง → เติมลงเดือนนั้น
         if (!all || all.err || all.year !== r.year || all.month !== r.month) return;
+        if (restored[`${r.year}-${pad(r.month)}`]) return;
         const k = `${r.year}-${pad(r.month)}`, mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
         const target = d.months[k] ? d.months[k].people : mo;
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;

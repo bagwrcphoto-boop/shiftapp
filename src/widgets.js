@@ -191,6 +191,16 @@ function drawSmall(d, now, I, T, sz) {
   tx(c, `${hhmm(it.st)}–${SH_END[it.c]}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
   const note = nextNote(d, now, 2), nh = note ? 20 : 0;
   const py = H - P - 22 - (note ? nh + 5 : 0), label = cur ? `เลิกเวร${untilText(it.en - now).replace("อีก", " อีก")}` : untilText(it.st - now);
+  // แถบ 4 วันถัดไป เติมที่ว่างตรงกลาง
+  const gy = P + 16 + isz, sh = 18, sy = gy + Math.max(0, (py - gy - sh) / 2), cw4 = (W - 2 * P) / 4;
+  for (let i = 1; i <= 4; i++) {
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + (i - 1) * cw4;
+    rr(c, x + 1, sy, cw4 - 2, sh, 8, CA(T.card, T.dark ? 0.12 : 0.7));
+    tx(c, dt.getDate(), x + 3, sy + 2, 15, 14, F("Bold", 9.5), CA(dt.getDay() % 6 === 0 ? T.accent : T.title), "center");
+    if (s === null) tx(c, "–", x + 17, sy + 2, cw4 - 20, 14, F("Bold", 9.5), CA(T.sub), "center");
+    else if (!s.length) img(c, I, "off", x + 19, sy + 2, 14);
+    else if (s.length === 1) img(c, I, SH_ICON[s[0]], x + 18, sy + 2, 14); else s.slice(0, 2).forEach((z, j) => img(c, I, SH_ICON[z], x + 16 + j * 5, sy + 3, 12));
+  }
   const pw = Math.min(W - 2 * P, label.length * 6.4 + 18);
   rr(c, P, py, pw, 22, 11, CA(T.accent)); tx(c, label, P, py + 3, pw, 16, F("Bold", 11.5), CA(T.onAccent), "center");
   if (note) { const ny = H - P - nh; rr(c, P, ny, W - 2 * P, nh, 9, CA(T.card, T.dark ? 0.12 : 0.8)); img(c, I, "note", P + 3, ny + 2, 16); tx(c, clip(note.t, 18), P + 22, ny + 3, W - 2 * P - 26, 14, F("SemiBold", 9.5), CA(T.title)); }

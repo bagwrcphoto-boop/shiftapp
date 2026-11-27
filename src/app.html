@@ -129,12 +129,13 @@ select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:
 .swb span{width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
 .swb.on{border-color:var(--accent)}
 /* tabs */
+body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;pointer-events:none}body::before{top:0;height:calc(env(safe-area-inset-top) + 58px);background:linear-gradient(var(--body) 62%,transparent)}body::after{bottom:0;height:calc(env(safe-area-inset-bottom) + 96px);background:linear-gradient(transparent,var(--body) 42%)}
 .tabs{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;padding:7px;border-radius:30px;background:var(--tabBg);border:var(--cardBorder);box-shadow:var(--cardShadow);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);z-index:10}
 .tab{flex:1;border:0;background:none;font-size:12px;font-weight:500;color:var(--tabFg);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:22px}
 .tab i{font-size:24px}
 .tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}
-.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s}
+.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
 .loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
 .spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -194,6 +195,7 @@ select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:
   <div class="card">
     <div class="set"><span class="l"><i data-i="bell"></i>เตือนก่อนขึ้นเวร</span>
       <select id="setNotify" onchange="saveSettings()"><option value="0">ปิด</option><option value="30">30 นาที</option><option value="60">1 ชั่วโมง</option><option value="120">2 ชั่วโมง</option><option value="720">12 ชั่วโมง</option></select></div>
+    <div class="set"><span class="l"><i data-i="bell"></i>เตือนเวรพรุ่งนี้ (2 ทุ่ม)</span><div class="sw" id="setEve" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <div class="set"><span class="l"><i data-i="calsync"></i>ใส่เวรในปฏิทิน iPhone</span><div class="sw" id="setCal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <div class="set"><span class="l"><i data-i="ai"></i>AI อ่านรูป</span>
       <select id="setAI" onchange="saveSettings()"><option value="claude">Claude</option><option value="gemini" disabled>Gemini (ปิดชั่วคราว)</option></select></div>
@@ -300,7 +302,7 @@ const DOWF = ["อาทิตย์","จันทร์","อังคาร",
 const $ = id => document.getElementById(id);
 const key = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
 const sortS = s => (s||"").split("").filter(c=>ORD[c]!=null).sort((a,b)=>ORD[a]-ORD[b]);
-const first = n => n.replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/,"").split(" ")[0];
+const first = n => { const w = n.replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/,"").split(/\s+/).filter(Boolean); return /^part/i.test(w[0]||"") && w.length > 1 ? w.slice(0, 2).join(" ") : w[0]; };
 const pill = c => `<span class="p ${SH[c].c}">${c}</span>`;
 
 /* ===== ตัวเชื่อม Scriptable ===== */
@@ -475,11 +477,13 @@ function renderSet(){
   $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ไม่ใช้";
   $("setNotify").value = String(DATA.settings.notify);
   $("setCal").classList.toggle("on", !!DATA.settings.calendar);
+  $("setEve").classList.toggle("on", DATA.settings.eve !== false);
   $("setAI").value = "claude";
 }
 function saveSettings(){
   DATA.settings.notify = +$("setNotify").value;
   DATA.settings.calendar = $("setCal").classList.contains("on");
+  DATA.settings.eve = $("setEve").classList.contains("on");
   DATA.settings.ai = $("setAI").value;
   send("saveSettings", DATA.settings); toast("บันทึกการตั้งค่าแล้ว");
 }
@@ -559,10 +563,14 @@ function savePaste(){
 }
 function confirmParsed(){
   const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,"0")}`;
+  const prev = DATA.months[k] ? JSON.parse(JSON.stringify(DATA.months[k])) : null;
   DATA.months[k] = {people:r.people, totals:r.totals||{}};
   send("saveMonth", {key:k, month:DATA.months[k]});
-  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll(); toast("บันทึกเวรเดือนใหม่แล้ว");
+  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll();
+  if (prev) toastUndo("บันทึกทับเดือนเดิมแล้ว", () => { DATA.months[k] = prev; send("restoreMonth", {key:k, month:prev}); renderAll(); toast("คืนค่าเดิมแล้ว"); });
+  else toast("บันทึกเวรเดือนใหม่แล้ว");
 }
+function toastUndo(t, fn){ const el = $("toast"); el.innerHTML = ic("check") + t + '<button class="undo">ย้อนกลับ</button>'; el.querySelector(".undo").onclick = () => { clearTimeout(tt); fn(); }; el.classList.add("on"); clearTimeout(tt); tt = setTimeout(()=>el.classList.remove("on"), 7000); }
 
 /* ===== แชร์เป็นรูป ===== */
 const mixHex = (a, b, t) => { const p = s => [1,3,5].map(i=>parseInt(s.substr(i,2),16)); const x = p(a), y = p(b); return "#" + x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,"0")).join(""); };

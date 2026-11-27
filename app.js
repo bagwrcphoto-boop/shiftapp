@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 10";
+const APP_VERSION = "27 พ.ย. 69 · 11";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -233,20 +233,24 @@ async function readByTiles(b64, d, key, page) {
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
 ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
 1=ดช 2=บ 3=- 4=ช`, key, 2000);
-    const out = {};
-    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
-    return { days: out, count: Object.values(out).join("").length };
+    const out = {}, seen = new Set();
+    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { seen.add(+x[1]); const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
+    return { days: out, count: Object.values(out).join("").length, full: seen.has(days) };
+  };
+  const askFull = async (hint, model) => {     // คำตอบไม่ครบถึงวันสุดท้าย → ถามใหม่ 1 ครั้ง
+    const r = await ask(hint, model); if (r.full) return r;
+    const r2 = await ask((hint ? hint + " " : "") + `ต้องตอบให้ครบถึงวันที่ ${days}`, model); return r2.full || r2.count >= r.count ? r2 : r;
   };
   // อ่าน 2 รอบพร้อมกันแล้วเทียบ วันไหนไม่ตรงกันให้อ่านรอบ 3 แล้วใช้เสียงข้างมาก
   progress("กำลังอ่านเวรทีละวัน (2 รอบ)…");
-  const [r1, r2] = await Promise.all([ask(), ask()]);
+  const [r1, r2] = await Promise.all([askFull(), askFull()]);
   const val = (r, dd) => r.days[dd] || "";
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
   const cnt = o => Object.values(o).join("").length;
   let final = Object.assign({}, r1.days), uncertain = [];
   if (diff.length || (total != null && r1.count !== total)) {
     progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…");
-    const r3 = await ask(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
+    const r3 = await askFull(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
     final = {};
     for (let dd = 1; dd <= days; dd++) {
       const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
@@ -322,10 +326,21 @@ async function syncNotifications(d) {
   const pend = await Notification.allPending();
   const ids = pend.filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
   if (ids.length) await Notification.removePending(ids);
-  const before = +d.settings.notify;
+  const before = +d.settings.notify, now = new Date(), all = allMyShifts(d);
+  if (d.settings.eve !== false) {              // เตือนเวรพรุ่งนี้ 20:00 (ล่วงหน้า 14 วัน)
+    const byDay = {};
+    for (const x of all) { const t = new Date(x.st); t.setHours(0, 0, 0, 0); (byDay[t.getTime()] = byDay[t.getTime()] || []).push(x); }
+    for (const [t, xs] of Object.entries(byDay)) {
+      const at = new Date(+t - 4 * 3600e3);     // 20:00 ของคืนก่อน
+      if (at <= now || at.getTime() - now.getTime() > 14 * 864e5) continue;
+      const n = new Notification();
+      n.identifier = `shiftapp-eve-${t}`; n.threadIdentifier = "shiftapp";
+      n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
+      n.setTriggerDate(at); await n.schedule();
+    }
+  }
   if (!before) return;
-  const now = new Date();
-  const list = allMyShifts(d).filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 50);
+  const list = all.filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 40);
   for (const x of list) {
     const n = new Notification();
     n.identifier = `shiftapp-${x.st.getTime()}-${x.c}`;
@@ -474,12 +489,13 @@ const APP_HTML = [
 ".swb span{width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}",
 ".swb.on{border-color:var(--accent)}",
 "/* tabs */",
+"body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;pointer-events:none}body::before{top:0;height:calc(env(safe-area-inset-top) + 58px);background:linear-gradient(var(--body) 62%,transparent)}body::after{bottom:0;height:calc(env(safe-area-inset-bottom) + 96px);background:linear-gradient(transparent,var(--body) 42%)}",
 ".tabs{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;padding:7px;border-radius:30px;background:var(--tabBg);border:var(--cardBorder);box-shadow:var(--cardShadow);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);z-index:10}",
 ".tab{flex:1;border:0;background:none;font-size:12px;font-weight:500;color:var(--tabFg);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:22px}",
 ".tab i{font-size:24px}",
 ".tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}",
 ".toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}",
-".toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s}",
+".toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
 "@keyframes sp{to{transform:rotate(360deg)}}",
@@ -539,6 +555,7 @@ const APP_HTML = [
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"bell\"></i>\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e02\u0e36\u0e49\u0e19\u0e40\u0e27\u0e23</span>",
 "      <select id=\"setNotify\" onchange=\"saveSettings()\"><option value=\"0\">\u0e1b\u0e34\u0e14</option><option value=\"30\">30 \u0e19\u0e32\u0e17\u0e35</option><option value=\"60\">1 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"120\">2 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"720\">12 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option></select></div>",
+"    <div class=\"set\"><span class=\"l\"><i data-i=\"bell\"></i>\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e40\u0e27\u0e23\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49 (2 \u0e17\u0e38\u0e48\u0e21)</span><div class=\"sw\" id=\"setEve\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"calsync\"></i>\u0e43\u0e2a\u0e48\u0e40\u0e27\u0e23\u0e43\u0e19\u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 iPhone</span><div class=\"sw\" id=\"setCal\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"ai\"></i>AI \u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b</span>",
 "      <select id=\"setAI\" onchange=\"saveSettings()\"><option value=\"claude\">Claude</option><option value=\"gemini\" disabled>Gemini (\u0e1b\u0e34\u0e14\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27)</option></select></div>",
@@ -738,7 +755,7 @@ const APP_HTML = [
 "const $ = id => document.getElementById(id);",
 "const key = (y,m) => `${y}-${String(m+1).padStart(2,\"0\")}`;",
 "const sortS = s => (s||\"\").split(\"\").filter(c=>ORD[c]!=null).sort((a,b)=>ORD[a]-ORD[b]);",
-"const first = n => n.replace(/^(\u0e19\u0e32\u0e07\u0e2a\u0e32\u0e27|\u0e19\u0e32\u0e07|\u0e19\u0e32\u0e22|\u0e19\\.\u0e2a\\.)\\s*/,\"\").split(\" \")[0];",
+"const first = n => { const w = n.replace(/^(\u0e19\u0e32\u0e07\u0e2a\u0e32\u0e27|\u0e19\u0e32\u0e07|\u0e19\u0e32\u0e22|\u0e19\\.\u0e2a\\.)\\s*/,\"\").split(/\\s+/).filter(Boolean); return /^part/i.test(w[0]||\"\") && w.length > 1 ? w.slice(0, 2).join(\" \") : w[0]; };",
 "const pill = c => `<span class=\"p ${SH[c].c}\">${c}</span>`;",
 "",
 "/* ===== \u0e15\u0e31\u0e27\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21 Scriptable ===== */",
@@ -913,11 +930,13 @@ const APP_HTML = [
 "  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e49\";",
 "  $(\"setNotify\").value = String(DATA.settings.notify);",
 "  $(\"setCal\").classList.toggle(\"on\", !!DATA.settings.calendar);",
+"  $(\"setEve\").classList.toggle(\"on\", DATA.settings.eve !== false);",
 "  $(\"setAI\").value = \"claude\";",
 "}",
 "function saveSettings(){",
 "  DATA.settings.notify = +$(\"setNotify\").value;",
 "  DATA.settings.calendar = $(\"setCal\").classList.contains(\"on\");",
+"  DATA.settings.eve = $(\"setEve\").classList.contains(\"on\");",
 "  DATA.settings.ai = $(\"setAI\").value;",
 "  send(\"saveSettings\", DATA.settings); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e01\u0e32\u0e23\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e41\u0e25\u0e49\u0e27\");",
 "}",
@@ -997,10 +1016,14 @@ const APP_HTML = [
 "}",
 "function confirmParsed(){",
 "  const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,\"0\")}`;",
+"  const prev = DATA.months[k] ? JSON.parse(JSON.stringify(DATA.months[k])) : null;",
 "  DATA.months[k] = {people:r.people, totals:r.totals||{}};",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
-"  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e40\u0e27\u0e23\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e49\u0e27\");",
+"  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll();",
+"  if (prev) toastUndo(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e17\u0e31\u0e1a\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e40\u0e14\u0e34\u0e21\u0e41\u0e25\u0e49\u0e27\", () => { DATA.months[k] = prev; send(\"restoreMonth\", {key:k, month:prev}); renderAll(); toast(\"\u0e04\u0e37\u0e19\u0e04\u0e48\u0e32\u0e40\u0e14\u0e34\u0e21\u0e41\u0e25\u0e49\u0e27\"); });",
+"  else toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e40\u0e27\u0e23\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e49\u0e27\");",
 "}",
+"function toastUndo(t, fn){ const el = $(\"toast\"); el.innerHTML = ic(\"check\") + t + '<button class=\"undo\">\u0e22\u0e49\u0e2d\u0e19\u0e01\u0e25\u0e31\u0e1a</button>'; el.querySelector(\".undo\").onclick = () => { clearTimeout(tt); fn(); }; el.classList.add(\"on\"); clearTimeout(tt); tt = setTimeout(()=>el.classList.remove(\"on\"), 7000); }",
 "",
 "/* ===== \u0e41\u0e0a\u0e23\u0e4c\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b ===== */",
 "const mixHex = (a, b, t) => { const p = s => [1,3,5].map(i=>parseInt(s.substr(i,2),16)); const x = p(a), y = p(b); return \"#\" + x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,\"0\")).join(\"\"); };",
@@ -1101,12 +1124,16 @@ async function runApp() {
   const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const call = s => wv.evaluateJavaScript(s, false);
   let busy = false;
-  const pendingFriends = {};
+  const pendingFriends = {}, restored = {};
 
   async function handle(m) {
     if (m.type === "saveMonth") {
-      d.months[m.payload.key] = m.payload.month;
+      d.months[m.payload.key] = m.payload.month; delete restored[m.payload.key];
       if (pendingFriends[m.payload.key]) { for (const [n, v] of Object.entries(pendingFriends[m.payload.key])) if (n !== d.me) d.months[m.payload.key].people[n] = v; delete pendingFriends[m.payload.key]; }
+      saveData(d); await syncAll(d);
+    } else if (m.type === "restoreMonth") {       // ย้อนกลับ: คืนเดือนเดิมก่อนบันทึกทับ
+      const k = m.payload.key; restored[k] = true; delete pendingFriends[k];
+      if (m.payload.month) d.months[k] = m.payload.month; else delete d.months[k];
       saveData(d); await syncAll(d);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
@@ -1122,6 +1149,7 @@ async function runApp() {
       await call(`onParsed(${js(r)})`);
       if (later) later.then(async all => {          // เวรเพื่อนอ่านเสร็จทีหลัง → เติมลงเดือนนั้น
         if (!all || all.err || all.year !== r.year || all.month !== r.month) return;
+        if (restored[`${r.year}-${pad(r.month)}`]) return;
         const k = `${r.year}-${pad(r.month)}`, mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
         const target = d.months[k] ? d.months[k].people : mo;
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
@@ -1376,6 +1404,16 @@ function drawSmall(d, now, I, T, sz) {
   tx(c, `${hhmm(it.st)}–${SH_END[it.c]}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
   const note = nextNote(d, now, 2), nh = note ? 20 : 0;
   const py = H - P - 22 - (note ? nh + 5 : 0), label = cur ? `เลิกเวร${untilText(it.en - now).replace("อีก", " อีก")}` : untilText(it.st - now);
+  // แถบ 4 วันถัดไป เติมที่ว่างตรงกลาง
+  const gy = P + 16 + isz, sh = 18, sy = gy + Math.max(0, (py - gy - sh) / 2), cw4 = (W - 2 * P) / 4;
+  for (let i = 1; i <= 4; i++) {
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + (i - 1) * cw4;
+    rr(c, x + 1, sy, cw4 - 2, sh, 8, CA(T.card, T.dark ? 0.12 : 0.7));
+    tx(c, dt.getDate(), x + 3, sy + 2, 15, 14, F("Bold", 9.5), CA(dt.getDay() % 6 === 0 ? T.accent : T.title), "center");
+    if (s === null) tx(c, "–", x + 17, sy + 2, cw4 - 20, 14, F("Bold", 9.5), CA(T.sub), "center");
+    else if (!s.length) img(c, I, "off", x + 19, sy + 2, 14);
+    else if (s.length === 1) img(c, I, SH_ICON[s[0]], x + 18, sy + 2, 14); else s.slice(0, 2).forEach((z, j) => img(c, I, SH_ICON[z], x + 16 + j * 5, sy + 3, 12));
+  }
   const pw = Math.min(W - 2 * P, label.length * 6.4 + 18);
   rr(c, P, py, pw, 22, 11, CA(T.accent)); tx(c, label, P, py + 3, pw, 16, F("Bold", 11.5), CA(T.onAccent), "center");
   if (note) { const ny = H - P - nh; rr(c, P, ny, W - 2 * P, nh, 9, CA(T.card, T.dark ? 0.12 : 0.8)); img(c, I, "note", P + 3, ny + 2, 16); tx(c, clip(note.t, 18), P + 22, ny + 3, W - 2 * P - 26, 14, F("SemiBold", 9.5), CA(T.title)); }
