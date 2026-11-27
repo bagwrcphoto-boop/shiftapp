@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 52";
+const APP_VERSION = "28 พ.ย. 69 · 53";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -2185,7 +2185,7 @@ const CA = (h, a = 1) => new Color(h, a);
 
 function wTheme(d) {
   const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
-  const L = { "ช": ["#C6EFD6", "#1F5A3B"], "บ": ["#D2E2FF", "#24427E"], "ด": ["#E3D7FF", "#4A2F8C"] };
+  const L = { "ช": ["#ADE8C4", "#1F5A3B"], "บ": ["#B9D3FF", "#24427E"], "ด": ["#D5C3FF", "#4A2F8C"] };
   if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
   if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
   if (t.style === "luxe") return { dark: false, g1: "#FFFFFF", g2: "#F8F4F2", b1: "#F6F0ED", b2: "#FFFFFF", title: "#2E2A2C", sub: "#A3989C", text: "#3A3436", accent: "#2E2A2C", onAccent: "#FFFFFF", card: "#F6F1EE", cardA: 0.9, offA: 0.95, pastA: 0.32, past: "#FFFFFF", shift: L };
@@ -2200,7 +2200,7 @@ function wTheme(d) {
   return { dark: false, g1: mixHex(p.body, "#FFD6E6", t.palette === "sakura" ? 0.35 : 0.1), g2: mixHex(p.blobs[1], "#FFFFFF", 0.72), b1: p.blobs[0], b2: p.blobs[1],
     title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF",
     card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF",
-    shift: { "ช": ["#C6EFD6", "#1F5A3B"], "บ": ["#D2E2FF", "#24427E"], "ด": ["#E3D7FF", "#4A2F8C"] } };
+    shift: { "ช": ["#ADE8C4", "#1F5A3B"], "บ": ["#B9D3FF", "#24427E"], "ด": ["#D5C3FF", "#4A2F8C"] } };
 }
 
 // ----- เครื่องมือวาด -----
@@ -2220,11 +2220,12 @@ function tx(c, s, x, y, w, h, font, color, align) {
 }
 function img(c, I, name, x, y, s) { if (I[name]) c.drawImageInRect(I[name], new Rect(x, y, s, s)); }
 function drawBg(c, sz, T) {
-  const n = 48;
-  for (let i = 0; i < n; i++) { c.setFillColor(CA(mixHex(T.g1, T.g2, i / (n - 1)))); c.fillRect(new Rect(0, sz.height * i / n, sz.width, sz.height / n + 1)); }
-  const blob = (cx, cy, r, hex, a) => { for (let k = 14; k >= 1; k--) { const q = r * k / 14; c.setFillColor(CA(hex, a / 14)); c.fillEllipse(new Rect(cx - q, cy - q, q * 2, q * 2)); } };
-  blob(sz.width * 0.92, -sz.height * 0.08, sz.width * 0.42, T.b1, T.dark ? 0.5 : 0.55);
-  blob(sz.width * 0.05, sz.height * 1.08, sz.width * 0.42, T.b2, T.dark ? 0.45 : 0.45);
+  const n = 48, soft = h => T.dark ? h : mixHex(h, "#FFFFFF", 0.45);    // ธีมสว่าง: พื้นนวลขึ้น ช่องสีเด่นขึ้น
+  for (let i = 0; i < n; i++) { c.setFillColor(CA(mixHex(soft(T.g1), soft(T.g2), i / (n - 1)))); c.fillRect(new Rect(0, sz.height * i / n, sz.width, sz.height / n + 1)); }
+  const blob = (cx, cy, r, hex, a) => { for (let k = 18; k >= 1; k--) { const q = r * k / 18; c.setFillColor(CA(hex, a / 18)); c.fillEllipse(new Rect(cx - q, cy - q, q * 2, q * 2)); } };
+  blob(sz.width * 0.92, -sz.height * 0.08, sz.width * 0.5, T.b1, T.dark ? 0.5 : 0.38);
+  blob(sz.width * 0.05, sz.height * 1.08, sz.width * 0.5, T.b2, T.dark ? 0.45 : 0.34);
+  if (!T.dark) blob(sz.width * 0.55, sz.height * 0.5, sz.width * 0.38, "#FFE4D6", 0.18);   // ไล่สีพีชกลางๆ ให้ละมุน
 }
 const shortName = d => String(d.me || "").replace(/^(นางสาว|นาง|นาย)/, "").split(" ")[0];
 const dkey = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
