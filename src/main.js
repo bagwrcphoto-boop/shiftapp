@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 16";
+const APP_VERSION = "27 พ.ย. 69 · 18";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -391,7 +391,7 @@ async function runApp() {
         const k = `${r.year}-${pad(r.month)}`, mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
         const target = d.months[k] ? d.months[k].people : mo;
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
-        if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); }
+        if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); await call(`window.reapplyTrades && reapplyTrades(${js(k)})`); }
       });
     } else if (m.type === "saveTrades") {         // ซื้อ-ขายเวร
       d.trades = m.payload || []; saveData(d);

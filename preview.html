@@ -135,17 +135,18 @@ body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;poin
 .tab i{font-size:24px}
 .tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}
-.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.restw{display:flex;gap:8px;align-items:flex-start;background:#FDEBD8;color:#7A3E12;border-radius:16px;padding:10px 12px;margin-top:8px;font-size:13.5px;font-weight:600}.restw span{font-weight:500;opacity:.85}
+.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.restw{display:flex;gap:8px;align-items:flex-start;background:var(--oBg);color:var(--oFg);border-radius:16px;padding:10px 12px;margin-top:8px;font-size:13.5px;font-weight:600}.restw span{font-weight:500;opacity:.85}
 .trow{display:flex;gap:8px;align-items:center;border-radius:16px;padding:10px 12px;margin-bottom:8px;font-size:13.5px;background:var(--mBg);color:var(--mFg)}.trow.sell{background:var(--oBg);color:var(--oFg)}.trow>div{flex:1}.trow span{opacity:.85}
 .tpaid{border:0;border-radius:12px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;background:var(--oBg);color:var(--oFg)}.tpaid.on{background:var(--mBg);color:var(--mFg)}
 .tdel{border:0;background:transparent;color:inherit;font-size:18px;padding:4px}
 .tog2{display:flex;gap:6px}.tog2 button{flex:1;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:13.5px;font-weight:600;padding:8px 4px;border-radius:12px}.tog2 button.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
-.sact{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.sact button{border:0;border-radius:11px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.7);color:inherit;display:inline-flex;gap:4px;align-items:center}
+.sact{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.sact button{border:0;border-radius:11px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;background:var(--nameBg);color:var(--text);display:inline-flex;gap:4px;align-items:center}
 .buyb{width:100%;margin-top:10px;border:1.5px dashed var(--line);background:transparent;color:var(--text);font:inherit;font-weight:700;font-size:14px;border-radius:16px;padding:11px;display:flex;gap:6px;justify-content:center;align-items:center}
 .backb{border:0;background:transparent;color:var(--sub);font:inherit;font-weight:700;font-size:14px;padding:4px 0;display:inline-flex;gap:4px;align-items:center}
 .lab{font-size:13px;font-weight:700;color:var(--sub);margin:14px 0 6px}
 .pchips{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto}.pchip{border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:14px;font-weight:600;border-radius:12px;padding:7px 12px}.pchip.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
 .sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}
+.editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}
 .toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
 .loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
 .spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
@@ -360,7 +361,7 @@ const STYLES = {
   --title:${d.title};--sub:${d.sub};--text:${d.title};--heroBg:var(--card);--cdBg:rgba(255,255,255,.12);--orbBg:${al(d.accent,.18)};--orbBorder:1px solid ${al(d.accent,.45)};
   --nbBg:rgba(255,255,255,.1);--nbBorder:1px solid rgba(255,255,255,.18);--dayBg:rgba(255,255,255,.08);--dayBorder:1px solid rgba(255,255,255,.13);--dayShadow:none;--todayShadow:0 0 14px ${al(d.accent,.8)};--dot:${al(d.accent,.5)};
   --tabBg:rgba(20,12,30,.6);--tabFg:${d.sub};--tabOnBg:${al(d.accent,.25)};--tabOnFg:${d.title};--tabOnShadow:none;--sheet:${al(d.card,.94)};--line:rgba(255,255,255,.18);--nameBg:rgba(255,255,255,.12);${DARK_SHIFT}`}},
- minimal:{name:"มินิมอล",font:"IBM Plex Sans Thai",icons:"tb",blobs:()=>[],extra:".p,.chip{border:1.3px solid currentColor}",v:p=>common(p)+`--body:#FAF8F7;--card:#FFFFFF;--cardBorder:1px solid #EEE8E8;--cardShadow:0 1px 2px rgba(0,0,0,.04);--r:20px;--blur:none;
+ minimal:{name:"มินิมอล",font:"IBM Plex Sans Thai",icons:"tb",blobs:()=>[],extra:".p,.chip,.restw,.trow{border:1.3px solid currentColor}",v:p=>common(p)+`--body:#FAF8F7;--card:#FFFFFF;--cardBorder:1px solid #EEE8E8;--cardShadow:0 1px 2px rgba(0,0,0,.04);--r:20px;--blur:none;
   --title:${p.title};--sub:${p.sub};--text:${p.text};--heroBg:var(--card);--cdBg:${p.tint};--orbBg:${p.tint};--orbBorder:none;
   --nbBg:#F5F2F2;--nbBorder:none;--dayBg:transparent;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:none;--dot:${al(p.accent,.3)};
   --mBg:transparent;--mFg:#237A50;--aBg:transparent;--aFg:#2C5DB8;--nBg:transparent;--nFg:#6A40C4;--oBg:transparent;--oFg:#B0602F;
@@ -376,11 +377,11 @@ const STYLES = {
   --nbBg:${p.body};--nbBorder:none;--dayBg:${p.body};--dayBorder:1px solid transparent;--dayShadow:3px 3px 7px ${al(p.accent,.18)},-3px -3px 6px rgba(255,255,255,.9);--todayShadow:0 4px 10px ${al(p.accent,.5)};--dot:${al(p.accent,.35)};
   --tabBg:${p.body};--tabFg:${p.sub};--tabOnBg:linear-gradient(145deg,${p.accent},${al(p.accent,.78)});--tabOnFg:#FFFFFF;--tabOnShadow:0 5px 12px ${al(p.accent,.4)};--sheet:${p.body};--line:${al(p.accent,.2)};--nameBg:rgba(255,255,255,.7);${LIGHT_SHIFT}`,
   extra:".nb,.btn:not(.main){box-shadow:4px 4px 8px rgba(0,0,0,.08),-3px -3px 6px rgba(255,255,255,.9)}"},
- nude:{fixed:true,name:"ชมพูนู้ดทอง",font:"IBM Plex Sans Thai",icons:"ph",blobs:()=>["#F6D9DC","#F3E2D2"],v:()=>`--accent:#C98A94;--we:#B8869B;--accentGlow:rgba(201,138,148,.35);--tint:#F7E4E3;--onAccent:#fff;--heroTitle:#4E2233;--heroSub:#8A5A62;
+ nude:{fixed:true,name:"ชมพูนู้ดทอง",font:"IBM Plex Sans Thai",icons:"ph",blobs:()=>["#F6D9DC","#F3E2D2"],v:()=>`--accent:#A85F70;--we:#A0566C;--accentGlow:rgba(201,138,148,.35);--tint:#F7E4E3;--onAccent:#fff;--heroTitle:#4E2233;--heroSub:#8A5A62;
   --body:#FBF4EF;--card:#FFFCF9;--cardBorder:1px solid #EADBC9;--cardShadow:0 8px 24px rgba(160,110,90,.1);--r:26px;--blur:none;
-  --title:#5A2E3E;--sub:#9A7680;--text:#5A3A44;--heroBg:linear-gradient(135deg,#F3D3D6,#E9B9BF);--cdBg:#FFF8F1;--orbBg:#FFF8F3;--orbBorder:1.5px solid #D9B27A;
+  --title:#5A2E3E;--sub:#86606A;--text:#5A3A44;--heroBg:linear-gradient(135deg,#F3D3D6,#E9B9BF);--cdBg:#FFF8F1;--orbBg:#FFF8F3;--orbBorder:1.5px solid #D9B27A;
   --nbBg:#FBF2EE;--nbBorder:1px solid #EADBC9;--dayBg:#FBF2EE;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:0 0 0 2px #D9B27A;--dot:rgba(201,138,148,.4);
-  --tabBg:rgba(255,252,249,.94);--tabFg:#9A7B6A;--tabOnBg:#F3D3D6;--tabOnFg:#5A2E3E;--tabOnShadow:none;--sheet:#FFFCF9;--line:#EAD7C4;--nameBg:#FBF2EE;${LIGHT_SHIFT}`,
+  --tabBg:rgba(255,252,249,.94);--tabFg:#86685A;--tabOnBg:#F3D3D6;--tabOnFg:#5A2E3E;--tabOnShadow:none;--sheet:#FFFCF9;--line:#EAD7C4;--nameBg:#FBF2EE;${LIGHT_SHIFT}`,
   extra:".big,.cal-h .t,.hero .what,.sheet h2,.stat .v{font-family:'Noto Serif Thai',serif}.hero{border:1px solid #D9B27A;box-shadow:0 10px 30px rgba(180,110,120,.25),inset 0 1px 0 rgba(255,255,255,.7)}.cd{border:1px solid #E2C38E;color:#9A6B3A}.blob{opacity:.6}"},
  pearl:{fixed:true,name:"กระจกมุก",font:"Mitr",icons:"ph",blobs:()=>["#FFD6EC","#D7DEFF","#E6D4FF","#FFE3F1"],v:()=>`--accent:#B07BE6;--we:#C04C9A;--accentGlow:rgba(176,123,230,.35);--tint:#F1E6FF;--onAccent:#fff;--heroTitle:#4A2F78;--heroSub:#8C79B8;
   --body:#F7F2FB;--card:rgba(255,255,255,.58);--cardBorder:1px solid rgba(255,255,255,.95);--cardShadow:0 12px 34px rgba(120,90,200,.16),inset 0 1px 0 #fff;--r:28px;--blur:blur(20px) saturate(170%);
@@ -394,11 +395,11 @@ const STYLES = {
   --nbBg:rgba(255,255,255,.08);--nbBorder:1px solid rgba(255,255,255,.14);--dayBg:rgba(255,255,255,.07);--dayBorder:1px solid rgba(255,255,255,.1);--dayShadow:none;--todayShadow:0 0 12px rgba(243,182,207,.7);--dot:rgba(245,215,161,.5);
   --tabBg:rgba(30,24,52,.88);--tabFg:#9C88B8;--tabOnBg:rgba(245,215,161,.16);--tabOnFg:#F5D7A1;--tabOnShadow:none;--sheet:rgba(38,30,64,.97);--line:rgba(255,255,255,.16);--nameBg:rgba(255,255,255,.1);${DARK_SHIFT}`,
   extra:".big,.cal-h .t,.hero .what,.sheet h2,.stat .v{font-family:'Noto Serif Thai',serif}.big{background:linear-gradient(90deg,#F5D7A1,#F3B6CF);-webkit-background-clip:text;background-clip:text;color:transparent}.hero{border:1px solid rgba(245,215,161,.45)}.cd{border:1px solid rgba(245,215,161,.4);color:#F5D7A1}#decor::after{content:'';position:fixed;inset:0;background-image:radial-gradient(1px 1px at 40px 90px,#fff,transparent),radial-gradient(1.2px 1.2px at 300px 60px,#ffe9b8,transparent),radial-gradient(1px 1px at 210px 140px,#fff,transparent),radial-gradient(1px 1px at 120px 40px,#fff,transparent),radial-gradient(1.4px 1.4px at 330px 160px,#fff,transparent),radial-gradient(1px 1px at 70px 420px,#fff,transparent),radial-gradient(1px 1px at 280px 520px,#ffe9b8,transparent);opacity:.75}"},
- luxe:{fixed:true,name:"มินิมอลหรู",font:"IBM Plex Sans Thai",icons:"tb",blobs:()=>[],v:()=>`--accent:#2E2A2C;--we:#B0606F;--accentGlow:rgba(0,0,0,.2);--tint:#F6F1EE;--onAccent:#fff;--heroTitle:#2E2A2C;--heroSub:#A3989C;
+ luxe:{fixed:true,name:"มินิมอลหรู",font:"IBM Plex Sans Thai",icons:"tb",blobs:()=>[],v:()=>`--accent:#2E2A2C;--we:#B0606F;--accentGlow:rgba(0,0,0,.2);--tint:#F6F1EE;--onAccent:#fff;--heroTitle:#2E2A2C;--heroSub:#81767A;
   --body:#FFFFFF;--card:#FFFFFF;--cardBorder:1px solid #F0EAE6;--cardShadow:0 10px 30px rgba(0,0,0,.04);--r:24px;--blur:none;
-  --title:#2E2A2C;--sub:#A3989C;--text:#3A3436;--heroBg:#FAF7F5;--cdBg:#2E2A2C;--orbBg:#FFFFFF;--orbBorder:none;
+  --title:#2E2A2C;--sub:#81767A;--text:#3A3436;--heroBg:#FAF7F5;--cdBg:#2E2A2C;--orbBg:#FFFFFF;--orbBorder:none;
   --nbBg:#FAF7F5;--nbBorder:1px solid #F0EAE6;--dayBg:#FAF5F3;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:none;--dot:rgba(0,0,0,.2);
-  --tabBg:rgba(255,255,255,.96);--tabFg:#B5ABAF;--tabOnBg:#F6F1EE;--tabOnFg:#2E2A2C;--tabOnShadow:none;--sheet:#FFFFFF;--line:#EFE7E3;--nameBg:#FAF7F5;${LIGHT_SHIFT}`,
+  --tabBg:rgba(255,255,255,.96);--tabFg:#8E8488;--tabOnBg:#F6F1EE;--tabOnFg:#2E2A2C;--tabOnShadow:none;--sheet:#FFFFFF;--line:#EFE7E3;--nameBg:#FAF7F5;${LIGHT_SHIFT}`,
   extra:".big,.cal-h .t,.hero .what,.sheet h2,.stat .v{font-family:'Noto Serif Thai',serif}.big{font-weight:500;letter-spacing:.2px}.hello{letter-spacing:1px}.cd{color:#fff}.orb{box-shadow:0 8px 22px rgba(0,0,0,.07)}"},
 };
 function applyTheme(){
@@ -427,6 +428,7 @@ const dk = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}
 const noteOf = dt => ((DATA.notes||{})[dk(dt)]||"").trim();
 const ORD = {"ด":0,"ช":1,"บ":2};
 const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const MSH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const DOWF = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"], DOWS = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const $ = id => document.getElementById(id);
 const key = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
@@ -469,7 +471,7 @@ function allMyShifts(){
 }
 /* ===== เตือนพักผ่อน: ควบ 16 ชม.+ / พักไม่ถึง 8 ชม. / ทำติดกัน 6 วัน+ ===== */
 function restIssues(){
-  const L = allMyShifts(), out = [], fd = d => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}.`;
+  const L = allMyShifts(), out = [], fd = d => `${d.getDate()} ${MSH[d.getMonth()]}`;
   const blocks = [];
   for (const x of L){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }
   blocks.forEach((b,i) => {
@@ -496,7 +498,7 @@ function renderHero(){
   let h;
   if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${SH[cur.c].n}</p><p class="time">${SH[cur.c].t}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div><div class="orb">${cute(SH[cur.c].k,46)}</div>`;
   else if (nxt){
-    const dd = dayDiff(n, nxt.st), when = dd===0?"วันนี้":dd===1?"พรุ่งนี้":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MONTHS[nxt.st.getMonth()].slice(0,3)}.`;
+    const dd = dayDiff(n, nxt.st), when = dd===0?"วันนี้":dd===1?"พรุ่งนี้":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MSH[nxt.st.getMonth()]}`;
     h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${SH[nxt.c].n}</p><p class="time">${SH[nxt.c].t}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div><div class="orb">${cute(SH[nxt.c].k,46)}</div>`;
   } else h = `<div><p class="when">ยังไม่มีเวรข้างหน้า</p><p class="what">พักผ่อนเยอะๆ นะ</p><p class="time">อัปรูปตารางเดือนใหม่ได้เลย</p></div><div class="orb">${cute("off",44)}</div>`;
   $("hero").innerHTML = h;
@@ -550,18 +552,19 @@ function openDay(d){
   $("sheet").innerHTML = `<div class="grab"></div>
     <h2 class="big" style="font-size:22px">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>
     <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}
-    <p class="h3" style="margin-top:16px">แก้เวร</p>
-    <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${cute(SH[c].k,24)} ${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
-    <p class="h3" style="margin-top:6px;display:flex;align-items:center;gap:6px">${cute("note",24)}โน้ต</p>
+    <p class="h3" style="margin-top:18px;display:flex;align-items:center;gap:6px">${cute("note",24)}โน้ต</p>
     <textarea class="notebox" id="noteText" placeholder="จดอะไรก็ได้ เช่น แลกเวร นัดหมอ ซื้อของ" style="margin-top:8px">${esc(noteOf(dt))}</textarea>
     <div class="qchips">${["แลกเวร","OT","ลา","นัดหมอ","วันเกิด","ประชุม"].map(q=>`<button class="qchip" onclick="addQuick('${q}')">+ ${q}</button>`).join("")}</div>
+    <details class="editd"${s.length?"":" open"}><summary>${ic("edit")}แก้เวรเอง <span>(ใช้เมื่อตารางอ่านผิด หรือเปลี่ยนเวร)</span></summary>
+    <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${cute(SH[c].k,24)} ${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
+    </details>
     <button class="btn main" style="width:100%;margin-top:8px" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
   openSheet();
 }
 /* ===== ขอแลก / ขาย / ซื้อเวร: ซื้อ = เราขึ้นแทนคนอื่น (ได้เงิน), ขาย = คนอื่นขึ้นแทนเรา (จ่ายเงิน) ===== */
 const trades = () => (DATA.trades = DATA.trades || []);
 const baht = n => (+n||0).toLocaleString("th-TH") + " บาท";
-const dShort = d => `${d} ${MONTHS[viewM].slice(0,3)}.`;
+const dShort = d => `${d} ${MSH[viewM]}`;
 function tradeRows(d){
   const date = dk(new Date(viewY, viewM, d)), list = trades().filter(t=>t.date===date);
   return list.map(t=>`<div class="trow ${t.type}"><div><b>${t.type==="buy"?"ซื้อ":"ขาย"}${SH[t.c].n}</b> · ${t.type==="buy"?`ขึ้นแทน ${esc(t.who||"-")}`:`${esc(t.who||"-")} ขึ้นแทน`}<br><span>${t.type==="buy"?"ได้":"จ่าย"} ${baht(t.price)}</span></div>
@@ -616,6 +619,7 @@ function applyTrade(t, undo){       // ปรับปฏิทิน: ซื้
   if (gain0){ add(me, dd); if (who && P[who]) rem(P[who], dd); } else { rem(me, dd); if (who && P[who]) add(P[who], dd); }
   send("saveMonth", {key:k, month:DATA.months[k]});
 }
+window.reapplyTrades = k => { trades().filter(t=>t.date.startsWith(k)).forEach(t=>applyTrade(t)); renderAll(); };
 function saveAct(){
   const {d, mode, c} = ACT, who = (ACT.who||"").trim();
   if (!c) return toastErr("เลือกเวรก่อนนะ");
@@ -697,7 +701,7 @@ function tradeSummary(){
     <div class="li"><span>${ic("check")}สุทธิ</span><b>${inc-out>=0?"+":"−"}${baht(Math.abs(inc-out))}</b></div>
     ${dueIn?`<div class="li"><span>${ic("timer")}ค้างรับ</span><b>${baht(dueIn)}</b></div>`:""}
     ${dueOut?`<div class="li"><span>${ic("timer")}ค้างจ่าย</span><b>${baht(dueOut)}</b></div>`:""}
-    ${L.map(t=>`<div class="li"><span>${+t.date.slice(8)} ${MONTHS[viewM].slice(0,3)}. ${t.type==="buy"?"ซื้อ":"ขาย"}${SH[t.c].n.replace("เวร","")} · ${esc(t.who||"-")}</span><button class="tpaid ${t.paid?"on":""}" onclick="togPaid('${t.id}')">${t.paid?"เรียบร้อย":(t.type==="buy"?"ค้างรับ":"ค้างจ่าย")} ${baht(t.price)}</button></div>`).join("")}`;
+    ${L.map(t=>`<div class="li"><span>${+t.date.slice(8)} ${MSH[viewM]} ${t.type==="buy"?"ซื้อ":"ขาย"}${SH[t.c].n.replace("เวร","")} · ${esc(t.who||"-")}</span><button class="tpaid ${t.paid?"on":""}" onclick="togPaid('${t.id}')">${t.paid?"เรียบร้อย":(t.type==="buy"?"ค้างรับ":"ค้างจ่าย")} ${baht(t.price)}</button></div>`).join("")}`;
 }
 
 /* ===== เพื่อน ===== */
@@ -722,7 +726,7 @@ function renderFr(){
   $("fchips").innerHTML = friends.map((n,i)=>`<button class="fchip ${n===frFriend?"on":""}" onclick="pickFriend(${i})">${first(n)}</button>`).join("");
   const me = mine(), fr = md.people[frFriend], both = [];
   for (let d=1; d<=days; d++) if (!sortS(me[d]).length && !sortS(fr[d]).length) both.push(d);
-  $("together").innerHTML = both.length ? both.map(d=>`<span class="o">${d} ${MONTHS[viewM].slice(0,3)}.</span>`).join("") : `<p class="note" style="width:100%">เดือนนี้ไม่มีวันหยุดตรงกัน</p>`;
+  $("together").innerHTML = both.length ? both.map(d=>`<span class="o">${d} ${MSH[viewM]}</span>`).join("") : `<p class="note" style="width:100%">เดือนนี้ไม่มีวันหยุดตรงกัน</p>`;
 }
 function pickFriend(i){ const md = monthData(); frFriend = Object.keys(md.people).filter(n=>n!==DATA.me)[i]; renderFr(); }
 
@@ -823,6 +827,7 @@ function confirmParsed(){
   const prev = DATA.months[k] ? JSON.parse(JSON.stringify(DATA.months[k])) : null;
   DATA.months[k] = {people:r.people, totals:r.totals||{}, work:r.work||{}};
   send("saveMonth", {key:k, month:DATA.months[k]});
+  trades().filter(t=>t.date.startsWith(k)).forEach(t=>applyTrade(t));   // ตารางใหม่ยังไม่รวมซื้อ-ขาย → ใส่ซ้ำ (ซ้ำได้ ไม่เพี้ยน)
   viewY = r.year; viewM = r.month-1; closeSheet(); renderAll();
   if (prev) toastUndo("บันทึกทับเดือนเดิมแล้ว", () => { DATA.months[k] = prev; send("restoreMonth", {key:k, month:prev}); renderAll(); toast("คืนค่าเดิมแล้ว"); });
   else toast("บันทึกเวรเดือนใหม่แล้ว");
