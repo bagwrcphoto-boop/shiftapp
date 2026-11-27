@@ -1082,12 +1082,13 @@ function toastUndo(t, fn){ const el = $("toast"); el.innerHTML = ic("check") + t
 /* ===== แชร์เป็นรูป ===== */
 const mixHex = (a, b, t) => { const p = s => [1,3,5].map(i=>parseInt(s.substr(i,2),16)); const x = p(a), y = p(b); return "#" + x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,"0")).join(""); };
 const svgImg = k => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(CUTE[k].replace("<svg ", '<svg width="256" height="256" ')); });
+const ROLE_HEX = {ic:"#2F7BE0", mb:"#E8742A", md:"#23A05A"};
 async function shareMonth(){
   try { await Promise.all(["400","500","600","700"].map(w=>document.fonts.load(`${w} 30px Mali`, "กข0123"))); } catch(e){}
   const IM = {}; for (const k of ["sun","sunset","moon","off","note"]) IM[k] = await svgImg(k);
   const t = DATA.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
-  const me = mine(), days = daysIn(), f = firstDow(), rows = Math.ceil((f+days)/7);
-  const W = 1080, pad = 54, gap = 16, cell = (W - pad*2 - gap*6)/7, top = 330, H = top + rows*(cell+gap) - gap + 250;
+  const me = mine(), days = daysIn(), f = firstDow(), rows = Math.ceil((f+days)/7), md1 = monthData() || {}, RL = (md1.roles||{})[DATA.me] || {}, hasR = Object.keys(RL).length > 0;
+  const W = 1080, pad = 54, gap = 16, cell = (W - pad*2 - gap*6)/7, top = 330, H = top + rows*(cell+gap) - gap + 250 + (hasR ? 50 : 0);
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
   const font = (s,w=600) => `${w} ${s}px Mali, "Sukhumvit Set", sans-serif`;
   const tint = {"ช":"#D9F4E3","บ":"#DFEAFF","ด":"#ECE4FF"}, ink = {"ช":"#1F5A3B","บ":"#24427E","ด":"#4A2F8C"};
@@ -1111,14 +1112,20 @@ async function shareMonth(){
     if (s.length > 1){ x.save(); rr(x, cx, cy, cell, cell, 30); x.clip(); x.fillStyle = tint[s[1]]; x.beginPath(); x.moveTo(cx+cell, cy); x.lineTo(cx+cell, cy+cell); x.lineTo(cx, cy+cell); x.closePath(); x.fill(); x.restore(); }
     x.textAlign = "left"; x.fillStyle = (i%7===0||i%7===6) ? p.accent : (s.length ? ink[s[0]] : p.text); x.font = font(30,700); x.fillText(d, cx+14, cy+40);
     if (!s.length) draw("off", cx+cell/2, cy+cell*0.6, cell*0.42);
-    else if (s.length === 1) draw(SH[s[0]].k, cx+cell/2, cy+cell*0.6, cell*0.56);
-    else { draw(SH[s[0]].k, cx+cell*0.33, cy+cell*0.62, cell*0.44); draw(SH[s[1]].k, cx+cell*0.67, cy+cell*0.62, cell*0.44); }
+    else if (s.length === 1) draw(SH[s[0]].k, cx+cell/2, cy+cell*0.54, cell*0.48);
+    else { draw(SH[s[0]].k, cx+cell*0.33, cy+cell*0.55, cell*0.4); draw(SH[s[1]].k, cx+cell*0.67, cy+cell*0.55, cell*0.4); }
+    if (s.length){ const rl = RL[d] || []; x.font = font(26,700); x.textAlign = "left";   // ตัวย่อสีตามหน้าที่ เหมือนในปฏิทิน
+      let lx = cx + (cell - s.reduce((a, c) => a + x.measureText(c).width, 0))/2;
+      s.forEach((c, j) => { x.fillStyle = ROLE_HEX[rl[j]] || (s.length ? ink[s[0]] : p.text); x.fillText(c, lx, cy + cell - 12); lx += x.measureText(c).width; }); }
     if (noteOf(new Date(viewY, viewM, d))) draw("note", cx+cell-26, cy+26, 34);
     if (holOf(viewY, viewM, d)){ x.save(); x.strokeStyle = "#F2A23A"; x.lineWidth = 6; rr(x, cx+3, cy+3, cell-6, cell-6, 27); x.stroke(); x.restore(); }
   }
   // สรุปด้านล่าง
   const k = countMonth(me, days), items = [["sun", "เช้า", k.c["ช"], ink["ช"]], ["sunset", "บ่าย", k.c["บ"], ink["บ"]], ["moon", "ดึก", k.c["ด"], ink["ด"]], ["off", "หยุด", k.off, p.accent]];
   const cw = 218, cg = 18, sx = (W - (cw*4 + cg*3))/2, sy = H - 200;
+  if (hasR){ const L = [["ic","In charge"],["mb","member"],["md","med"]]; x.font = font(28,700); x.textAlign = "left";
+    const tw = L.reduce((a, [, t]) => a + 34 + x.measureText(t).width + 40, -40); let lx = (W - tw)/2;
+    for (const [r, t] of L){ x.fillStyle = ROLE_HEX[r]; x.beginPath(); x.arc(lx + 11, sy - 46, 11, 0, 7); x.fill(); x.fillText(t, lx + 30, sy - 36); lx += 34 + x.measureText(t).width + 40; } }
   items.forEach(([ic2, lb, n, col], j) => {
     const bx = sx + j*(cw+cg);
     x.save(); x.shadowColor = al(p.accent,.12); x.shadowBlur = 16; x.shadowOffsetY = 5; x.fillStyle = "rgba(255,255,255,.82)"; rr(x, bx, sy, cw, 96, 30); x.fill(); x.restore();
