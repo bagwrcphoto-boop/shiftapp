@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 31";
+const APP_VERSION = "28 พ.ย. 69 · 33";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -29,7 +29,7 @@ const key = (y, m) => `${y}-${pad(m + 1)}`;
 // เวรในช่องเรียงตามตาราง (บน → ล่าง) = ลำดับเวลา เช่น "บด" = บ่ายต่อดึก (ดึกเริ่ม 24:00), "ดบ" = ดึก 00:00 แล้วบ่าย
 const sortS = s => [...new Set((s || "").split("").filter(c => ORD[c] != null))];
 // เวลาเริ่มของแต่ละเวรในช่อง: เวรถัดไปต้องเริ่มหลังเวรก่อนหน้า (ดึกหลังบ่าย = 24:00 → เช้าวันถัดไป)
-function shiftStarts(y, m, day, s) { let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return { c, st: new Date(y, m - 1, +day, h) }; }); }
+function shiftStarts(y, m, day, s) { return sortS(s).map((c, i) => ({ c, h: c === "ด" && i > 0 ? 24 : SH[c].s })).sort((a, b) => a.h - b.h).map(x => ({ c: x.c, st: new Date(y, m - 1, +day, x.h) })); }   // ดึกที่อยู่หลังเวรอื่น = 24:00 (ข้ามคืน), เช้า/บ่ายอยู่ในวันนั้นเสมอ
 const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 // ---------------- เก็บข้อมูล ----------------

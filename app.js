@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 31";
+const APP_VERSION = "28 พ.ย. 69 · 33";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -37,7 +37,7 @@ const key = (y, m) => `${y}-${pad(m + 1)}`;
 // เวรในช่องเรียงตามตาราง (บน → ล่าง) = ลำดับเวลา เช่น "บด" = บ่ายต่อดึก (ดึกเริ่ม 24:00), "ดบ" = ดึก 00:00 แล้วบ่าย
 const sortS = s => [...new Set((s || "").split("").filter(c => ORD[c] != null))];
 // เวลาเริ่มของแต่ละเวรในช่อง: เวรถัดไปต้องเริ่มหลังเวรก่อนหน้า (ดึกหลังบ่าย = 24:00 → เช้าวันถัดไป)
-function shiftStarts(y, m, day, s) { let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return { c, st: new Date(y, m - 1, +day, h) }; }); }
+function shiftStarts(y, m, day, s) { return sortS(s).map((c, i) => ({ c, h: c === "ด" && i > 0 ? 24 : SH[c].s })).sort((a, b) => a.h - b.h).map(x => ({ c: x.c, st: new Date(y, m - 1, +day, x.h) })); }   // ดึกที่อยู่หลังเวรอื่น = 24:00 (ข้ามคืน), เช้า/บ่ายอยู่ในวันนั้นเสมอ
 const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 // ---------------- เก็บข้อมูล ----------------
@@ -989,12 +989,14 @@ const APP_HTML = [
 "const $ = id => document.getElementById(id);",
 "const key = (y,m) => `${y}-${String(m+1).padStart(2,\"0\")}`;",
 "const sortS = s => [...new Set((s||\"\").split(\"\").filter(c=>ORD[c]!=null))];   // \u0e40\u0e23\u0e35\u0e22\u0e07\u0e15\u0e32\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e1a\u0e19\u2192\u0e25\u0e48\u0e32\u0e07 = \u0e25\u0e33\u0e14\u0e31\u0e1a\u0e40\u0e27\u0e25\u0e32",
-"function shiftStarts(y, m, d, s){ let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return {c, st:new Date(y, m-1, +d, h)}; }); }",
+"function shiftStarts(y, m, d, s){ return sortS(s).map((c, i) => ({c, h: c === \"\u0e14\" && i > 0 ? 24 : SH[c].s})).sort((a, b) => a.h - b.h).map(x => ({c: x.c, st: new Date(y, m-1, +d, x.h)})); }   // \u0e14\u0e36\u0e01\u0e2b\u0e25\u0e31\u0e07\u0e40\u0e27\u0e23\u0e2d\u0e37\u0e48\u0e19 = 24:00, \u0e40\u0e0a\u0e49\u0e32/\u0e1a\u0e48\u0e32\u0e22\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e27\u0e31\u0e19\u0e19\u0e31\u0e49\u0e19",
 "const hm = dt => `${String(dt.getHours()).padStart(2,\"0\")}:${String(dt.getMinutes()).padStart(2,\"0\")}`;",
 "// \u0e0a\u0e37\u0e48\u0e2d/\u0e40\u0e27\u0e25\u0e32\u0e23\u0e27\u0e21\u0e02\u0e2d\u0e07\u0e0a\u0e48\u0e2d\u0e07 \u0e40\u0e0a\u0e48\u0e19 \"\u0e1a\u0e48\u0e32\u0e22 \u2192 \u0e14\u0e36\u0e01\" 16:00 \u2013 08:00",
 "function seqInfo(y, m, d, s){ const L = shiftStarts(y, m, d, s); if (!L.length) return null;",
 "  const en = new Date(L[L.length-1].st.getTime() + 8*3600e3), cont = L.every((x,i)=>!i || x.st - L[i-1].st === 8*3600e3);",
-"  return {L, cont, name: L.map(x=>SH[x.c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\" \u2192 \"), time: `${hm(L[0].st)} \u2013 ${hm(en)}${en.getDate()!==L[0].st.getDate()?\" (\u0e40\u0e0a\u0e49\u0e32\u0e27\u0e31\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b)\":\"\"}`}; }",
+"  const e24 = (st, e) => hm(e) === \"00:00\" && e.getDate() !== st.getDate() ? \"24:00\" : hm(e) + (e.getDate() !== L[0].st.getDate() ? \" (\u0e40\u0e0a\u0e49\u0e32\u0e27\u0e31\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b)\" : \"\");",
+"  const time = cont ? `${hm(L[0].st)} \u2013 ${e24(L[0].st, en)}` : L.map(x => `${x.st.getDate() !== L[0].st.getDate() ? \"24:00\" : hm(x.st)} \u2013 ${e24(x.st, new Date(x.st.getTime() + 8*3600e3))}`).join(\" \u0e41\u0e25\u0e30 \");",
+"  return {L, cont, name: L.map(x=>SH[x.c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(cont ? \" \u2192 \" : \" + \"), time}; }",
 "const first = n => { const w = n.replace(/^(\u0e19\u0e32\u0e07\u0e2a\u0e32\u0e27|\u0e19\u0e32\u0e07|\u0e19\u0e32\u0e22|\u0e19\\.\u0e2a\\.)\\s*/,\"\").split(/\\s+/).filter(Boolean); return /^part/i.test(w[0]||\"\") && w.length > 1 ? w.slice(0, 2).join(\" \") : w[0]; };",
 "const pill = c => `<span class=\"p ${SH[c].c}\">${c}</span>`;",
 "",

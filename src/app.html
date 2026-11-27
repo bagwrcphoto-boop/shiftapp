@@ -342,12 +342,14 @@ const DOWF = ["อาทิตย์","จันทร์","อังคาร",
 const $ = id => document.getElementById(id);
 const key = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
 const sortS = s => [...new Set((s||"").split("").filter(c=>ORD[c]!=null))];   // เรียงตามตาราง บน→ล่าง = ลำดับเวลา
-function shiftStarts(y, m, d, s){ let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return {c, st:new Date(y, m-1, +d, h)}; }); }
+function shiftStarts(y, m, d, s){ return sortS(s).map((c, i) => ({c, h: c === "ด" && i > 0 ? 24 : SH[c].s})).sort((a, b) => a.h - b.h).map(x => ({c: x.c, st: new Date(y, m-1, +d, x.h)})); }   // ดึกหลังเวรอื่น = 24:00, เช้า/บ่ายอยู่ในวันนั้น
 const hm = dt => `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
 // ชื่อ/เวลารวมของช่อง เช่น "บ่าย → ดึก" 16:00 – 08:00
 function seqInfo(y, m, d, s){ const L = shiftStarts(y, m, d, s); if (!L.length) return null;
   const en = new Date(L[L.length-1].st.getTime() + 8*3600e3), cont = L.every((x,i)=>!i || x.st - L[i-1].st === 8*3600e3);
-  return {L, cont, name: L.map(x=>SH[x.c].n.replace("เวร","")).join(" → "), time: `${hm(L[0].st)} – ${hm(en)}${en.getDate()!==L[0].st.getDate()?" (เช้าวันถัดไป)":""}`}; }
+  const e24 = (st, e) => hm(e) === "00:00" && e.getDate() !== st.getDate() ? "24:00" : hm(e) + (e.getDate() !== L[0].st.getDate() ? " (เช้าวันถัดไป)" : "");
+  const time = cont ? `${hm(L[0].st)} – ${e24(L[0].st, en)}` : L.map(x => `${x.st.getDate() !== L[0].st.getDate() ? "24:00" : hm(x.st)} – ${e24(x.st, new Date(x.st.getTime() + 8*3600e3))}`).join(" และ ");
+  return {L, cont, name: L.map(x=>SH[x.c].n.replace("เวร","")).join(cont ? " → " : " + "), time}; }
 const first = n => { const w = n.replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/,"").split(/\s+/).filter(Boolean); return /^part/i.test(w[0]||"") && w.length > 1 ? w.slice(0, 2).join(" ") : w[0]; };
 const pill = c => `<span class="p ${SH[c].c}">${c}</span>`;
 
