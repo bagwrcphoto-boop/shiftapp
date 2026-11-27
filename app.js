@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 13";
+const APP_VERSION = "27 พ.ย. 69 · 14";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -366,7 +366,7 @@ const APP_HTML = [
 "<head>",
 "<meta charset=\"utf-8\">",
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover\">",
-"<link href=\"https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&family=Itim&family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">",
+"<link href=\"https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&family=Itim&family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@500;600;700&display=swap\" rel=\"stylesheet\">",
 "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/duotone/style.css\">",
 "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css\">",
 "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css\">",
@@ -730,6 +730,30 @@ const APP_HTML = [
 "  --nbBg:${p.body};--nbBorder:none;--dayBg:${p.body};--dayBorder:1px solid transparent;--dayShadow:3px 3px 7px ${al(p.accent,.18)},-3px -3px 6px rgba(255,255,255,.9);--todayShadow:0 4px 10px ${al(p.accent,.5)};--dot:${al(p.accent,.35)};",
 "  --tabBg:${p.body};--tabFg:${p.sub};--tabOnBg:linear-gradient(145deg,${p.accent},${al(p.accent,.78)});--tabOnFg:#FFFFFF;--tabOnShadow:0 5px 12px ${al(p.accent,.4)};--sheet:${p.body};--line:${al(p.accent,.2)};--nameBg:rgba(255,255,255,.7);${LIGHT_SHIFT}`,",
 "  extra:\".nb,.btn:not(.main){box-shadow:4px 4px 8px rgba(0,0,0,.08),-3px -3px 6px rgba(255,255,255,.9)}\"},",
+" nude:{fixed:true,name:\"\u0e0a\u0e21\u0e1e\u0e39\u0e19\u0e39\u0e49\u0e14\u0e17\u0e2d\u0e07\",font:\"IBM Plex Sans Thai\",icons:\"ph\",blobs:()=>[\"#F6D9DC\",\"#F3E2D2\"],v:()=>`--accent:#C98A94;--we:#B8869B;--accentGlow:rgba(201,138,148,.35);--tint:#F7E4E3;--onAccent:#fff;--heroTitle:#4E2233;--heroSub:#8A5A62;",
+"  --body:#FBF4EF;--card:#FFFCF9;--cardBorder:1px solid #EADBC9;--cardShadow:0 8px 24px rgba(160,110,90,.1);--r:26px;--blur:none;",
+"  --title:#5A2E3E;--sub:#9A7680;--text:#5A3A44;--heroBg:linear-gradient(135deg,#F3D3D6,#E9B9BF);--cdBg:#FFF8F1;--orbBg:#FFF8F3;--orbBorder:1.5px solid #D9B27A;",
+"  --nbBg:#FBF2EE;--nbBorder:1px solid #EADBC9;--dayBg:#FBF2EE;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:0 0 0 2px #D9B27A;--dot:rgba(201,138,148,.4);",
+"  --tabBg:rgba(255,252,249,.94);--tabFg:#9A7B6A;--tabOnBg:#F3D3D6;--tabOnFg:#5A2E3E;--tabOnShadow:none;--sheet:#FFFCF9;--line:#EAD7C4;--nameBg:#FBF2EE;${LIGHT_SHIFT}`,",
+"  extra:\".big,.cal-h .t,.hero .what,.sheet h2,.stat .v{font-family:'Noto Serif Thai',serif}.hero{border:1px solid #D9B27A;box-shadow:0 10px 30px rgba(180,110,120,.25),inset 0 1px 0 rgba(255,255,255,.7)}.cd{border:1px solid #E2C38E;color:#9A6B3A}.blob{opacity:.6}\"},",
+" pearl:{fixed:true,name:\"\u0e01\u0e23\u0e30\u0e08\u0e01\u0e21\u0e38\u0e01\",font:\"Mitr\",icons:\"ph\",blobs:()=>[\"#FFD6EC\",\"#D7DEFF\",\"#E6D4FF\",\"#FFE3F1\"],v:()=>`--accent:#B07BE6;--we:#C04C9A;--accentGlow:rgba(176,123,230,.35);--tint:#F1E6FF;--onAccent:#fff;--heroTitle:#4A2F78;--heroSub:#8C79B8;",
+"  --body:#F7F2FB;--card:rgba(255,255,255,.58);--cardBorder:1px solid rgba(255,255,255,.95);--cardShadow:0 12px 34px rgba(120,90,200,.16),inset 0 1px 0 #fff;--r:28px;--blur:blur(20px) saturate(170%);",
+"  --title:#43345A;--sub:#8C79B8;--text:#43345A;--heroBg:linear-gradient(135deg,rgba(255,255,255,.8),rgba(255,255,255,.4));--cdBg:linear-gradient(90deg,#F59AC9,#A99BF5);--orbBg:rgba(255,255,255,.85);--orbBorder:1px solid #fff;",
+"  --nbBg:rgba(255,255,255,.6);--nbBorder:1px solid #fff;--dayBg:linear-gradient(160deg,rgba(255,224,241,.85),rgba(226,230,255,.85));--dayBorder:1px solid rgba(255,255,255,.9);--dayShadow:none;--todayShadow:0 3px 12px rgba(176,123,230,.5);--dot:rgba(176,123,230,.45);",
+"  --tabBg:rgba(255,255,255,.66);--tabFg:#8C79B8;--tabOnBg:linear-gradient(135deg,#F59AC9,#A99BF5);--tabOnFg:#fff;--tabOnShadow:0 4px 12px rgba(176,123,230,.35);--sheet:rgba(255,255,255,.92);--line:rgba(176,123,230,.22);--nameBg:rgba(255,255,255,.75);${LIGHT_SHIFT}`,",
+"  extra:\".big{background:linear-gradient(90deg,#C04C9A,#6E6BE0);-webkit-background-clip:text;background-clip:text;color:transparent}.cd{color:#fff}.hero{position:relative;overflow:hidden}.hero::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,220,245,.5) 45%,rgba(210,230,255,.45) 55%,transparent 70%)}\"},",
+" satin:{fixed:true,name:\"\u0e01\u0e25\u0e32\u0e07\u0e04\u0e37\u0e19\u0e41\u0e0b\u0e17\u0e34\u0e19\",font:\"IBM Plex Sans Thai\",icons:\"ph\",blobs:()=>[\"#4A2F6E\",\"#5A2C55\"],v:()=>`--accent:#F3B6CF;--we:#F3B6CF;--accentGlow:rgba(243,182,207,.35);--tint:rgba(245,215,161,.16);--onAccent:#2A1E3E;--heroTitle:#F7E3C0;--heroSub:#C6B2E0;",
+"  --body:#221B3C;--card:rgba(255,255,255,.07);--cardBorder:1px solid rgba(255,255,255,.12);--cardShadow:0 10px 40px rgba(0,0,0,.35);--r:26px;--blur:blur(18px);",
+"  --title:#F7E3C0;--sub:#B7A3D2;--text:#EADFF2;--heroBg:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.04));--cdBg:rgba(245,215,161,.16);--orbBg:rgba(255,255,255,.08);--orbBorder:1px solid rgba(245,215,161,.5);",
+"  --nbBg:rgba(255,255,255,.08);--nbBorder:1px solid rgba(255,255,255,.14);--dayBg:rgba(255,255,255,.07);--dayBorder:1px solid rgba(255,255,255,.1);--dayShadow:none;--todayShadow:0 0 12px rgba(243,182,207,.7);--dot:rgba(245,215,161,.5);",
+"  --tabBg:rgba(30,24,52,.88);--tabFg:#9C88B8;--tabOnBg:rgba(245,215,161,.16);--tabOnFg:#F5D7A1;--tabOnShadow:none;--sheet:rgba(38,30,64,.97);--line:rgba(255,255,255,.16);--nameBg:rgba(255,255,255,.1);${DARK_SHIFT}`,",
+"  extra:\".big,.cal-h .t,.hero .what,.sheet h2,.stat .v{font-family:'Noto Serif Thai',serif}.big{background:linear-gradient(90deg,#F5D7A1,#F3B6CF);-webkit-background-clip:text;background-clip:text;color:transparent}.hero{border:1px solid rgba(245,215,161,.45)}.cd{border:1px solid rgba(245,215,161,.4);color:#F5D7A1}#decor::after{content:'';position:fixed;inset:0;background-image:radial-gradient(1px 1px at 40px 90px,#fff,transparent),radial-gradient(1.2px 1.2px at 300px 60px,#ffe9b8,transparent),radial-gradient(1px 1px at 210px 140px,#fff,transparent),radial-gradient(1px 1px at 120px 40px,#fff,transparent),radial-gradient(1.4px 1.4px at 330px 160px,#fff,transparent),radial-gradient(1px 1px at 70px 420px,#fff,transparent),radial-gradient(1px 1px at 280px 520px,#ffe9b8,transparent);opacity:.75}\"},",
+" luxe:{fixed:true,name:\"\u0e21\u0e34\u0e19\u0e34\u0e21\u0e2d\u0e25\u0e2b\u0e23\u0e39\",font:\"IBM Plex Sans Thai\",icons:\"tb\",blobs:()=>[],v:()=>`--accent:#2E2A2C;--we:#B0606F;--accentGlow:rgba(0,0,0,.2);--tint:#F6F1EE;--onAccent:#fff;--heroTitle:#2E2A2C;--heroSub:#A3989C;",
+"  --body:#FFFFFF;--card:#FFFFFF;--cardBorder:1px solid #F0EAE6;--cardShadow:0 10px 30px rgba(0,0,0,.04);--r:24px;--blur:none;",
+"  --title:#2E2A2C;--sub:#A3989C;--text:#3A3436;--heroBg:#FAF7F5;--cdBg:#2E2A2C;--orbBg:#FFFFFF;--orbBorder:none;",
+"  --nbBg:#FAF7F5;--nbBorder:1px solid #F0EAE6;--dayBg:#FAF5F3;--dayBorder:1px solid transparent;--dayShadow:none;--todayShadow:none;--dot:rgba(0,0,0,.2);",
+"  --tabBg:rgba(255,255,255,.96);--tabFg:#B5ABAF;--tabOnBg:#F6F1EE;--tabOnFg:#2E2A2C;--tabOnShadow:none;--sheet:#FFFFFF;--line:#EFE7E3;--nameBg:#FAF7F5;${LIGHT_SHIFT}`,",
+"  extra:\".big,.cal-h .t,.hero .what,.sheet h2,.stat .v{font-family:'Noto Serif Thai',serif}.big{font-weight:500;letter-spacing:.2px}.hello{letter-spacing:1px}.cd{color:#fff}.orb{box-shadow:0 8px 22px rgba(0,0,0,.07)}\"},",
 "};",
 "function applyTheme(){",
 "  const t = DATA.settings.theme || {style:\"glass\", palette:\"sakura\"};",
@@ -739,6 +763,7 @@ const APP_HTML = [
 "  const pos = [\"left:-90px;top:-60px\",\"right:-80px;top:220px\",\"left:-60px;top:560px\",\"right:-50px;bottom:-40px\"], sz = [300,260,280,220];",
 "  $(\"decor\").innerHTML = s.blobs(p).map((c,i)=>`<div class=\"blob\" style=\"width:${sz[i]}px;height:${sz[i]}px;background:${c};${pos[i]}\"></div>`).join(\"\");",
 "  $(\"styles\").innerHTML = Object.entries(STYLES).map(([k,v])=>`<button class=\"stb ${k===t.style?\"on\":\"\"}\" onclick=\"setTheme('${k}',null)\">${v.name}</button>`).join(\"\");",
+"  $(\"swatches\").style.opacity = s.fixed ? \".35\" : \"\"; $(\"swatches\").style.pointerEvents = s.fixed ? \"none\" : \"\";",
 "  $(\"swatches\").innerHTML = Object.entries(PALETTES).map(([k,v])=>`<button class=\"swb ${k===t.palette?\"on\":\"\"}\" onclick=\"setTheme(null,'${k}')\"><span style=\"background:linear-gradient(135deg,${v.blobs[0]},${v.accent})\"></span>${v.name}</button>`).join(\"\");",
 "  applyIcons();",
 "}",
@@ -1304,6 +1329,12 @@ const CA = (h, a = 1) => new Color(h, a);
 
 function wTheme(d) {
   const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
+  const L = { "ช": ["#D9F4E3", "#1F5A3B"], "บ": ["#DFEAFF", "#24427E"], "ด": ["#ECE4FF", "#4A2F8C"] };
+  if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.45, pastA: 0.45, past: "#FFFFFF", shift: L };
+  if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.42, pastA: 0.45, past: "#FFFFFF", shift: L };
+  if (t.style === "luxe") return { dark: false, g1: "#FFFFFF", g2: "#F8F4F2", b1: "#F6F0ED", b2: "#FFFFFF", title: "#2E2A2C", sub: "#A3989C", text: "#3A3436", accent: "#2E2A2C", onAccent: "#FFFFFF", card: "#F6F1EE", cardA: 0.9, offA: 0.6, pastA: 0.45, past: "#FFFFFF", shift: L };
+  if (t.style === "satin") return { dark: true, g1: "#221B3C", g2: "#3A2148", b1: "#4A2F6E", b2: "#5A2C55", title: "#F7E3C0", sub: "#B7A3D2", text: "#EADFF2", accent: "#F3B6CF", onAccent: "#2A1E3E", card: "#FFFFFF", cardA: 0.1, offA: 0.06, pastA: 0.55, past: "#221B3C",
+    shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] } };
   if (t.style === "dark") {
     const q = p.dark;
     return { dark: true, g1: q.body, g2: q.card, b1: q.blobs[0], b2: q.blobs[1], title: q.title, sub: q.sub, text: q.title, accent: q.accent, onAccent: q.body,
