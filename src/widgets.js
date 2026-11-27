@@ -82,6 +82,12 @@ function untilText(ms) { const m = Math.max(0, Math.round(ms / 6e4)), dd = Math.
   return dd >= 2 ? `อีก ${dd} วัน` : dd === 1 ? `อีก 1 วัน ${h} ชม.` : h ? `อีก ${h} ชม. ${mm} น.` : `อีก ${mm} นาที`; }
 function greet(now) { const h = now.getHours(); return h < 5 ? "ราตรีสวัสดิ์" : h < 12 ? "อรุณสวัสดิ์" : h < 17 ? "สวัสดีตอนบ่าย" : h < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ"; }
 const ROLE_C = { ic: "#2F7BE0", mb: "#E8742A", md: "#23A05A" };   // ฟ้า In charge / ส้ม member / เขียว med
+function txSlots(c, words, sep, sepCol, x, y, w, h, size) {   // คำหลายสี: แบ่งช่องเท่ากัน คำอยู่กลางช่อง ตัวคั่นอยู่รอยต่อ (DrawContext วัดความกว้างไม่ได้)
+  const sw = w / words.length;
+  words.forEach(([t, col], j) => { tx(c, t, x + j * sw, y, sw, h, F("Bold", size), col, "center"); if (j) tx(c, sep, x + j * sw - 6, y + size * 0.1, 12, h, F("Bold", size * 0.8), sepCol, "center"); });
+}
+const roleCol = (r, def) => ROLE_C[r] ? new Color(ROLE_C[r]) : def;
+function roleOn(d, dt) { const md = d.months[key(dt.getFullYear(), dt.getMonth())]; return ((md && md.roles || {})[d.me] || {})[dt.getDate()] || []; }
 const bLabel = it => it.cs.map(c => SH_LABEL[c]).join(" → ");              // เวรต่อกัน = ก้อนเดียว เช่น "บ่าย → ดึก"
 function dayLabelS(dt, s) {                       // ป้ายของวัน: ต่อกัน "บ่าย→ดึก" / ไม่ต่อ "ดึก+บ่าย" (เรียงตามเวลา)
   const st = shiftStarts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), s.join(""));
@@ -190,7 +196,10 @@ function drawMedium(d, now, I, T, sz) {
     const isz = Math.min(cw * 0.6, 24);
     if (s === null) tx(c, "–", x, top + chh * 0.55, cw, 16, F("Bold", 12), CA(T.sub), "center");
     else shiftIcons(c, I, s, x + cw / 2, top + chh * 0.62, isz);
-    if (s) tx(c, s.length ? dayLabelS(dt, s) : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
+    if (s && s.length && roleOn(d, dt).some(Boolean)) {      // มีสีหน้าที่ → ระบายสีทีละคำ
+      const rl = roleOn(d, dt), st = shiftStarts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), s.join("")), sep = dayLabelS(dt, s).includes("→") ? "→" : "+", sz = s.length > 1 ? 8 : 9.5;
+      txSlots(c, st.map(z => [SH_LABEL[z.c], roleCol(rl[s.indexOf(z.c)], CA(T.text))]), sep, CA(T.text), x - 2, top + chh - 17, cw + 4, 13, sz);
+    } else if (s) tx(c, s.length ? dayLabelS(dt, s) : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, top + 3, 11);
   }
   return c.getImage();
@@ -207,7 +216,8 @@ function drawSmall(d, now, I, T, sz) {
   const isz = Math.round(W * 0.31);
   const multi = it.cs.length > 1;
   if (multi) shiftIcons(c, I, it.cs, P - 2 + isz / 2, P + 16 + isz / 2, isz * 0.68); else img(c, I, SH_ICON[it.c], P - 2, P + 16, isz);
-  tx(c, multi ? bLabel(it) : `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", multi ? 14 : 18), CA(T.title));
+  if ((it.rs || []).some(Boolean) && multi) txSlots(c, it.cs.map((z, j) => [SH_LABEL[z], roleCol(it.rs[j], CA(T.title))]), "→", CA(T.title), P + isz + 2, P + 18, W - isz - P - 6, 24, 14);
+  else tx(c, multi ? bLabel(it) : `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", multi ? 14 : 18), multi ? CA(T.title) : roleCol((it.rs || [])[0], CA(T.title)));
   tx(c, `${hhmm(it.st)}–${bEnd(it)}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
   const note = nextNote(d, now, 2), nh = note ? 20 : 0;
   const py = H - P - 22 - (note ? nh + 5 : 0), label = cur ? `เลิกเวร${untilText(it.en - now).replace("อีก", " อีก")}` : untilText(it.st - now);

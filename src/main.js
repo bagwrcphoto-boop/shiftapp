@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 49";
+const APP_VERSION = "28 พ.ย. 69 · 50";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -88,9 +88,9 @@ function hasKey() { return { gemini: !!getKey("gemini"), claude: !!getKey("claud
 function allMyShifts(d) {
   const list = [];
   for (const [k, md] of Object.entries(d.months)) {
-    const [y, m] = k.split("-").map(Number), me = md.people[d.me] || {};
+    const [y, m] = k.split("-").map(Number), me = md.people[d.me] || {}, R = (md.roles || {})[d.me] || {};
     for (const [day, s] of Object.entries(me)) for (const { c, st } of shiftStarts(y, m, day, s)) {
-      list.push({ c, st, en: new Date(st.getTime() + 8 * 3600e3) });
+      list.push({ c, st, en: new Date(st.getTime() + 8 * 3600e3), r: (R[day] || [])[sortS(s).indexOf(c)] || "" });   // r = หน้าที่ (ic/mb/md)
     }
   }
   return list.sort((a, b) => a.st - b.st);
@@ -400,7 +400,7 @@ async function syncCalendar(d) {
 }
 function shiftBlocks(list) {
   const out = [];
-  for (const x of list) { const b = out[out.length - 1]; if (b && x.st.getTime() === b.en.getTime()) { b.en = x.en; b.cs.push(x.c); } else out.push({ c: x.c, st: x.st, en: x.en, cs: [x.c] }); }
+  for (const x of list) { const b = out[out.length - 1]; if (b && x.st.getTime() === b.en.getTime()) { b.en = x.en; b.cs.push(x.c); b.rs.push(x.r); } else out.push({ c: x.c, st: x.st, en: x.en, cs: [x.c], rs: [x.r] }); }
   return out;
 }
 let NEWIDS = null;
