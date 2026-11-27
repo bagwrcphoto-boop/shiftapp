@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 22";
+const APP_VERSION = "27 พ.ย. 69 · 23";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -97,7 +97,7 @@ const PROMPT =
 `รูปนี้คือตารางปฏิบัติงาน (ตารางเวร) พยาบาลรายเดือน ภาษาไทย
 - หัวตารางมีชื่อเดือนและปี พ.ศ. คอลัมน์ตัวเลข 1-31 คือวันที่ของเดือนนั้น (บางวันมีวงกลมล้อมรอบ ไม่ต้องสนใจ)
 - แต่ละคนมี 1 แถว แบ่งเป็นบรรทัดบนกับบรรทัดล่าง ในหนึ่งวันมีได้ 0-2 เวร ให้รวมทั้งบรรทัดบนและล่าง
-- ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, วันเกิด, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
+- ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ไม่ ด, ไม่ ช, ไม่ บ, วันเกิด, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
 - คอลัมน์ทางขวาหลังคอลัมน์สรุป (เช่นสีเขียว 31,1,2,3) เป็นเวรล่วงหน้าของเดือนถัดไป ให้ข้าม
 - ไล่ทีละคอลัมน์อย่างระวัง ให้วันที่ตรงกับคอลัมน์จริง
 งาน: อ่านทุกคนในตาราง ตอบเป็น JSON อย่างเดียว รูปแบบ (shifts เป็นข้อความสั้น ใส่เฉพาะวันที่มีเวร):
@@ -188,7 +188,7 @@ function cropBands(img, loc) {
 async function readMyRow(b64, me, key, hint) {
   const t = await claudeCall(CLAUDE_STRONG, b64,
 `รูปนี้ตัดมาจากตารางเวรพยาบาล ส่วนบนคือหัวตาราง (ตัวเลขวันที่ 1-31 แต่ละช่องคือ 1 คอลัมน์) ส่วนล่างมีหลายแถว ให้อ่าน "เฉพาะแถวที่ชื่อ ${me}" (ดูชื่อที่คอลัมน์ซ้าย) ซึ่งมีบรรทัดบนกับบรรทัดล่าง
-ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ไม่ ด, ไม่ ช, ไม่ บ, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
 ไล่ทีละคอลัมน์จากซ้ายไปขวา ให้ช่องในแถวตรงกับเลขวันที่ที่อยู่ "ตรงหัวคอลัมน์เดียวกัน" พอดี ระวังอย่าเลื่อนคอลัมน์
 แล้วอ่านเลขในคอลัมน์ "ทำงานจริง" ของแถวนี้ด้วย
 ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ใส่ครบทุกวันที่มีในหัวตาราง:
@@ -226,12 +226,14 @@ async function readByTiles(b64, d, key, page) {
     const t = await claudeCall(model || CLAUDE_MODEL, tiles,
 `รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
 ในแต่ละช่องมีบรรทัดบนกับบรรทัดล่าง อ่านตัวอักษรทั้งสองบรรทัด
-ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, v, ลา, กิจ, EN, D, E, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
+ข้อความที่มีคำว่า "ไม่" นำหน้า เช่น "ไม่ ด" "ไม่ ช" แปลว่าขอไม่ขึ้นเวรนั้น ไม่ใช่เวร และคำว่า "วันเกิด" ก็ไม่ใช่เวร
+ถ้าช่องไหนมีตัว v ให้ใส่ v ด้วย เช่น 3=v
 ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=เวร คั่นด้วยเว้นวรรค ใช้ - ถ้าไม่มีเวร เช่น
 1=ดช 2=บ 3=- 4=ช`, key, 2000);
-    const out = {}, seen = new Set();
-    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบด]*)/g)) { seen.add(+x[1]); const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
-    return { days: out, count: Object.values(out).join("").length, full: seen.has(days) };
+    const out = {}, seen = new Set(), vd = new Set();
+    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvV]*)/g)) { seen.add(+x[1]); if (/v/i.test(x[2]) && +x[1] <= days) vd.add(+x[1]); const s = sortS(x[2]).join(""); if (s && +x[1] >= 1 && +x[1] <= days) out[+x[1]] = s; }
+    return { days: out, count: Object.values(out).join("").length, full: seen.has(days), v: vd.size };
   };
   const askFull = async (hint, model) => {     // คำตอบไม่ครบถึงวันสุดท้าย → ถามใหม่ 1 ครั้ง
     const r = await ask(hint, model); if (r.full) return r;
@@ -244,7 +246,8 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
   const cnt = o => Object.values(o).join("").length;
   let final = Object.assign({}, r1.days), uncertain = [];
-  if (diff.length || (total != null && r1.count !== total)) {
+  const vdays = Math.max(r1.v || 0, r2.v || 0);     // ช่อง v นับรวมใน "ทำงานจริง" ด้วย
+  if (diff.length || (total != null && r1.count + vdays !== total)) {
     progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…");
     const r3 = await askFull(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
     final = {};
@@ -255,7 +258,7 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
     }
   }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, workdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, total, workdays, vdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -264,10 +267,10 @@ async function readRosterClaude(b64, d, key, grid, page) {
     const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
       const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
-      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {};
+      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {};
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, work, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);
