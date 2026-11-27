@@ -57,11 +57,16 @@ button{font:inherit;cursor:pointer;color:inherit}
 .cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}
 .d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}
 .d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}
+.d.hol .nn{color:#D9821A;font-weight:700}.d.hol.t .nn{color:var(--onAccent)}.d.hol:after{content:"";position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:#F2A23A}
+.holb{display:flex;align-items:center;gap:8px;background:#FFF1DC;color:#9A5A0C;border-radius:14px;padding:8px 12px;font-size:14px;font-weight:600;margin-bottom:10px}
+.li .hn{color:#C2700F}
 .d.past{opacity:.55}
 .notebox{width:100%;min-height:84px;border:2px solid var(--line);border-radius:16px;padding:10px 12px;font:inherit;font-size:15px;background:var(--nbBg);color:var(--text);resize:vertical;outline:none}
 .notebox:focus{border-color:var(--accent)}
 .qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
 .qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}
+.tl{border-left:2.5px dashed var(--line);margin:8px 0 2px 8px;padding-left:14px}.tl p{position:relative;font-size:14px;margin-bottom:8px;color:var(--text)}.tl p:before{content:"";position:absolute;left:-20.5px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--c,var(--accent))}.tl b{color:var(--title)}
+.wat{display:flex;align-items:center;gap:10px}.wat .bar{flex:1;height:10px;margin-top:6px}.wat button{border:0;border-radius:14px;padding:8px 12px;font:inherit;font-weight:700;background:var(--accent);color:var(--onAccent)}
 .notecard{display:flex;gap:10px;align-items:flex-start}
 .notecard .t{font-size:15px;white-space:pre-wrap;flex:1}
 .chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}
@@ -87,6 +92,9 @@ button{font:inherit;cursor:pointer;color:inherit}
 .stat .k{font-size:14px;font-weight:500;display:flex;align-items:center;gap:5px}
 .stat .v{font-size:30px;font-weight:700;line-height:1.25}
 .bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden;display:flex}
+.seg{display:flex;background:var(--line);border-radius:14px;padding:3px;margin-bottom:14px}.seg button{flex:1;border:0;background:none;padding:8px;border-radius:11px;font:inherit;font-size:15px;font-weight:600;color:var(--sub)}.seg button.on{background:var(--card,#fff);color:var(--title);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.ych{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;align-items:end;height:130px;margin-top:6px}.ych .b{display:flex;flex-direction:column-reverse;border-radius:7px 7px 3px 3px;overflow:hidden;min-height:2px}
+.ylb{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;font-size:10px;color:var(--sub);text-align:center;margin-top:4px}
 .li{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1.5px dashed var(--line);font-size:15px}
 .li:last-child{border:0}
 .li span{display:flex;align-items:center;gap:7px}
@@ -184,6 +192,7 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
   <div style="margin-bottom:14px"><p class="hello" id="hello"></p><h1 class="big">ตารางเวรของฉัน</h1></div>
   <div class="card hero" id="hero"></div>
   <div class="card" id="todayNote" style="display:none"></div>
+  <div class="card" id="careCard" style="display:none"></div>
   <div class="card" id="calCard">
     <div class="cal-h"><button class="nb" onclick="moveMonth(-1)" aria-label="เดือนก่อน"><i data-i="l"></i></button><span class="t" id="calTitle"></span><button class="nb" onclick="moveMonth(1)" aria-label="เดือนถัดไป"><i data-i="r"></i></button></div>
     <div class="dow"><div class="we">อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div class="we">ส</div></div>
@@ -198,12 +207,14 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
 
 <section class="page" id="p-sum">
   <div class="between" style="margin-bottom:14px">
-    <div><p class="hello" id="sumTitle"></p><h1 class="big">สรุปเดือนนี้</h1></div>
-    <div class="row"><button class="nb" onclick="moveMonth(-1)" aria-label="เดือนก่อน"><i data-i="l"></i></button><button class="nb" onclick="moveMonth(1)" aria-label="เดือนถัดไป"><i data-i="r"></i></button></div>
+    <div><p class="hello" id="sumTitle"></p><h1 class="big" id="sumH">สรุปเดือนนี้</h1></div>
+    <div class="row"><button class="nb" onclick="sumMove(-1)" aria-label="ก่อนหน้า"><i data-i="l"></i></button><button class="nb" onclick="sumMove(1)" aria-label="ถัดไป"><i data-i="r"></i></button></div>
   </div>
+  <div class="seg"><button id="segM" class="on" onclick="setSumMode('m')">เดือนนี้</button><button id="segY" onclick="setSumMode('y')">ทั้งปี</button></div>
   <div class="grid2" id="sumStats" style="margin-bottom:14px"></div>
   <div class="card"><p class="h3" style="margin-bottom:10px">สัดส่วนเวร</p><div class="bar" id="sumBar"></div><div class="chips" id="sumLegend"></div></div>
   <div class="card" id="sumList"></div>
+  <button class="btn" id="sumShare" style="width:100%;margin-bottom:14px" onclick="shareMonth()"><i data-i="share"></i>แชร์สรุปเดือนนี้เป็นรูป (ส่ง LINE ได้)</button>
 </section>
 
 <section class="page" id="p-fr">
@@ -232,6 +243,15 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
     <div class="set"><span class="l"><i data-i="calsync"></i>ใส่เวรในปฏิทิน iPhone</span><div class="sw" id="setCal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
     <div class="set"><span class="l"><i data-i="ai"></i>AI อ่านรูป</span>
       <select id="setAI" onchange="saveSettings()"><option value="claude">Claude</option><option value="gemini" disabled>Gemini (ปิดชั่วคราว)</option></select></div>
+  </div>
+  <div class="card"><p class="lbl">ดูแลตัวเองช่วงเวร</p>
+    <div class="set"><span class="l">💧 เตือนดื่มน้ำระหว่างเวร</span><div class="sw" id="cWater" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l" style="padding-left:28px">ทุก</span><select id="cWaterH" onchange="saveSettings()"><option value="1">1 ชั่วโมง</option><option value="2">2 ชั่วโมง</option><option value="3">3 ชั่วโมง</option></select></div>
+    <div class="set"><span class="l">🍚 เตือนกินข้าว</span><div class="sw" id="cMeal" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l">😴 ตัวช่วยนอนก่อนเวรดึก</span><div class="sw" id="cNight" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l">☕ เตือนงดกาแฟก่อนเวรดึก</span><div class="sw" id="cCoffee" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <div class="set"><span class="l">🛌 เลิกเวรดึก → เตือนไปนอน</span><div class="sw" id="cSleep" onclick="this.classList.toggle('on');saveSettings()"></div></div>
+    <p class="note" style="margin-top:6px">กินข้าว: เวรเช้า 12:00 · บ่าย 20:00 · ดึก 03:00<br>เตือนเฉพาะช่วงที่มีเวร วันหยุดไม่เตือน</p>
   </div>
   <div class="card">
     <div class="set"><span class="l"><i data-i="user"></i>ชื่อในตาราง</span><span class="r" id="setName"></span></div>
@@ -609,6 +629,12 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":
 const dk = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
 const noteOf = dt => ((DATA.notes||{})[dk(dt)]||"").trim();
 const ORD = {"ด":0,"ช":1,"บ":2};
+/* ===== วันหยุดราชการ (ประกาศ ครม./ธปท.) ; ปีอื่นใช้เฉพาะวันที่ตายตัว ===== */
+const HOL_FIX = {"1-1":"วันขึ้นปีใหม่","4-6":"วันจักรี","4-13":"วันสงกรานต์","4-14":"วันสงกรานต์","4-15":"วันสงกรานต์","5-1":"วันแรงงาน","5-4":"วันฉัตรมงคล","6-3":"วันเฉลิมฯ พระราชินี","7-28":"วันเฉลิมฯ ร.10","8-12":"วันแม่แห่งชาติ","10-13":"วันนวมินทรมหาราช","10-23":"วันปิยมหาราช","12-5":"วันพ่อแห่งชาติ","12-10":"วันรัฐธรรมนูญ","12-31":"วันสิ้นปี"};
+const HOL_YEAR = {
+  2026: {"1-2":"วันหยุดพิเศษ","3-3":"วันมาฆบูชา","5-31":"วันวิสาขบูชา","6-1":"ชดเชยวันวิสาขบูชา","6-2":"วันหยุดพิเศษ","7-29":"วันอาสาฬหบูชา","7-30":"วันเข้าพรรษา","12-7":"ชดเชยวันพ่อแห่งชาติ"},
+  2027: {"2-21":"วันมาฆบูชา","2-22":"ชดเชยวันมาฆบูชา","5-3":"ชดเชยวันแรงงาน","5-20":"วันวิสาขบูชา","7-18":"วันอาสาฬหบูชา","7-19":"วันเข้าพรรษา · ชดเชยอาสาฬหบูชา","10-25":"ชดเชยวันปิยมหาราช","12-6":"ชดเชยวันพ่อแห่งชาติ"}};
+const holOf = (y, m, d) => { const k = `${m+1}-${d}`; return (HOL_YEAR[y]||{})[k] || HOL_FIX[k] || null; };
 const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const MSH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const DOWF = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"], DOWS = ["อา","จ","อ","พ","พฤ","ศ","ส"];
@@ -699,6 +725,33 @@ function renderHero(){
   if (t) nb.innerHTML = `<div class="notecard">${cute("note",30)}<div><p class="h3" style="font-size:14px">โน้ตวันนี้</p><p class="t">${esc(t)}</p></div></div>`;
 }
 
+/* ===== ดูแลตัวเอง ===== */
+function myBlocks(){ const B = []; for (const x of allMyShifts()){ const b = B[B.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else B.push({st:x.st, en:x.en, cs:[x.c]}); } return B; }
+function drink(){ DATA.water = DATA.water || {}; const k = dk(now()); DATA.water[k] = (DATA.water[k]||0) + 1; send("drink"); renderCare(); toast(`ดื่มน้ำแล้ว ${DATA.water[k]} แก้ว 💧`); }
+function renderCare(){
+  const c = careS(), n = now(), B = myBlocks(), el = $("careCard"); let h = "";
+  const night = c.night && B.find(b => b.cs[0]==="ด" && b.st > n && dayDiff(n, b.st) <= 2 && b.st - n < 36*36e5);
+  if (night){
+    const S = night.st.getTime(), at = ms => hm(new Date(S + ms)), H = Math.max(1, +c.waterH||2), w = [];
+    for (let t = H; t*36e5 < night.en - night.st - 15*6e4; t += H) w.push(at(t*36e5));
+    const dd = dayDiff(n, night.st), L = [
+      ["#9b8cff", at(-10*36e5), "ทานข้าวมื้อหลัก 🍚 ก่อนงีบ"], ["#9b8cff", `${at(-9*36e5)}–${at(-6*36e5)}`, "งีบ 1.5–3 ชม. 😴"],
+      c.coffee ? ["#c9a26b", `หลัง ${at(-6*36e5)}`, "งดกาแฟ ☕"] : null, ["#ff9a6b", at(-1.5*36e5), "กินมื้อเบาๆ ก่อนเข้าเวร 🥪"],
+      [null, at(0), `เข้าเวร${night.cs.map(x=>SH[x].n.replace("เวร","")).join("→")}`],
+      c.water && w.length ? ["#4fb3e8", w.join(" · "), "ดื่มน้ำ 💧"] : null,
+      c.meal ? ["#ff9a6b", at(3*36e5), "ของว่าง / มื้อเล็ก 🍙"] : null,
+      ["#9b8cff", hm(night.en), night.cs[night.cs.length-1]==="ด" ? "เลิกเวร → กลับไปนอนเลย 🛌" : "เลิกเวร"]].filter(Boolean);
+    h += `<p class="h3">${dd<=1 ? "คืนนี้มีเวรดึก" : "คืนพรุ่งนี้มีเวรดึก"} 🌙</p><p class="hello" style="font-size:13px">${DOWF[night.st.getDay()]} ${night.st.getDate()} ${MSH[night.st.getMonth()]} · ตารางดูแลตัวเอง</p>
+      <div class="tl">${L.map(([col, t, x]) => `<p${col?` style="--c:${col}"`:""}><b>${t}</b> ${x}</p>`).join("")}</div>`;
+  }
+  const work = B.find(b => b.st <= n && b.en > n) || B.find(b => sameDay(b.st, n));
+  if (c.water && work){
+    const k = (DATA.water||{})[dk(n)] || 0;
+    h += `${h?'<div style="height:12px"></div>':""}<div class="wat"><span style="font-size:28px">💧</span><div style="flex:1"><p class="h3" style="font-size:15px">วันนี้ดื่มน้ำแล้ว ${k} / 8 แก้ว</p><div class="bar"><div style="width:${Math.min(100,k/8*100)}%;background:#4fb3e8"></div></div></div><button onclick="drink()">+1 แก้ว</button></div>`;
+  }
+  el.style.display = h ? "" : "none"; el.innerHTML = h;
+}
+
 /* ===== ปฏิทิน ===== */
 function countMonth(me, days){
   const c = {"ช":0,"บ":0,"ด":0}; let off = 0;
@@ -715,7 +768,7 @@ function renderCal(){
     const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());
     const ps = s.length ? `<div class="ics">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join("")}</div>` : (md ? `<div class="ics" style="opacity:.75">${cute("off",17)}</div>` : "");
     const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class="pin">${CUTE.note}</span>` : "";
-    h += `<div class="d ${s.length?"h":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${pin}</div>`;
+    h += `<div class="d ${s.length?"h":""} ${holOf(viewY,viewM,d)?"hol":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${pin}</div>`;
   }
   $("days").innerHTML = h;
   $("chips").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class="note" style="width:100%">ยังไม่มีตารางเดือนนี้ กด "อัปรูปเวร" ได้เลย</p>`;
@@ -744,7 +797,7 @@ function openDay(d){
   if (md && Object.keys(md.people).length > 1 && s.length < 3) rows += `<button class="buyb" onclick="openAct(${d},'buy')">${ic("work")}ซื้อเวร (ขึ้นแทนคนอื่น)</button>`;
   $("sheet").innerHTML = `<div class="grab"></div>
     <h2 class="big" style="font-size:22px">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>
-    <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}
+    <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${holOf(viewY,viewM,d)?`<div class="holb">${ic("party")}${holOf(viewY,viewM,d)} · วันหยุดราชการ${s.length?" (มีเวร)":""}</div>`:""}${rows}
     <p class="h3" style="margin-top:18px;display:flex;align-items:center;gap:6px">${cute("note",24)}โน้ต</p>
     <textarea class="notebox" id="noteText" placeholder="จดอะไรก็ได้ เช่น แลกเวร นัดหมอ ซื้อของ" style="margin-top:8px">${esc(noteOf(dt))}</textarea>
     <div class="qchips">${["แลกเวร","OT","ลา","นัดหมอ","วันเกิด","ประชุม"].map(q=>`<button class="qchip" onclick="addQuick('${q}')">+ ${q}</button>`).join("")}</div>
@@ -880,7 +933,52 @@ function unlockBody(){ if (!document.body.classList.contains("lock")) return; do
 function closeSheet(){ $("mask").classList.remove("on"); $("sheet").classList.remove("on"); $("sheet").style.transform = ""; unlockBody(); selDay=null; renderCal(); }
 
 /* ===== สรุป ===== */
+let SUMMODE = "m";
+function setSumMode(m){ SUMMODE = m; renderSum(); window.scrollTo(0,0); }
+function sumMove(n){ if (SUMMODE === "y"){ viewY += n; selDay = null; renderAll(); } else moveMonth(n); }
+function renderYear(){
+  const y = viewY, per = [], tr = trades().filter(t=>t.date.startsWith(y+"-"));
+  let tot = {"ช":0,"บ":0,"ด":0}, ot = 0, hs = 0, months = 0;
+  for (let m=0; m<12; m++){
+    const md = DATA.months[key(y,m)], me = md ? (md.people[DATA.me]||{}) : null;
+    if (!me){ per.push(null); continue; }
+    months++;
+    const days = new Date(y, m+1, 0).getDate(), k = countMonth(me, days);
+    for (const c of ["ช","บ","ด"]) tot[c] += k.c[c];
+    const wk = md.work ? md.work[DATA.me] : null; if (wk != null && k.total > wk) ot += k.total - wk;
+    for (let d=1; d<=days; d++) if (holOf(y, m, d)) hs += sortS(me[d]).length;
+    per.push(k);
+  }
+  const blocks = []; for (const x of allMyShifts()){ if (x.st.getFullYear() !== y) continue; const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()) b.en = x.en; else blocks.push({st:x.st, en:x.en}); }
+  const long = blocks.filter(b => b.en - b.st >= 16*36e5).length, total = tot["ช"]+tot["บ"]+tot["ด"];
+  $("sumTitle").textContent = `ปี ${y+543}`; $("sumH").textContent = "สรุปทั้งปี"; $("sumShare").style.display = "none";
+  if (!months){ $("sumStats").innerHTML = ""; $("sumBar").parentNode.style.display = "none"; $("sumList").innerHTML = `<p class="note">ยังไม่มีตารางของปีนี้</p>`; return; }
+  $("sumStats").innerHTML = `
+    <div class="stat" style="background:var(--tint);color:var(--title)"><p class="k">${ic("work")}เวรทั้งปี</p><p class="v">${total}</p></div>
+    <div class="stat m"><p class="k">${ic("timer")}ชั่วโมงงาน</p><p class="v">${(total*8).toLocaleString("th-TH")}</p></div>
+    <div class="stat n"><p class="k">${ic("double")}เวร OT</p><p class="v">${ot}</p></div>
+    <div class="stat o"><p class="k">${ic("party")}เวรวันหยุดราชการ</p><p class="v">${hs}</p></div>`;
+  const mx = Math.max(1, ...per.map(k => k ? k.total : 0));
+  $("sumBar").parentNode.style.display = "";
+  $("sumBar").parentNode.innerHTML = `<p class="h3" style="margin-bottom:6px">เวรต่อเดือน</p><div class="bar" id="sumBar" style="display:none"></div>
+    <div class="ych">${per.map(k => k ? `<div class="b" style="height:${k.total/mx*100}%">${["ช","บ","ด"].map(c=>`<span style="flex:${k.c[c]};background:var(--${SH[c].c}Fg)"></span>`).join("")}</div>` : `<div class="b" style="height:2px;background:var(--line)"></div>`).join("")}</div>
+    <div class="ylb">${MSH.map(m=>`<span>${m.replace(/\./g,"")}</span>`).join("")}</div>
+    <div class="chips" id="sumLegend">${["ช","บ","ด"].map(c=>`<span class="chip ${SH[c].c}">${ic(SH[c].i)}${SH[c].n.replace("เวร","")} ${tot[c]}</span>`).join("")}</div>`;
+  const hv = per.reduce((a, k, m) => k && (!a || k.total > a.k.total) ? {k, m} : a, null);
+  const buy = tr.filter(t=>t.type==="buy"), sell = tr.filter(t=>t.type==="sell"), net = buy.reduce((a,t)=>a+(+t.price||0),0) - sell.reduce((a,t)=>a+(+t.price||0),0);
+  $("sumList").innerHTML = `<p class="h3" style="margin-bottom:4px">ภาพรวมปี ${y+543}</p>
+    <div class="li"><span>${ic("cal")}เดือนที่มีตาราง</span><b>${months} เดือน</b></div>
+    ${hv?`<div class="li"><span>${ic("work")}เดือนที่หนักสุด</span><b>${MONTHS[hv.m]} · ${hv.k.total} เวร</b></div>`:""}
+    <div class="li"><span>${ic("double")}ควบ 16 ชม.ขึ้นไป</span><b>${long} ครั้ง</b></div>
+    <div class="li"><span>${ic("moon")}เวรดึกทั้งปี</span><b>${tot["ด"]} คืน</b></div>
+    <div class="li"><span>${ic("off")}วันหยุดรวม</span><b>${per.reduce((a,k)=>a+(k?k.off:0),0)} วัน</b></div>
+    ${tr.length?`<div class="li"><span>${ic("work")}ซื้อเวร / ขายเวร</span><b>${buy.length} / ${sell.length}</b></div><div class="li"><span>${ic("check")}เงินซื้อ-ขายสุทธิ</span><b>${net>=0?"+":"−"}${baht(Math.abs(net))}</b></div>`:""}`;
+}
 function renderSum(){
+  $("segM").classList.toggle("on", SUMMODE==="m"); $("segY").classList.toggle("on", SUMMODE==="y");
+  if (SUMMODE === "y") return renderYear();
+  $("sumH").textContent = "สรุปเดือนนี้"; $("sumShare").style.display = "";
+  restoreSumBar();
   const md = monthData(), me = mine(), days = daysIn(), f = firstDow();
   $("sumTitle").textContent = `${MONTHS[viewM]} ${viewY+543}`;
   if (!md){ $("sumStats").innerHTML=""; $("sumBar").innerHTML=""; $("sumLegend").innerHTML=""; $("sumList").innerHTML=`<p class="note">ยังไม่มีข้อมูลเดือนนี้</p>`; return; }
@@ -904,10 +1002,19 @@ function renderSum(){
     ${tot!=null?`<div class="li"><span>${ic("list")}ช่อง "ทำงานจริง" ในตาราง${vd?` (รวม v ${vd} วัน)`:""}</span><b>${tot} ${tot===k.total+vd?"ตรง":"ไม่ตรง"}</b></div>`:""}
     ${work!=null?`<div class="li"><span>${ic("work")}วันทำงานตามตาราง</span><b>${work} วัน</b></div>
     <div class="li"><span>${ic("timer")}เวรเกิน (OT)</span><b>${over>0?`${over} เวร · ${over*8} ชม.`:"ไม่มี"}</b></div>`:""}
+    ${holList(me, days)}
     ${tradeSummary()}
     ${rest.length?`<p class="h3" style="margin:14px 0 4px">ควรพักผ่อน</p>${rest.map(w=>`<div class="li"><span>${ic("warn")}${esc(w.t)}</span></div>`).join("")}`:""}`;
 }
 
+function restoreSumBar(){ const c = ($("sumBar")||{}).parentNode || document.querySelector("#p-sum .card"); c.style.display = ""; c.innerHTML = `<p class="h3" style="margin-bottom:10px">สัดส่วนเวร</p><div class="bar" id="sumBar"></div><div class="chips" id="sumLegend"></div>`; }
+function holList(me, days){
+  const L = []; for (let d=1; d<=days; d++){ const h = holOf(viewY, viewM, d); if (h) L.push({d, h, s: sortS(me[d])}); }
+  if (!L.length) return "";
+  const on = L.filter(x=>x.s.length);
+  return `<p class="h3" style="margin:14px 0 4px">วันหยุดราชการ · มีเวร ${on.length} จาก ${L.length} วัน</p>` +
+    L.map(x=>`<div class="li"><span class="hn">${ic("party")}${x.d} ${MSH[viewM]} · ${x.h}</span><b>${x.s.length ? x.s.map(c=>SH[c].n.replace("เวร","")).join("+") : "หยุด"}</b></div>`).join("");
+}
 function tradeSummary(){
   const k = key(viewY, viewM), L = trades().filter(t=>t.date.startsWith(k)).sort((a,b)=>a.date<b.date?-1:1);
   if (!L.length) return "";
@@ -958,12 +1065,18 @@ function renderSet(){
   $("setCal").classList.toggle("on", !!DATA.settings.calendar);
   $("setEve").classList.toggle("on", DATA.settings.eve !== false);
   $("setAI").value = "claude";
+  const c = careS();
+  for (const [id, k] of [["cWater","water"],["cMeal","meal"],["cNight","night"],["cCoffee","coffee"],["cSleep","sleep"]]) $(id).classList.toggle("on", !!c[k]);
+  $("cWaterH").value = String(c.waterH);
 }
+const careS = () => Object.assign({water:true, waterH:2, meal:true, night:true, coffee:false, sleep:true}, DATA.settings.care || {});
 function saveSettings(){
   DATA.settings.notify = +$("setNotify").value;
   DATA.settings.calendar = $("setCal").classList.contains("on");
   DATA.settings.eve = $("setEve").classList.contains("on");
   DATA.settings.ai = $("setAI").value;
+  DATA.settings.care = {water:$("cWater").classList.contains("on"), waterH:+$("cWaterH").value, meal:$("cMeal").classList.contains("on"),
+    night:$("cNight").classList.contains("on"), coffee:$("cCoffee").classList.contains("on"), sleep:$("cSleep").classList.contains("on")};
   send("saveSettings", DATA.settings); toast("บันทึกการตั้งค่าแล้ว");
 }
 
@@ -1211,6 +1324,7 @@ async function shareMonth(){
     else if (s.length === 1) draw(SH[s[0]].k, cx+cell/2, cy+cell*0.6, cell*0.56);
     else { draw(SH[s[0]].k, cx+cell*0.33, cy+cell*0.62, cell*0.44); draw(SH[s[1]].k, cx+cell*0.67, cy+cell*0.62, cell*0.44); }
     if (noteOf(new Date(viewY, viewM, d))) draw("note", cx+cell-26, cy+26, 34);
+    if (holOf(viewY, viewM, d)){ x.save(); x.strokeStyle = "#F2A23A"; x.lineWidth = 6; rr(x, cx+3, cy+3, cell-6, cell-6, 27); x.stroke(); x.restore(); }
   }
   // สรุปด้านล่าง
   const k = countMonth(me, days), items = [["sun", "เช้า", k.c["ช"], ink["ช"]], ["sunset", "บ่าย", k.c["บ"], ink["บ"]], ["moon", "ดึก", k.c["ด"], ink["ด"]], ["off", "หยุด", k.off, p.accent]];
@@ -1222,7 +1336,9 @@ async function shareMonth(){
     x.textAlign = "left"; x.fillStyle = col; x.font = font(40,700); x.fillText(n, bx+96, sy+52);
     x.fillStyle = p.sub; x.font = font(24,500); x.fillText(lb, bx+96, sy+82);
   });
-  x.textAlign = "center"; x.fillStyle = al(p.title,.55); x.font = font(24,500); x.fillText(`${k.total} เวร · ${k.total*8} ชั่วโมง`, W/2, H - 50);
+  x.textAlign = "center"; x.fillStyle = al(p.title,.55); x.font = font(24,500); const md0 = monthData() || {}, wk = md0.work ? md0.work[DATA.me] : null, ot = wk != null ? k.total - wk : 0;
+  let hs = 0; for (let d=1; d<=days; d++) if (holOf(viewY, viewM, d)) hs += sortS(me[d]).length;
+  x.fillText([`${k.total} เวร · ${k.total*8} ชั่วโมง`, ot > 0 ? `OT ${ot} เวร` : "", hs ? `เวรวันหยุดราชการ ${hs}` : ""].filter(Boolean).join(" · "), W/2, H - 50);
   send("share", cv.toDataURL("image/png").split(",")[1]);
 }
 function rr(x, a, b, w, h, r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }
@@ -1239,7 +1355,7 @@ function renderAll(){
   applyTheme();
   const h = now().getHours();
   $("hello").textContent = `${h<12?"อรุณสวัสดิ์":h<17?"สวัสดีตอนบ่าย":"สวัสดีตอนเย็น"} ${first(DATA.me)}`;
-  renderHero(); renderCal(); renderSum(); renderFr(); renderSet();
+  renderHero(); renderCare(); renderCal(); renderSum(); renderFr(); renderSet();
 }
 window.setData = function(d){ DATA = d; renderAll(); };
 
@@ -1262,6 +1378,7 @@ if (!DATA){
 }
 initView(); renderAll();
 if (DATA.restored) setTimeout(()=>toast("กู้ข้อมูลจาก iCloud แล้ว"), 600);
+if (DATA.drank) setTimeout(()=>toast(`ดื่มน้ำแล้ววันนี้ ${DATA.drank} แก้ว 💧`), 600);
 </script>
 </body>
 </html>

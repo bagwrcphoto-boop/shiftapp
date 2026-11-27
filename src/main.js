@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 38";
+const APP_VERSION = "28 พ.ย. 69 · 39";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -423,6 +423,7 @@ async function syncNotifications(d) {
       n.setTriggerDate(at); await n.schedule();
     }
   }
+  await scheduleCare(d, all, now);
   if (!before) return;
   const list = all.filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 40);
   for (const x of list) {
@@ -434,6 +435,45 @@ async function syncNotifications(d) {
     n.setTriggerDate(new Date(x.st.getTime() - before * 6e4));
     await n.schedule();
   }
+}
+// ---------------- ดูแลตัวเองช่วงเวร: ดื่มน้ำ / กินข้าว / เตรียมเวรดึก / ไปนอน ----------------
+const CARE_DEF = { water: true, waterH: 2, meal: true, night: true, coffee: false, sleep: true };
+const careOf = d => Object.assign({}, CARE_DEF, (d.settings || {}).care || {});
+const MEAL_AT = { "ช": 4, "บ": 4, "ด": 3 };        // ชั่วโมงหลังเริ่มเวร: เช้า 12:00, บ่าย 20:00, ดึก 03:00
+const runUrl = q => `scriptable:///run/${encodeURIComponent(Script.name())}?${q}`;
+function careItems(d, all, now) {
+  const c = careOf(d), out = [], horizon = now.getTime() + 4 * 864e5;
+  const add = (at, id, title, body, drink) => { if (at > now && at.getTime() < horizon) out.push({ at, id, title, body, drink }); };
+  for (const b of all) {
+    if (b.st.getTime() > horizon) break;
+    const S = b.st.getTime(), E = b.en.getTime(), tag = S;
+    if (c.night && b.cs[0] === "ด") {
+      add(new Date(S - 10 * 36e5), `nap-${tag}`, "😴 คืนนี้มีเวรดึก", "ทานข้าวแล้วงีบ 15:00–18:00 จะได้ไม่ง่วงตอนตี 3");
+      add(new Date(S - 1.5 * 36e5), `pre-${tag}`, "🥪 อีก 1.5 ชม.เข้าเวรดึก", "กินมื้อเบาๆ ก่อนออกจากบ้านนะ");
+    }
+    if (c.coffee && b.cs[0] === "ด") add(new Date(S - 6 * 36e5), `cof-${tag}`, "☕ งดกาแฟหลังจากนี้นะ", "ถ้าจะงีบก่อนเข้าเวรดึก");
+    const meals = c.meal ? b.cs.map((x, i) => S + i * 8 * 36e5 + MEAL_AT[x] * 36e5) : [];
+    if (c.water) { const H = Math.max(1, +c.waterH || 2); for (let t = S + H * 36e5, k = H; t < E - 15 * 6e4; t += H * 36e5, k += H) if (!meals.some(m => Math.abs(m - t) < 30 * 6e4)) add(new Date(t), `w-${t}`, "💧 ดื่มน้ำหน่อยนะ", `อยู่เวรมา ${k} ชม.แล้ว ดื่มน้ำสักแก้ว`, true); }
+    if (c.meal) b.cs.forEach((x, i) => { const t = S + i * 8 * 36e5 + MEAL_AT[x] * 36e5;
+      add(new Date(t), `m-${t}`, x === "ด" ? "🍙 ได้เวลากินอะไรหน่อย" : "🍚 ได้เวลากินข้าวแล้ว", x === "ด" ? "ครึ่งเวรดึกแล้ว ทานของว่างหรือมื้อเล็กๆ นะ" : "อย่าลืมกินข้าว ดื่มน้ำด้วยนะ"); });
+    if (c.sleep && b.cs[b.cs.length - 1] === "ด") add(new Date(E), `slp-${tag}`, "🛌 เลิกเวรแล้ว", "กลับไปนอนพักเลยนะ เก่งมากวันนี้");
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+async function scheduleCare(d, all, now) {
+  for (const it of careItems(d, all, now)) {
+    const n = new Notification();
+    n.identifier = `shiftapp-care-${it.id}`; n.threadIdentifier = "shiftapp";
+    n.title = it.title; n.body = it.body;
+    if (it.drink) { n.addAction("ดื่มแล้ว ✓", runUrl("drink=1")); n.openURL = runUrl("drink=1"); }
+    n.setTriggerDate(it.at); await n.schedule();
+  }
+}
+function addDrink(d, now) {
+  const k = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  d.water = d.water || {}; d.water[k] = (d.water[k] || 0) + 1;
+  for (const x of Object.keys(d.water).sort().slice(0, -14)) delete d.water[x];   // เก็บแค่ 14 วันล่าสุด
+  saveData(d); return d.water[k];
 }
 async function syncAll(d) {
   try { await syncCalendar(d); } catch (e) { console.log("calendar: " + e); }
@@ -482,11 +522,11 @@ async function cacheAssets(style) { for (const k of assetKeys(style)) if (!fm.fi
 // ---------------- หน้าแอป ----------------
 const APP_HTML = /*__HTML__*/"";
 
-async function runApp() {
+async function runApp(drank) {
   const fromBackup = await restoreIfEmpty();
   let d = loadData();
   const wv = new WebView();
-  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup });
+  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup, drank: drank || null });
   const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
   let html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const style0 = ((d.settings || {}).theme || {}).style || "glass", local = readAssets(style0);
@@ -508,6 +548,8 @@ async function runApp() {
       const k = m.payload.key; restored[k] = true; delete pendingFriends[k];
       if (m.payload.month) d.months[k] = m.payload.month; else delete d.months[k];
       saveData(d); await syncAll(d);
+    } else if (m.type === "drink") {
+      addDrink(d, new Date()); await call(`setData(${js(payload())})`);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
       if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];
@@ -674,6 +716,7 @@ if (config.runsInWidget || config.runsInAccessoryWidget) {
   if (config.runsWithSiri) Speech.speak(ans);
   Script.setShortcutOutput(ans);
 } else {
-  await runApp();
+  const q = (typeof args !== "undefined" && args && args.queryParameters) || {};
+  await runApp(q.drink ? addDrink(loadData(), new Date()) : null);   // กด "ดื่มแล้ว ✓" จากแจ้งเตือน
 }
 Script.complete();

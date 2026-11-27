@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 38";
+const APP_VERSION = "28 พ.ย. 69 · 39";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -431,6 +431,7 @@ async function syncNotifications(d) {
       n.setTriggerDate(at); await n.schedule();
     }
   }
+  await scheduleCare(d, all, now);
   if (!before) return;
   const list = all.filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 40);
   for (const x of list) {
@@ -442,6 +443,45 @@ async function syncNotifications(d) {
     n.setTriggerDate(new Date(x.st.getTime() - before * 6e4));
     await n.schedule();
   }
+}
+// ---------------- ดูแลตัวเองช่วงเวร: ดื่มน้ำ / กินข้าว / เตรียมเวรดึก / ไปนอน ----------------
+const CARE_DEF = { water: true, waterH: 2, meal: true, night: true, coffee: false, sleep: true };
+const careOf = d => Object.assign({}, CARE_DEF, (d.settings || {}).care || {});
+const MEAL_AT = { "ช": 4, "บ": 4, "ด": 3 };        // ชั่วโมงหลังเริ่มเวร: เช้า 12:00, บ่าย 20:00, ดึก 03:00
+const runUrl = q => `scriptable:///run/${encodeURIComponent(Script.name())}?${q}`;
+function careItems(d, all, now) {
+  const c = careOf(d), out = [], horizon = now.getTime() + 4 * 864e5;
+  const add = (at, id, title, body, drink) => { if (at > now && at.getTime() < horizon) out.push({ at, id, title, body, drink }); };
+  for (const b of all) {
+    if (b.st.getTime() > horizon) break;
+    const S = b.st.getTime(), E = b.en.getTime(), tag = S;
+    if (c.night && b.cs[0] === "ด") {
+      add(new Date(S - 10 * 36e5), `nap-${tag}`, "😴 คืนนี้มีเวรดึก", "ทานข้าวแล้วงีบ 15:00–18:00 จะได้ไม่ง่วงตอนตี 3");
+      add(new Date(S - 1.5 * 36e5), `pre-${tag}`, "🥪 อีก 1.5 ชม.เข้าเวรดึก", "กินมื้อเบาๆ ก่อนออกจากบ้านนะ");
+    }
+    if (c.coffee && b.cs[0] === "ด") add(new Date(S - 6 * 36e5), `cof-${tag}`, "☕ งดกาแฟหลังจากนี้นะ", "ถ้าจะงีบก่อนเข้าเวรดึก");
+    const meals = c.meal ? b.cs.map((x, i) => S + i * 8 * 36e5 + MEAL_AT[x] * 36e5) : [];
+    if (c.water) { const H = Math.max(1, +c.waterH || 2); for (let t = S + H * 36e5, k = H; t < E - 15 * 6e4; t += H * 36e5, k += H) if (!meals.some(m => Math.abs(m - t) < 30 * 6e4)) add(new Date(t), `w-${t}`, "💧 ดื่มน้ำหน่อยนะ", `อยู่เวรมา ${k} ชม.แล้ว ดื่มน้ำสักแก้ว`, true); }
+    if (c.meal) b.cs.forEach((x, i) => { const t = S + i * 8 * 36e5 + MEAL_AT[x] * 36e5;
+      add(new Date(t), `m-${t}`, x === "ด" ? "🍙 ได้เวลากินอะไรหน่อย" : "🍚 ได้เวลากินข้าวแล้ว", x === "ด" ? "ครึ่งเวรดึกแล้ว ทานของว่างหรือมื้อเล็กๆ นะ" : "อย่าลืมกินข้าว ดื่มน้ำด้วยนะ"); });
+    if (c.sleep && b.cs[b.cs.length - 1] === "ด") add(new Date(E), `slp-${tag}`, "🛌 เลิกเวรแล้ว", "กลับไปนอนพักเลยนะ เก่งมากวันนี้");
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+async function scheduleCare(d, all, now) {
+  for (const it of careItems(d, all, now)) {
+    const n = new Notification();
+    n.identifier = `shiftapp-care-${it.id}`; n.threadIdentifier = "shiftapp";
+    n.title = it.title; n.body = it.body;
+    if (it.drink) { n.addAction("ดื่มแล้ว ✓", runUrl("drink=1")); n.openURL = runUrl("drink=1"); }
+    n.setTriggerDate(it.at); await n.schedule();
+  }
+}
+function addDrink(d, now) {
+  const k = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  d.water = d.water || {}; d.water[k] = (d.water[k] || 0) + 1;
+  for (const x of Object.keys(d.water).sort().slice(0, -14)) delete d.water[x];   // เก็บแค่ 14 วันล่าสุด
+  saveData(d); return d.water[k];
 }
 async function syncAll(d) {
   try { await syncCalendar(d); } catch (e) { console.log("calendar: " + e); }
@@ -548,11 +588,16 @@ const APP_HTML = [
 ".cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}",
 ".d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}",
 ".d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}",
+".d.hol .nn{color:#D9821A;font-weight:700}.d.hol.t .nn{color:var(--onAccent)}.d.hol:after{content:\"\";position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:#F2A23A}",
+".holb{display:flex;align-items:center;gap:8px;background:#FFF1DC;color:#9A5A0C;border-radius:14px;padding:8px 12px;font-size:14px;font-weight:600;margin-bottom:10px}",
+".li .hn{color:#C2700F}",
 ".d.past{opacity:.55}",
 ".notebox{width:100%;min-height:84px;border:2px solid var(--line);border-radius:16px;padding:10px 12px;font:inherit;font-size:15px;background:var(--nbBg);color:var(--text);resize:vertical;outline:none}",
 ".notebox:focus{border-color:var(--accent)}",
 ".qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}",
 ".qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}",
+".tl{border-left:2.5px dashed var(--line);margin:8px 0 2px 8px;padding-left:14px}.tl p{position:relative;font-size:14px;margin-bottom:8px;color:var(--text)}.tl p:before{content:\"\";position:absolute;left:-20.5px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--c,var(--accent))}.tl b{color:var(--title)}",
+".wat{display:flex;align-items:center;gap:10px}.wat .bar{flex:1;height:10px;margin-top:6px}.wat button{border:0;border-radius:14px;padding:8px 12px;font:inherit;font-weight:700;background:var(--accent);color:var(--onAccent)}",
 ".notecard{display:flex;gap:10px;align-items:flex-start}",
 ".notecard .t{font-size:15px;white-space:pre-wrap;flex:1}",
 ".chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}",
@@ -578,6 +623,9 @@ const APP_HTML = [
 ".stat .k{font-size:14px;font-weight:500;display:flex;align-items:center;gap:5px}",
 ".stat .v{font-size:30px;font-weight:700;line-height:1.25}",
 ".bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden;display:flex}",
+".seg{display:flex;background:var(--line);border-radius:14px;padding:3px;margin-bottom:14px}.seg button{flex:1;border:0;background:none;padding:8px;border-radius:11px;font:inherit;font-size:15px;font-weight:600;color:var(--sub)}.seg button.on{background:var(--card,#fff);color:var(--title);box-shadow:0 2px 8px rgba(0,0,0,.08)}",
+".ych{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;align-items:end;height:130px;margin-top:6px}.ych .b{display:flex;flex-direction:column-reverse;border-radius:7px 7px 3px 3px;overflow:hidden;min-height:2px}",
+".ylb{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;font-size:10px;color:var(--sub);text-align:center;margin-top:4px}",
 ".li{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1.5px dashed var(--line);font-size:15px}",
 ".li:last-child{border:0}",
 ".li span{display:flex;align-items:center;gap:7px}",
@@ -675,6 +723,7 @@ const APP_HTML = [
 "  <div style=\"margin-bottom:14px\"><p class=\"hello\" id=\"hello\"></p><h1 class=\"big\">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e09\u0e31\u0e19</h1></div>",
 "  <div class=\"card hero\" id=\"hero\"></div>",
 "  <div class=\"card\" id=\"todayNote\" style=\"display:none\"></div>",
+"  <div class=\"card\" id=\"careCard\" style=\"display:none\"></div>",
 "  <div class=\"card\" id=\"calCard\">",
 "    <div class=\"cal-h\"><button class=\"nb\" onclick=\"moveMonth(-1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\"><i data-i=\"l\"></i></button><span class=\"t\" id=\"calTitle\"></span><button class=\"nb\" onclick=\"moveMonth(1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
 "    <div class=\"dow\"><div class=\"we\">\u0e2d\u0e32</div><div>\u0e08</div><div>\u0e2d</div><div>\u0e1e</div><div>\u0e1e\u0e24</div><div>\u0e28</div><div class=\"we\">\u0e2a</div></div>",
@@ -689,12 +738,14 @@ const APP_HTML = [
 "",
 "<section class=\"page\" id=\"p-sum\">",
 "  <div class=\"between\" style=\"margin-bottom:14px\">",
-"    <div><p class=\"hello\" id=\"sumTitle\"></p><h1 class=\"big\">\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</h1></div>",
-"    <div class=\"row\"><button class=\"nb\" onclick=\"moveMonth(-1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\"><i data-i=\"l\"></i></button><button class=\"nb\" onclick=\"moveMonth(1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
+"    <div><p class=\"hello\" id=\"sumTitle\"></p><h1 class=\"big\" id=\"sumH\">\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</h1></div>",
+"    <div class=\"row\"><button class=\"nb\" onclick=\"sumMove(-1)\" aria-label=\"\u0e01\u0e48\u0e2d\u0e19\u0e2b\u0e19\u0e49\u0e32\"><i data-i=\"l\"></i></button><button class=\"nb\" onclick=\"sumMove(1)\" aria-label=\"\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
 "  </div>",
+"  <div class=\"seg\"><button id=\"segM\" class=\"on\" onclick=\"setSumMode('m')\">\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</button><button id=\"segY\" onclick=\"setSumMode('y')\">\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35</button></div>",
 "  <div class=\"grid2\" id=\"sumStats\" style=\"margin-bottom:14px\"></div>",
 "  <div class=\"card\"><p class=\"h3\" style=\"margin-bottom:10px\">\u0e2a\u0e31\u0e14\u0e2a\u0e48\u0e27\u0e19\u0e40\u0e27\u0e23</p><div class=\"bar\" id=\"sumBar\"></div><div class=\"chips\" id=\"sumLegend\"></div></div>",
 "  <div class=\"card\" id=\"sumList\"></div>",
+"  <button class=\"btn\" id=\"sumShare\" style=\"width:100%;margin-bottom:14px\" onclick=\"shareMonth()\"><i data-i=\"share\"></i>\u0e41\u0e0a\u0e23\u0e4c\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b (\u0e2a\u0e48\u0e07 LINE \u0e44\u0e14\u0e49)</button>",
 "</section>",
 "",
 "<section class=\"page\" id=\"p-fr\">",
@@ -723,6 +774,15 @@ const APP_HTML = [
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"calsync\"></i>\u0e43\u0e2a\u0e48\u0e40\u0e27\u0e23\u0e43\u0e19\u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 iPhone</span><div class=\"sw\" id=\"setCal\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"ai\"></i>AI \u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b</span>",
 "      <select id=\"setAI\" onchange=\"saveSettings()\"><option value=\"claude\">Claude</option><option value=\"gemini\" disabled>Gemini (\u0e1b\u0e34\u0e14\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27)</option></select></div>",
+"  </div>",
+"  <div class=\"card\"><p class=\"lbl\">\u0e14\u0e39\u0e41\u0e25\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07\u0e0a\u0e48\u0e27\u0e07\u0e40\u0e27\u0e23</p>",
+"    <div class=\"set\"><span class=\"l\">\ud83d\udca7 \u0e40\u0e15\u0e37\u0e2d\u0e19\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e23\u0e30\u0e2b\u0e27\u0e48\u0e32\u0e07\u0e40\u0e27\u0e23</span><div class=\"sw\" id=\"cWater\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
+"    <div class=\"set\"><span class=\"l\" style=\"padding-left:28px\">\u0e17\u0e38\u0e01</span><select id=\"cWaterH\" onchange=\"saveSettings()\"><option value=\"1\">1 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"2\">2 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option><option value=\"3\">3 \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07</option></select></div>",
+"    <div class=\"set\"><span class=\"l\">\ud83c\udf5a \u0e40\u0e15\u0e37\u0e2d\u0e19\u0e01\u0e34\u0e19\u0e02\u0e49\u0e32\u0e27</span><div class=\"sw\" id=\"cMeal\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
+"    <div class=\"set\"><span class=\"l\">\ud83d\ude34 \u0e15\u0e31\u0e27\u0e0a\u0e48\u0e27\u0e22\u0e19\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01</span><div class=\"sw\" id=\"cNight\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
+"    <div class=\"set\"><span class=\"l\">\u2615 \u0e40\u0e15\u0e37\u0e2d\u0e19\u0e07\u0e14\u0e01\u0e32\u0e41\u0e1f\u0e01\u0e48\u0e2d\u0e19\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01</span><div class=\"sw\" id=\"cCoffee\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
+"    <div class=\"set\"><span class=\"l\">\ud83d\udecc \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01 \u2192 \u0e40\u0e15\u0e37\u0e2d\u0e19\u0e44\u0e1b\u0e19\u0e2d\u0e19</span><div class=\"sw\" id=\"cSleep\" onclick=\"this.classList.toggle('on');saveSettings()\"></div></div>",
+"    <p class=\"note\" style=\"margin-top:6px\">\u0e01\u0e34\u0e19\u0e02\u0e49\u0e32\u0e27: \u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32 12:00 \u00b7 \u0e1a\u0e48\u0e32\u0e22 20:00 \u00b7 \u0e14\u0e36\u0e01 03:00<br>\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e0a\u0e48\u0e27\u0e07\u0e17\u0e35\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23 \u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e44\u0e21\u0e48\u0e40\u0e15\u0e37\u0e2d\u0e19</p>",
 "  </div>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"user\"></i>\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><span class=\"r\" id=\"setName\"></span></div>",
@@ -1100,6 +1160,12 @@ const APP_HTML = [
 "const dk = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,\"0\")}-${String(dt.getDate()).padStart(2,\"0\")}`;",
 "const noteOf = dt => ((DATA.notes||{})[dk(dt)]||\"\").trim();",
 "const ORD = {\"\u0e14\":0,\"\u0e0a\":1,\"\u0e1a\":2};",
+"/* ===== \u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e32\u0e0a\u0e01\u0e32\u0e23 (\u0e1b\u0e23\u0e30\u0e01\u0e32\u0e28 \u0e04\u0e23\u0e21./\u0e18\u0e1b\u0e17.) ; \u0e1b\u0e35\u0e2d\u0e37\u0e48\u0e19\u0e43\u0e0a\u0e49\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e15\u0e32\u0e22\u0e15\u0e31\u0e27 ===== */",
+"const HOL_FIX = {\"1-1\":\"\u0e27\u0e31\u0e19\u0e02\u0e36\u0e49\u0e19\u0e1b\u0e35\u0e43\u0e2b\u0e21\u0e48\",\"4-6\":\"\u0e27\u0e31\u0e19\u0e08\u0e31\u0e01\u0e23\u0e35\",\"4-13\":\"\u0e27\u0e31\u0e19\u0e2a\u0e07\u0e01\u0e23\u0e32\u0e19\u0e15\u0e4c\",\"4-14\":\"\u0e27\u0e31\u0e19\u0e2a\u0e07\u0e01\u0e23\u0e32\u0e19\u0e15\u0e4c\",\"4-15\":\"\u0e27\u0e31\u0e19\u0e2a\u0e07\u0e01\u0e23\u0e32\u0e19\u0e15\u0e4c\",\"5-1\":\"\u0e27\u0e31\u0e19\u0e41\u0e23\u0e07\u0e07\u0e32\u0e19\",\"5-4\":\"\u0e27\u0e31\u0e19\u0e09\u0e31\u0e15\u0e23\u0e21\u0e07\u0e04\u0e25\",\"6-3\":\"\u0e27\u0e31\u0e19\u0e40\u0e09\u0e25\u0e34\u0e21\u0e2f \u0e1e\u0e23\u0e30\u0e23\u0e32\u0e0a\u0e34\u0e19\u0e35\",\"7-28\":\"\u0e27\u0e31\u0e19\u0e40\u0e09\u0e25\u0e34\u0e21\u0e2f \u0e23.10\",\"8-12\":\"\u0e27\u0e31\u0e19\u0e41\u0e21\u0e48\u0e41\u0e2b\u0e48\u0e07\u0e0a\u0e32\u0e15\u0e34\",\"10-13\":\"\u0e27\u0e31\u0e19\u0e19\u0e27\u0e21\u0e34\u0e19\u0e17\u0e23\u0e21\u0e2b\u0e32\u0e23\u0e32\u0e0a\",\"10-23\":\"\u0e27\u0e31\u0e19\u0e1b\u0e34\u0e22\u0e21\u0e2b\u0e32\u0e23\u0e32\u0e0a\",\"12-5\":\"\u0e27\u0e31\u0e19\u0e1e\u0e48\u0e2d\u0e41\u0e2b\u0e48\u0e07\u0e0a\u0e32\u0e15\u0e34\",\"12-10\":\"\u0e27\u0e31\u0e19\u0e23\u0e31\u0e10\u0e18\u0e23\u0e23\u0e21\u0e19\u0e39\u0e0d\",\"12-31\":\"\u0e27\u0e31\u0e19\u0e2a\u0e34\u0e49\u0e19\u0e1b\u0e35\"};",
+"const HOL_YEAR = {",
+"  2026: {\"1-2\":\"\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e1e\u0e34\u0e40\u0e28\u0e29\",\"3-3\":\"\u0e27\u0e31\u0e19\u0e21\u0e32\u0e06\u0e1a\u0e39\u0e0a\u0e32\",\"5-31\":\"\u0e27\u0e31\u0e19\u0e27\u0e34\u0e2a\u0e32\u0e02\u0e1a\u0e39\u0e0a\u0e32\",\"6-1\":\"\u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e27\u0e31\u0e19\u0e27\u0e34\u0e2a\u0e32\u0e02\u0e1a\u0e39\u0e0a\u0e32\",\"6-2\":\"\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e1e\u0e34\u0e40\u0e28\u0e29\",\"7-29\":\"\u0e27\u0e31\u0e19\u0e2d\u0e32\u0e2a\u0e32\u0e2c\u0e2b\u0e1a\u0e39\u0e0a\u0e32\",\"7-30\":\"\u0e27\u0e31\u0e19\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e23\u0e23\u0e29\u0e32\",\"12-7\":\"\u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e27\u0e31\u0e19\u0e1e\u0e48\u0e2d\u0e41\u0e2b\u0e48\u0e07\u0e0a\u0e32\u0e15\u0e34\"},",
+"  2027: {\"2-21\":\"\u0e27\u0e31\u0e19\u0e21\u0e32\u0e06\u0e1a\u0e39\u0e0a\u0e32\",\"2-22\":\"\u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e27\u0e31\u0e19\u0e21\u0e32\u0e06\u0e1a\u0e39\u0e0a\u0e32\",\"5-3\":\"\u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e27\u0e31\u0e19\u0e41\u0e23\u0e07\u0e07\u0e32\u0e19\",\"5-20\":\"\u0e27\u0e31\u0e19\u0e27\u0e34\u0e2a\u0e32\u0e02\u0e1a\u0e39\u0e0a\u0e32\",\"7-18\":\"\u0e27\u0e31\u0e19\u0e2d\u0e32\u0e2a\u0e32\u0e2c\u0e2b\u0e1a\u0e39\u0e0a\u0e32\",\"7-19\":\"\u0e27\u0e31\u0e19\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e23\u0e23\u0e29\u0e32 \u00b7 \u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e2d\u0e32\u0e2a\u0e32\u0e2c\u0e2b\u0e1a\u0e39\u0e0a\u0e32\",\"10-25\":\"\u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e27\u0e31\u0e19\u0e1b\u0e34\u0e22\u0e21\u0e2b\u0e32\u0e23\u0e32\u0e0a\",\"12-6\":\"\u0e0a\u0e14\u0e40\u0e0a\u0e22\u0e27\u0e31\u0e19\u0e1e\u0e48\u0e2d\u0e41\u0e2b\u0e48\u0e07\u0e0a\u0e32\u0e15\u0e34\"}};",
+"const holOf = (y, m, d) => { const k = `${m+1}-${d}`; return (HOL_YEAR[y]||{})[k] || HOL_FIX[k] || null; };",
 "const MONTHS = [\"\u0e21\u0e01\u0e23\u0e32\u0e04\u0e21\",\"\u0e01\u0e38\u0e21\u0e20\u0e32\u0e1e\u0e31\u0e19\u0e18\u0e4c\",\"\u0e21\u0e35\u0e19\u0e32\u0e04\u0e21\",\"\u0e40\u0e21\u0e29\u0e32\u0e22\u0e19\",\"\u0e1e\u0e24\u0e29\u0e20\u0e32\u0e04\u0e21\",\"\u0e21\u0e34\u0e16\u0e38\u0e19\u0e32\u0e22\u0e19\",\"\u0e01\u0e23\u0e01\u0e0e\u0e32\u0e04\u0e21\",\"\u0e2a\u0e34\u0e07\u0e2b\u0e32\u0e04\u0e21\",\"\u0e01\u0e31\u0e19\u0e22\u0e32\u0e22\u0e19\",\"\u0e15\u0e38\u0e25\u0e32\u0e04\u0e21\",\"\u0e1e\u0e24\u0e28\u0e08\u0e34\u0e01\u0e32\u0e22\u0e19\",\"\u0e18\u0e31\u0e19\u0e27\u0e32\u0e04\u0e21\"];",
 "const MSH = [\"\u0e21.\u0e04.\",\"\u0e01.\u0e1e.\",\"\u0e21\u0e35.\u0e04.\",\"\u0e40\u0e21.\u0e22.\",\"\u0e1e.\u0e04.\",\"\u0e21\u0e34.\u0e22.\",\"\u0e01.\u0e04.\",\"\u0e2a.\u0e04.\",\"\u0e01.\u0e22.\",\"\u0e15.\u0e04.\",\"\u0e1e.\u0e22.\",\"\u0e18.\u0e04.\"];",
 "const DOWF = [\"\u0e2d\u0e32\u0e17\u0e34\u0e15\u0e22\u0e4c\",\"\u0e08\u0e31\u0e19\u0e17\u0e23\u0e4c\",\"\u0e2d\u0e31\u0e07\u0e04\u0e32\u0e23\",\"\u0e1e\u0e38\u0e18\",\"\u0e1e\u0e24\u0e2b\u0e31\u0e2a\u0e1a\u0e14\u0e35\",\"\u0e28\u0e38\u0e01\u0e23\u0e4c\",\"\u0e40\u0e2a\u0e32\u0e23\u0e4c\"], DOWS = [\"\u0e2d\u0e32\",\"\u0e08\",\"\u0e2d\",\"\u0e1e\",\"\u0e1e\u0e24\",\"\u0e28\",\"\u0e2a\"];",
@@ -1190,6 +1256,33 @@ const APP_HTML = [
 "  if (t) nb.innerHTML = `<div class=\"notecard\">${cute(\"note\",30)}<div><p class=\"h3\" style=\"font-size:14px\">\u0e42\u0e19\u0e49\u0e15\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49</p><p class=\"t\">${esc(t)}</p></div></div>`;",
 "}",
 "",
+"/* ===== \u0e14\u0e39\u0e41\u0e25\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07 ===== */",
+"function myBlocks(){ const B = []; for (const x of allMyShifts()){ const b = B[B.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else B.push({st:x.st, en:x.en, cs:[x.c]}); } return B; }",
+"function drink(){ DATA.water = DATA.water || {}; const k = dk(now()); DATA.water[k] = (DATA.water[k]||0) + 1; send(\"drink\"); renderCare(); toast(`\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e41\u0e25\u0e49\u0e27 ${DATA.water[k]} \u0e41\u0e01\u0e49\u0e27 \ud83d\udca7`); }",
+"function renderCare(){",
+"  const c = careS(), n = now(), B = myBlocks(), el = $(\"careCard\"); let h = \"\";",
+"  const night = c.night && B.find(b => b.cs[0]===\"\u0e14\" && b.st > n && dayDiff(n, b.st) <= 2 && b.st - n < 36*36e5);",
+"  if (night){",
+"    const S = night.st.getTime(), at = ms => hm(new Date(S + ms)), H = Math.max(1, +c.waterH||2), w = [];",
+"    for (let t = H; t*36e5 < night.en - night.st - 15*6e4; t += H) w.push(at(t*36e5));",
+"    const dd = dayDiff(n, night.st), L = [",
+"      [\"#9b8cff\", at(-10*36e5), \"\u0e17\u0e32\u0e19\u0e02\u0e49\u0e32\u0e27\u0e21\u0e37\u0e49\u0e2d\u0e2b\u0e25\u0e31\u0e01 \ud83c\udf5a \u0e01\u0e48\u0e2d\u0e19\u0e07\u0e35\u0e1a\"], [\"#9b8cff\", `${at(-9*36e5)}\u2013${at(-6*36e5)}`, \"\u0e07\u0e35\u0e1a 1.5\u20133 \u0e0a\u0e21. \ud83d\ude34\"],",
+"      c.coffee ? [\"#c9a26b\", `\u0e2b\u0e25\u0e31\u0e07 ${at(-6*36e5)}`, \"\u0e07\u0e14\u0e01\u0e32\u0e41\u0e1f \u2615\"] : null, [\"#ff9a6b\", at(-1.5*36e5), \"\u0e01\u0e34\u0e19\u0e21\u0e37\u0e49\u0e2d\u0e40\u0e1a\u0e32\u0e46 \u0e01\u0e48\u0e2d\u0e19\u0e40\u0e02\u0e49\u0e32\u0e40\u0e27\u0e23 \ud83e\udd6a\"],",
+"      [null, at(0), `\u0e40\u0e02\u0e49\u0e32\u0e40\u0e27\u0e23${night.cs.map(x=>SH[x].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\"\u2192\")}`],",
+"      c.water && w.length ? [\"#4fb3e8\", w.join(\" \u00b7 \"), \"\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33 \ud83d\udca7\"] : null,",
+"      c.meal ? [\"#ff9a6b\", at(3*36e5), \"\u0e02\u0e2d\u0e07\u0e27\u0e48\u0e32\u0e07 / \u0e21\u0e37\u0e49\u0e2d\u0e40\u0e25\u0e47\u0e01 \ud83c\udf59\"] : null,",
+"      [\"#9b8cff\", hm(night.en), night.cs[night.cs.length-1]===\"\u0e14\" ? \"\u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23 \u2192 \u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e19\u0e2d\u0e19\u0e40\u0e25\u0e22 \ud83d\udecc\" : \"\u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23\"]].filter(Boolean);",
+"    h += `<p class=\"h3\">${dd<=1 ? \"\u0e04\u0e37\u0e19\u0e19\u0e35\u0e49\u0e21\u0e35\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\" : \"\u0e04\u0e37\u0e19\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49\u0e21\u0e35\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\"} \ud83c\udf19</p><p class=\"hello\" style=\"font-size:13px\">${DOWF[night.st.getDay()]} ${night.st.getDate()} ${MSH[night.st.getMonth()]} \u00b7 \u0e15\u0e32\u0e23\u0e32\u0e07\u0e14\u0e39\u0e41\u0e25\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07</p>",
+"      <div class=\"tl\">${L.map(([col, t, x]) => `<p${col?` style=\"--c:${col}\"`:\"\"}><b>${t}</b> ${x}</p>`).join(\"\")}</div>`;",
+"  }",
+"  const work = B.find(b => b.st <= n && b.en > n) || B.find(b => sameDay(b.st, n));",
+"  if (c.water && work){",
+"    const k = (DATA.water||{})[dk(n)] || 0;",
+"    h += `${h?'<div style=\"height:12px\"></div>':\"\"}<div class=\"wat\"><span style=\"font-size:28px\">\ud83d\udca7</span><div style=\"flex:1\"><p class=\"h3\" style=\"font-size:15px\">\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e41\u0e25\u0e49\u0e27 ${k} / 8 \u0e41\u0e01\u0e49\u0e27</p><div class=\"bar\"><div style=\"width:${Math.min(100,k/8*100)}%;background:#4fb3e8\"></div></div></div><button onclick=\"drink()\">+1 \u0e41\u0e01\u0e49\u0e27</button></div>`;",
+"  }",
+"  el.style.display = h ? \"\" : \"none\"; el.innerHTML = h;",
+"}",
+"",
 "/* ===== \u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 ===== */",
 "function countMonth(me, days){",
 "  const c = {\"\u0e0a\":0,\"\u0e1a\":0,\"\u0e14\":0}; let off = 0;",
@@ -1206,7 +1299,7 @@ const APP_HTML = [
 "    const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());",
 "    const ps = s.length ? `<div class=\"ics\">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join(\"\")}</div>` : (md ? `<div class=\"ics\" style=\"opacity:.75\">${cute(\"off\",17)}</div>` : \"\");",
 "    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class=\"pin\">${CUTE.note}</span>` : \"\";",
-"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${isToday(d)?\"t\":\"\"} ${past&&!isToday(d)?\"past\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}${pin}</div>`;",
+"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${holOf(viewY,viewM,d)?\"hol\":\"\"} ${isToday(d)?\"t\":\"\"} ${past&&!isToday(d)?\"past\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}${pin}</div>`;",
 "  }",
 "  $(\"days\").innerHTML = h;",
 "  $(\"chips\").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class=\"note\" style=\"width:100%\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49 \u0e01\u0e14 \"\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23\" \u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p>`;",
@@ -1235,7 +1328,7 @@ const APP_HTML = [
 "  if (md && Object.keys(md.people).length > 1 && s.length < 3) rows += `<button class=\"buyb\" onclick=\"openAct(${d},'buy')\">${ic(\"work\")}\u0e0b\u0e37\u0e49\u0e2d\u0e40\u0e27\u0e23 (\u0e02\u0e36\u0e49\u0e19\u0e41\u0e17\u0e19\u0e04\u0e19\u0e2d\u0e37\u0e48\u0e19)</button>`;",
 "  $(\"sheet\").innerHTML = `<div class=\"grab\"></div>",
 "    <h2 class=\"big\" style=\"font-size:22px\">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>",
-"    <p class=\"hello\" style=\"margin-bottom:12px\">${isToday(d)?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}",
+"    <p class=\"hello\" style=\"margin-bottom:12px\">${isToday(d)?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":`${MONTHS[viewM]} ${viewY+543}`}</p>${holOf(viewY,viewM,d)?`<div class=\"holb\">${ic(\"party\")}${holOf(viewY,viewM,d)} \u00b7 \u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e32\u0e0a\u0e01\u0e32\u0e23${s.length?\" (\u0e21\u0e35\u0e40\u0e27\u0e23)\":\"\"}</div>`:\"\"}${rows}",
 "    <p class=\"h3\" style=\"margin-top:18px;display:flex;align-items:center;gap:6px\">${cute(\"note\",24)}\u0e42\u0e19\u0e49\u0e15</p>",
 "    <textarea class=\"notebox\" id=\"noteText\" placeholder=\"\u0e08\u0e14\u0e2d\u0e30\u0e44\u0e23\u0e01\u0e47\u0e44\u0e14\u0e49 \u0e40\u0e0a\u0e48\u0e19 \u0e41\u0e25\u0e01\u0e40\u0e27\u0e23 \u0e19\u0e31\u0e14\u0e2b\u0e21\u0e2d \u0e0b\u0e37\u0e49\u0e2d\u0e02\u0e2d\u0e07\" style=\"margin-top:8px\">${esc(noteOf(dt))}</textarea>",
 "    <div class=\"qchips\">${[\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\",\"OT\",\"\u0e25\u0e32\",\"\u0e19\u0e31\u0e14\u0e2b\u0e21\u0e2d\",\"\u0e27\u0e31\u0e19\u0e40\u0e01\u0e34\u0e14\",\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\"].map(q=>`<button class=\"qchip\" onclick=\"addQuick('${q}')\">+ ${q}</button>`).join(\"\")}</div>",
@@ -1371,7 +1464,52 @@ const APP_HTML = [
 "function closeSheet(){ $(\"mask\").classList.remove(\"on\"); $(\"sheet\").classList.remove(\"on\"); $(\"sheet\").style.transform = \"\"; unlockBody(); selDay=null; renderCal(); }",
 "",
 "/* ===== \u0e2a\u0e23\u0e38\u0e1b ===== */",
+"let SUMMODE = \"m\";",
+"function setSumMode(m){ SUMMODE = m; renderSum(); window.scrollTo(0,0); }",
+"function sumMove(n){ if (SUMMODE === \"y\"){ viewY += n; selDay = null; renderAll(); } else moveMonth(n); }",
+"function renderYear(){",
+"  const y = viewY, per = [], tr = trades().filter(t=>t.date.startsWith(y+\"-\"));",
+"  let tot = {\"\u0e0a\":0,\"\u0e1a\":0,\"\u0e14\":0}, ot = 0, hs = 0, months = 0;",
+"  for (let m=0; m<12; m++){",
+"    const md = DATA.months[key(y,m)], me = md ? (md.people[DATA.me]||{}) : null;",
+"    if (!me){ per.push(null); continue; }",
+"    months++;",
+"    const days = new Date(y, m+1, 0).getDate(), k = countMonth(me, days);",
+"    for (const c of [\"\u0e0a\",\"\u0e1a\",\"\u0e14\"]) tot[c] += k.c[c];",
+"    const wk = md.work ? md.work[DATA.me] : null; if (wk != null && k.total > wk) ot += k.total - wk;",
+"    for (let d=1; d<=days; d++) if (holOf(y, m, d)) hs += sortS(me[d]).length;",
+"    per.push(k);",
+"  }",
+"  const blocks = []; for (const x of allMyShifts()){ if (x.st.getFullYear() !== y) continue; const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()) b.en = x.en; else blocks.push({st:x.st, en:x.en}); }",
+"  const long = blocks.filter(b => b.en - b.st >= 16*36e5).length, total = tot[\"\u0e0a\"]+tot[\"\u0e1a\"]+tot[\"\u0e14\"];",
+"  $(\"sumTitle\").textContent = `\u0e1b\u0e35 ${y+543}`; $(\"sumH\").textContent = \"\u0e2a\u0e23\u0e38\u0e1b\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35\"; $(\"sumShare\").style.display = \"none\";",
+"  if (!months){ $(\"sumStats\").innerHTML = \"\"; $(\"sumBar\").parentNode.style.display = \"none\"; $(\"sumList\").innerHTML = `<p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e02\u0e2d\u0e07\u0e1b\u0e35\u0e19\u0e35\u0e49</p>`; return; }",
+"  $(\"sumStats\").innerHTML = `",
+"    <div class=\"stat\" style=\"background:var(--tint);color:var(--title)\"><p class=\"k\">${ic(\"work\")}\u0e40\u0e27\u0e23\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35</p><p class=\"v\">${total}</p></div>",
+"    <div class=\"stat m\"><p class=\"k\">${ic(\"timer\")}\u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07\u0e07\u0e32\u0e19</p><p class=\"v\">${(total*8).toLocaleString(\"th-TH\")}</p></div>",
+"    <div class=\"stat n\"><p class=\"k\">${ic(\"double\")}\u0e40\u0e27\u0e23 OT</p><p class=\"v\">${ot}</p></div>",
+"    <div class=\"stat o\"><p class=\"k\">${ic(\"party\")}\u0e40\u0e27\u0e23\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e32\u0e0a\u0e01\u0e32\u0e23</p><p class=\"v\">${hs}</p></div>`;",
+"  const mx = Math.max(1, ...per.map(k => k ? k.total : 0));",
+"  $(\"sumBar\").parentNode.style.display = \"\";",
+"  $(\"sumBar\").parentNode.innerHTML = `<p class=\"h3\" style=\"margin-bottom:6px\">\u0e40\u0e27\u0e23\u0e15\u0e48\u0e2d\u0e40\u0e14\u0e37\u0e2d\u0e19</p><div class=\"bar\" id=\"sumBar\" style=\"display:none\"></div>",
+"    <div class=\"ych\">${per.map(k => k ? `<div class=\"b\" style=\"height:${k.total/mx*100}%\">${[\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<span style=\"flex:${k.c[c]};background:var(--${SH[c].c}Fg)\"></span>`).join(\"\")}</div>` : `<div class=\"b\" style=\"height:2px;background:var(--line)\"></div>`).join(\"\")}</div>",
+"    <div class=\"ylb\">${MSH.map(m=>`<span>${m.replace(/\\./g,\"\")}</span>`).join(\"\")}</div>",
+"    <div class=\"chips\" id=\"sumLegend\">${[\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<span class=\"chip ${SH[c].c}\">${ic(SH[c].i)}${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")} ${tot[c]}</span>`).join(\"\")}</div>`;",
+"  const hv = per.reduce((a, k, m) => k && (!a || k.total > a.k.total) ? {k, m} : a, null);",
+"  const buy = tr.filter(t=>t.type===\"buy\"), sell = tr.filter(t=>t.type===\"sell\"), net = buy.reduce((a,t)=>a+(+t.price||0),0) - sell.reduce((a,t)=>a+(+t.price||0),0);",
+"  $(\"sumList\").innerHTML = `<p class=\"h3\" style=\"margin-bottom:4px\">\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e1b\u0e35 ${y+543}</p>",
+"    <div class=\"li\"><span>${ic(\"cal\")}\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e17\u0e35\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${months} \u0e40\u0e14\u0e37\u0e2d\u0e19</b></div>",
+"    ${hv?`<div class=\"li\"><span>${ic(\"work\")}\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e17\u0e35\u0e48\u0e2b\u0e19\u0e31\u0e01\u0e2a\u0e38\u0e14</span><b>${MONTHS[hv.m]} \u00b7 ${hv.k.total} \u0e40\u0e27\u0e23</b></div>`:\"\"}",
+"    <div class=\"li\"><span>${ic(\"double\")}\u0e04\u0e27\u0e1a 16 \u0e0a\u0e21.\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b</span><b>${long} \u0e04\u0e23\u0e31\u0e49\u0e07</b></div>",
+"    <div class=\"li\"><span>${ic(\"moon\")}\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35</span><b>${tot[\"\u0e14\"]} \u0e04\u0e37\u0e19</b></div>",
+"    <div class=\"li\"><span>${ic(\"off\")}\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e27\u0e21</span><b>${per.reduce((a,k)=>a+(k?k.off:0),0)} \u0e27\u0e31\u0e19</b></div>",
+"    ${tr.length?`<div class=\"li\"><span>${ic(\"work\")}\u0e0b\u0e37\u0e49\u0e2d\u0e40\u0e27\u0e23 / \u0e02\u0e32\u0e22\u0e40\u0e27\u0e23</span><b>${buy.length} / ${sell.length}</b></div><div class=\"li\"><span>${ic(\"check\")}\u0e40\u0e07\u0e34\u0e19\u0e0b\u0e37\u0e49\u0e2d-\u0e02\u0e32\u0e22\u0e2a\u0e38\u0e17\u0e18\u0e34</span><b>${net>=0?\"+\":\"\u2212\"}${baht(Math.abs(net))}</b></div>`:\"\"}`;",
+"}",
 "function renderSum(){",
+"  $(\"segM\").classList.toggle(\"on\", SUMMODE===\"m\"); $(\"segY\").classList.toggle(\"on\", SUMMODE===\"y\");",
+"  if (SUMMODE === \"y\") return renderYear();",
+"  $(\"sumH\").textContent = \"\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\"; $(\"sumShare\").style.display = \"\";",
+"  restoreSumBar();",
 "  const md = monthData(), me = mine(), days = daysIn(), f = firstDow();",
 "  $(\"sumTitle\").textContent = `${MONTHS[viewM]} ${viewY+543}`;",
 "  if (!md){ $(\"sumStats\").innerHTML=\"\"; $(\"sumBar\").innerHTML=\"\"; $(\"sumLegend\").innerHTML=\"\"; $(\"sumList\").innerHTML=`<p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</p>`; return; }",
@@ -1395,10 +1533,19 @@ const APP_HTML = [
 "    ${tot!=null?`<div class=\"li\"><span>${ic(\"list\")}\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" \u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07${vd?` (\u0e23\u0e27\u0e21 v ${vd} \u0e27\u0e31\u0e19)`:\"\"}</span><b>${tot} ${tot===k.total+vd?\"\u0e15\u0e23\u0e07\":\"\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\"}</b></div>`:\"\"}",
 "    ${work!=null?`<div class=\"li\"><span>${ic(\"work\")}\u0e27\u0e31\u0e19\u0e17\u0e33\u0e07\u0e32\u0e19\u0e15\u0e32\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${work} \u0e27\u0e31\u0e19</b></div>",
 "    <div class=\"li\"><span>${ic(\"timer\")}\u0e40\u0e27\u0e23\u0e40\u0e01\u0e34\u0e19 (OT)</span><b>${over>0?`${over} \u0e40\u0e27\u0e23 \u00b7 ${over*8} \u0e0a\u0e21.`:\"\u0e44\u0e21\u0e48\u0e21\u0e35\"}</b></div>`:\"\"}",
+"    ${holList(me, days)}",
 "    ${tradeSummary()}",
 "    ${rest.length?`<p class=\"h3\" style=\"margin:14px 0 4px\">\u0e04\u0e27\u0e23\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19</p>${rest.map(w=>`<div class=\"li\"><span>${ic(\"warn\")}${esc(w.t)}</span></div>`).join(\"\")}`:\"\"}`;",
 "}",
 "",
+"function restoreSumBar(){ const c = ($(\"sumBar\")||{}).parentNode || document.querySelector(\"#p-sum .card\"); c.style.display = \"\"; c.innerHTML = `<p class=\"h3\" style=\"margin-bottom:10px\">\u0e2a\u0e31\u0e14\u0e2a\u0e48\u0e27\u0e19\u0e40\u0e27\u0e23</p><div class=\"bar\" id=\"sumBar\"></div><div class=\"chips\" id=\"sumLegend\"></div>`; }",
+"function holList(me, days){",
+"  const L = []; for (let d=1; d<=days; d++){ const h = holOf(viewY, viewM, d); if (h) L.push({d, h, s: sortS(me[d])}); }",
+"  if (!L.length) return \"\";",
+"  const on = L.filter(x=>x.s.length);",
+"  return `<p class=\"h3\" style=\"margin:14px 0 4px\">\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e32\u0e0a\u0e01\u0e32\u0e23 \u00b7 \u0e21\u0e35\u0e40\u0e27\u0e23 ${on.length} \u0e08\u0e32\u0e01 ${L.length} \u0e27\u0e31\u0e19</p>` +",
+"    L.map(x=>`<div class=\"li\"><span class=\"hn\">${ic(\"party\")}${x.d} ${MSH[viewM]} \u00b7 ${x.h}</span><b>${x.s.length ? x.s.map(c=>SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\"+\") : \"\u0e2b\u0e22\u0e38\u0e14\"}</b></div>`).join(\"\");",
+"}",
 "function tradeSummary(){",
 "  const k = key(viewY, viewM), L = trades().filter(t=>t.date.startsWith(k)).sort((a,b)=>a.date<b.date?-1:1);",
 "  if (!L.length) return \"\";",
@@ -1449,12 +1596,18 @@ const APP_HTML = [
 "  $(\"setCal\").classList.toggle(\"on\", !!DATA.settings.calendar);",
 "  $(\"setEve\").classList.toggle(\"on\", DATA.settings.eve !== false);",
 "  $(\"setAI\").value = \"claude\";",
+"  const c = careS();",
+"  for (const [id, k] of [[\"cWater\",\"water\"],[\"cMeal\",\"meal\"],[\"cNight\",\"night\"],[\"cCoffee\",\"coffee\"],[\"cSleep\",\"sleep\"]]) $(id).classList.toggle(\"on\", !!c[k]);",
+"  $(\"cWaterH\").value = String(c.waterH);",
 "}",
+"const careS = () => Object.assign({water:true, waterH:2, meal:true, night:true, coffee:false, sleep:true}, DATA.settings.care || {});",
 "function saveSettings(){",
 "  DATA.settings.notify = +$(\"setNotify\").value;",
 "  DATA.settings.calendar = $(\"setCal\").classList.contains(\"on\");",
 "  DATA.settings.eve = $(\"setEve\").classList.contains(\"on\");",
 "  DATA.settings.ai = $(\"setAI\").value;",
+"  DATA.settings.care = {water:$(\"cWater\").classList.contains(\"on\"), waterH:+$(\"cWaterH\").value, meal:$(\"cMeal\").classList.contains(\"on\"),",
+"    night:$(\"cNight\").classList.contains(\"on\"), coffee:$(\"cCoffee\").classList.contains(\"on\"), sleep:$(\"cSleep\").classList.contains(\"on\")};",
 "  send(\"saveSettings\", DATA.settings); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e01\u0e32\u0e23\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e41\u0e25\u0e49\u0e27\");",
 "}",
 "",
@@ -1702,6 +1855,7 @@ const APP_HTML = [
 "    else if (s.length === 1) draw(SH[s[0]].k, cx+cell/2, cy+cell*0.6, cell*0.56);",
 "    else { draw(SH[s[0]].k, cx+cell*0.33, cy+cell*0.62, cell*0.44); draw(SH[s[1]].k, cx+cell*0.67, cy+cell*0.62, cell*0.44); }",
 "    if (noteOf(new Date(viewY, viewM, d))) draw(\"note\", cx+cell-26, cy+26, 34);",
+"    if (holOf(viewY, viewM, d)){ x.save(); x.strokeStyle = \"#F2A23A\"; x.lineWidth = 6; rr(x, cx+3, cy+3, cell-6, cell-6, 27); x.stroke(); x.restore(); }",
 "  }",
 "  // \u0e2a\u0e23\u0e38\u0e1b\u0e14\u0e49\u0e32\u0e19\u0e25\u0e48\u0e32\u0e07",
 "  const k = countMonth(me, days), items = [[\"sun\", \"\u0e40\u0e0a\u0e49\u0e32\", k.c[\"\u0e0a\"], ink[\"\u0e0a\"]], [\"sunset\", \"\u0e1a\u0e48\u0e32\u0e22\", k.c[\"\u0e1a\"], ink[\"\u0e1a\"]], [\"moon\", \"\u0e14\u0e36\u0e01\", k.c[\"\u0e14\"], ink[\"\u0e14\"]], [\"off\", \"\u0e2b\u0e22\u0e38\u0e14\", k.off, p.accent]];",
@@ -1713,7 +1867,9 @@ const APP_HTML = [
 "    x.textAlign = \"left\"; x.fillStyle = col; x.font = font(40,700); x.fillText(n, bx+96, sy+52);",
 "    x.fillStyle = p.sub; x.font = font(24,500); x.fillText(lb, bx+96, sy+82);",
 "  });",
-"  x.textAlign = \"center\"; x.fillStyle = al(p.title,.55); x.font = font(24,500); x.fillText(`${k.total} \u0e40\u0e27\u0e23 \u00b7 ${k.total*8} \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07`, W/2, H - 50);",
+"  x.textAlign = \"center\"; x.fillStyle = al(p.title,.55); x.font = font(24,500); const md0 = monthData() || {}, wk = md0.work ? md0.work[DATA.me] : null, ot = wk != null ? k.total - wk : 0;",
+"  let hs = 0; for (let d=1; d<=days; d++) if (holOf(viewY, viewM, d)) hs += sortS(me[d]).length;",
+"  x.fillText([`${k.total} \u0e40\u0e27\u0e23 \u00b7 ${k.total*8} \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07`, ot > 0 ? `OT ${ot} \u0e40\u0e27\u0e23` : \"\", hs ? `\u0e40\u0e27\u0e23\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e32\u0e0a\u0e01\u0e32\u0e23 ${hs}` : \"\"].filter(Boolean).join(\" \u00b7 \"), W/2, H - 50);",
 "  send(\"share\", cv.toDataURL(\"image/png\").split(\",\")[1]);",
 "}",
 "function rr(x, a, b, w, h, r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }",
@@ -1730,7 +1886,7 @@ const APP_HTML = [
 "  applyTheme();",
 "  const h = now().getHours();",
 "  $(\"hello\").textContent = `${h<12?\"\u0e2d\u0e23\u0e38\u0e13\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e34\u0e4c\":h<17?\"\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e15\u0e2d\u0e19\u0e1a\u0e48\u0e32\u0e22\":\"\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e15\u0e2d\u0e19\u0e40\u0e22\u0e47\u0e19\"} ${first(DATA.me)}`;",
-"  renderHero(); renderCal(); renderSum(); renderFr(); renderSet();",
+"  renderHero(); renderCare(); renderCal(); renderSum(); renderFr(); renderSet();",
 "}",
 "window.setData = function(d){ DATA = d; renderAll(); };",
 "",
@@ -1753,17 +1909,18 @@ const APP_HTML = [
 "}",
 "initView(); renderAll();",
 "if (DATA.restored) setTimeout(()=>toast(\"\u0e01\u0e39\u0e49\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e08\u0e32\u0e01 iCloud \u0e41\u0e25\u0e49\u0e27\"), 600);",
+"if (DATA.drank) setTimeout(()=>toast(`\u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e41\u0e25\u0e49\u0e27\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 ${DATA.drank} \u0e41\u0e01\u0e49\u0e27 \ud83d\udca7`), 600);",
 "</script>",
 "</body>",
 "</html>",
 ""
 ].join("\n");
 
-async function runApp() {
+async function runApp(drank) {
   const fromBackup = await restoreIfEmpty();
   let d = loadData();
   const wv = new WebView();
-  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup });
+  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup, drank: drank || null });
   const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
   let html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
   const style0 = ((d.settings || {}).theme || {}).style || "glass", local = readAssets(style0);
@@ -1785,6 +1942,8 @@ async function runApp() {
       const k = m.payload.key; restored[k] = true; delete pendingFriends[k];
       if (m.payload.month) d.months[k] = m.payload.month; else delete d.months[k];
       saveData(d); await syncAll(d);
+    } else if (m.type === "drink") {
+      addDrink(d, new Date()); await call(`setData(${js(payload())})`);
     } else if (m.type === "saveNote") {
       d.notes = d.notes || {};
       if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];
@@ -2181,7 +2340,8 @@ if (config.runsInWidget || config.runsInAccessoryWidget) {
   if (config.runsWithSiri) Speech.speak(ans);
   Script.setShortcutOutput(ans);
 } else {
-  await runApp();
+  const q = (typeof args !== "undefined" && args && args.queryParameters) || {};
+  await runApp(q.drink ? addDrink(loadData(), new Date()) : null);   // กด "ดื่มแล้ว ✓" จากแจ้งเตือน
 }
 Script.complete();
 // ===== จบไฟล์ (ถ้าไม่เห็นบรรทัดนี้ แปลว่าไฟล์มาไม่ครบ) =====
