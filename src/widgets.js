@@ -135,7 +135,8 @@ function drawLarge(d, now, I, T, sz) {
   const top = P + 40, gap = 4, cw = (W - 2 * P - 6 * gap) / 7;
   DOW.forEach((n, i) => tx(c, n, P + i * (cw + gap), top, cw, 12, F("Bold", 9.5), CA(i === 0 || i === 6 ? T.accent : T.sub, 0.85), "center"));
   // ส่วนล่าง
-  const note = nextNote(d, now), footH = 24, gTop = top + 15, gH = H - gTop - P - footH - 6;
+  const hasR = Object.keys(((d.months[k].roles || {})[d.me]) || {}).length > 0, legH = hasR ? 13 : 0;   // มีสีหน้าที่ → เว้นบรรทัดคำอธิบายสี
+  const note = nextNote(d, now), footH = 24, gTop = top + 15, gH = H - gTop - P - footH - 6 - legH;
   const ch = (gH - (rows - 1) * gap) / rows;
   for (let day = 1; day <= days; day++) {
     const i = first + day - 1, x = P + (i % 7) * (cw + gap), yy = gTop + Math.floor(i / 7) * (ch + gap);
@@ -152,6 +153,8 @@ function drawLarge(d, now, I, T, sz) {
   }
   // แถบล่าง: โน้ต หรือ สรุปเวร
   const fy = H - P - footH;
+  if (hasR) { const L = [["ic", "In charge"], ["mb", "member"], ["md", "med"]], lw = (W - 2 * P) / 3;
+    L.forEach(([r, t], j) => { const lx = P + j * lw; c.setFillColor(new Color(ROLE_C[r])); c.fillEllipse(new Rect(lx + lw / 2 - 30, fy - legH, 7, 7)); tx(c, t, lx + lw / 2 - 20, fy - legH - 3, lw / 2 + 20, 12, F("Bold", 8.5), new Color(ROLE_C[r])); }); }
   rr(c, P, fy, W - 2 * P, footH, 11, CA(T.card, T.dark ? 0.12 : 0.8));
   if (note) {
     img(c, I, "note", P + 4, fy + 3, 18);
