@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 24";
+const APP_VERSION = "27 พ.ย. 69 · 25";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -26,7 +26,10 @@ const MONTHS = ["มกราคม","กุมภาพันธ์","มีน
 const DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const pad = n => String(n).padStart(2, "0");
 const key = (y, m) => `${y}-${pad(m + 1)}`;
-const sortS = s => (s || "").split("").filter(c => ORD[c] != null).sort((a, b) => ORD[a] - ORD[b]);
+// เวรในช่องเรียงตามตาราง (บน → ล่าง) = ลำดับเวลา เช่น "บด" = บ่ายต่อดึก (ดึกเริ่ม 24:00), "ดบ" = ดึก 00:00 แล้วบ่าย
+const sortS = s => [...new Set((s || "").split("").filter(c => ORD[c] != null))];
+// เวลาเริ่มของแต่ละเวรในช่อง: เวรถัดไปต้องเริ่มหลังเวรก่อนหน้า (ดึกหลังบ่าย = 24:00 → เช้าวันถัดไป)
+function shiftStarts(y, m, day, s) { let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return { c, st: new Date(y, m - 1, +day, h) }; }); }
 const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 // ---------------- เก็บข้อมูล ----------------
@@ -61,8 +64,7 @@ function allMyShifts(d) {
   const list = [];
   for (const [k, md] of Object.entries(d.months)) {
     const [y, m] = k.split("-").map(Number), me = md.people[d.me] || {};
-    for (const [day, s] of Object.entries(me)) for (const c of sortS(s)) {
-      const st = new Date(y, m - 1, +day, SH[c].s);
+    for (const [day, s] of Object.entries(me)) for (const { c, st } of shiftStarts(y, m, day, s)) {
       list.push({ c, st, en: new Date(st.getTime() + 8 * 3600e3) });
     }
   }
@@ -102,6 +104,7 @@ const PROMPT =
 - ไล่ทีละคอลัมน์อย่างระวัง ให้วันที่ตรงกับคอลัมน์จริง
 งาน: อ่านทุกคนในตาราง ตอบเป็น JSON อย่างเดียว รูปแบบ (shifts เป็นข้อความสั้น ใส่เฉพาะวันที่มีเวร):
 {"year_be":2569,"month":12,"people":[{"name":"ชื่อ นามสกุลตามตาราง","shifts":"1=ชด 2=บ 6=ช","total":30}]}
+ในวันที่มี 2 เวร ให้เรียงตามตาราง บรรทัดบนก่อนแล้วบรรทัดล่าง (เช่น บนเป็น บ ล่างเป็น ด ให้ตอบ บด)
 total คือเลขในคอลัมน์ "ทำงานจริง" ของคนนั้น (ถ้าไม่มีใส่ null)`;
 
 async function askGemini(b64, apiKey) {
@@ -321,17 +324,22 @@ async function syncCalendar(d) {
   const end = new Date(start); end.setFullYear(end.getFullYear() + 2);
   for (const e of await CalendarEvent.between(start, end, [cal])) e.remove();
   if (!d.settings.calendar) return;
-  for (const x of allMyShifts(d).filter(x => x.st >= start)) {
+  for (const x of shiftBlocks(allMyShifts(d)).filter(x => x.st >= start)) {     // เวรต่อกัน (เช่น บ่าย → ดึก) เป็นนัดเดียว
     const e = new CalendarEvent();
-    e.calendar = cal; e.title = SH[x.c].n; e.startDate = x.st; e.endDate = x.en; e.notes = "จากแอปเวรของฉัน";
+    e.calendar = cal; e.title = x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n; e.startDate = x.st; e.endDate = x.en; e.notes = "จากแอปเวรของฉัน";
     e.save();
   }
+}
+function shiftBlocks(list) {
+  const out = [];
+  for (const x of list) { const b = out[out.length - 1]; if (b && x.st.getTime() === b.en.getTime()) { b.en = x.en; b.cs.push(x.c); } else out.push({ c: x.c, st: x.st, en: x.en, cs: [x.c] }); }
+  return out;
 }
 async function syncNotifications(d) {
   const pend = await Notification.allPending();
   const ids = pend.filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
   if (ids.length) await Notification.removePending(ids);
-  const before = +d.settings.notify, now = new Date(), all = allMyShifts(d);
+  const before = +d.settings.notify, now = new Date(), all = shiftBlocks(allMyShifts(d));   // เวรต่อกันเตือนครั้งเดียวตอนเริ่ม
   if (d.settings.eve !== false) {              // เตือนเวรพรุ่งนี้ 20:00 (ล่วงหน้า 14 วัน)
     const byDay = {};
     for (const x of all) { const t = new Date(x.st); t.setHours(0, 0, 0, 0); (byDay[t.getTime()] = byDay[t.getTime()] || []).push(x); }
@@ -340,7 +348,7 @@ async function syncNotifications(d) {
       if (at <= now || at.getTime() - now.getTime() > 14 * 864e5) continue;
       const n = new Notification();
       n.identifier = `shiftapp-eve-${t}`; n.threadIdentifier = "shiftapp";
-      n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
+      n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
       n.setTriggerDate(at); await n.schedule();
     }
   }
@@ -350,7 +358,7 @@ async function syncNotifications(d) {
     const n = new Notification();
     n.identifier = `shiftapp-${x.st.getTime()}-${x.c}`;
     n.threadIdentifier = "shiftapp";
-    n.title = `${SH[x.c].n} เริ่ม ${hhmm(x.st)}`;
+    n.title = `${x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n} เริ่ม ${hhmm(x.st)}`;
     n.body = before >= 60 ? `อีก ${before / 60} ชั่วโมงขึ้นเวรแล้วนะ` : `อีก ${before} นาทีขึ้นเวรแล้วนะ`;
     n.setTriggerDate(new Date(x.st.getTime() - before * 6e4));
     await n.schedule();

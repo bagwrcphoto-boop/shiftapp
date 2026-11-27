@@ -147,6 +147,8 @@ body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;poin
 .pchips{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto}.pchip{border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:14px;font-weight:600;border-radius:12px;padding:7px 12px}.pchip.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
 .sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}
 .editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}
+.seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}
+.trail{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-top:8px}.trail input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
 .toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
 .loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
 .spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
@@ -338,7 +340,13 @@ const MSH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","ม�
 const DOWF = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"], DOWS = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const $ = id => document.getElementById(id);
 const key = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
-const sortS = s => (s||"").split("").filter(c=>ORD[c]!=null).sort((a,b)=>ORD[a]-ORD[b]);
+const sortS = s => [...new Set((s||"").split("").filter(c=>ORD[c]!=null))];   // เรียงตามตาราง บน→ล่าง = ลำดับเวลา
+function shiftStarts(y, m, d, s){ let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return {c, st:new Date(y, m-1, +d, h)}; }); }
+const hm = dt => `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+// ชื่อ/เวลารวมของช่อง เช่น "บ่าย → ดึก" 16:00 – 08:00
+function seqInfo(y, m, d, s){ const L = shiftStarts(y, m, d, s); if (!L.length) return null;
+  const en = new Date(L[L.length-1].st.getTime() + 8*3600e3), cont = L.every((x,i)=>!i || x.st - L[i-1].st === 8*3600e3);
+  return {L, cont, name: L.map(x=>SH[x.c].n.replace("เวร","")).join(" → "), time: `${hm(L[0].st)} – ${hm(en)}${en.getDate()!==L[0].st.getDate()?" (เช้าวันถัดไป)":""}`}; }
 const first = n => { const w = n.replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/,"").split(/\s+/).filter(Boolean); return /^part/i.test(w[0]||"") && w.length > 1 ? w.slice(0, 2).join(" ") : w[0]; };
 const pill = c => `<span class="p ${SH[c].c}">${c}</span>`;
 
@@ -369,9 +377,7 @@ function allMyShifts(){
   const list = [];
   for (const [k, md] of Object.entries(DATA.months)){
     const [y,m] = k.split("-").map(Number), me = md.people[DATA.me] || {};
-    for (const [d, s] of Object.entries(me)) for (const c of sortS(s)){
-      const st = new Date(y, m-1, +d, SH[c].s); list.push({c, st, en:new Date(st.getTime()+8*3600e3)});
-    }
+    for (const [d, s] of Object.entries(me)) for (const {c, st} of shiftStarts(y, m, d, s)) list.push({c, st, en:new Date(st.getTime()+8*3600e3)});
   }
   return list.sort((a,b)=>a.st-b.st);
 }
@@ -400,12 +406,16 @@ const dayDiff = (a,b) => Math.round((new Date(b.getFullYear(),b.getMonth(),b.get
 function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math.floor(m%1440/60), mm = m%60;
   return d ? `${d} วัน ${h} ชม.` : h ? `${h} ชม. ${mm} นาที` : `${mm} นาที`; }
 function renderHero(){
-  const n = now(), list = allMyShifts(), cur = list.find(x=>x.st<=n && x.en>n), nxt = list.find(x=>x.st>n);
+  const n = now(), blocks = [];     // เวรที่ต่อกันนับเป็นก้อนเดียว เช่น บ่าย → ดึก 16:00 – 08:00
+  for (const x of allMyShifts()){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }
+  const cur = blocks.find(x=>x.st<=n && x.en>n), nxt = blocks.find(x=>x.st>n);
+  const nm = b => b.cs.length > 1 ? b.cs.map(c=>SH[c].n.replace("เวร","")).join(" → ") : SH[b.cs[0]].n, tm = b => `${hm(b.st)} – ${hm(b.en)}${b.en.getDate()!==b.st.getDate()?" (+1)":""}`;
+  const orb = b => b.cs.length > 1 ? `<div class="orb">${cute(SH[b.cs[0]].k,34)}${cute(SH[b.cs[b.cs.length-1]].k,34)}</div>` : `<div class="orb">${cute(SH[b.cs[0]].k,46)}</div>`;
   let h;
-  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${SH[cur.c].n}</p><p class="time">${SH[cur.c].t}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div><div class="orb">${cute(SH[cur.c].k,46)}</div>`;
+  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${nm(cur)}</p><p class="time">${tm(cur)}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div>${orb(cur)}`;
   else if (nxt){
     const dd = dayDiff(n, nxt.st), when = dd===0?"วันนี้":dd===1?"พรุ่งนี้":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MSH[nxt.st.getMonth()]}`;
-    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${SH[nxt.c].n}</p><p class="time">${SH[nxt.c].t}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div><div class="orb">${cute(SH[nxt.c].k,46)}</div>`;
+    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${nm(nxt)}</p><p class="time">${tm(nxt)}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;
   } else h = `<div><p class="when">ยังไม่มีเวรข้างหน้า</p><p class="what">พักผ่อนเยอะๆ นะ</p><p class="time">อัปรูปตารางเดือนใหม่ได้เลย</p></div><div class="orb">${cute("off",44)}</div>`;
   $("hero").innerHTML = h;
   const t = noteOf(n), nb = $("todayNote");
@@ -443,12 +453,13 @@ $("calCard").addEventListener("touchend", e=>{ if (tx==null) return; const dx = 
 let editSet = "";
 function openDay(d){
   selDay = d; renderCal();
-  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d);
+  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d), seq = seqInfo(viewY, viewM+1, d, s.join(""));
   editSet = s.join("");
-  let rows = s.map(c=>{
+  const tOf = c => { const x = seq.L.find(z=>z.c===c), e = new Date(x.st.getTime()+8*3600e3), eh = hm(e); return `${x.st.getDate()!==d?"24:00":hm(x.st)} – ${eh==="00:00"?"24:00":eh}${e.getDate()!==d && eh!=="00:00"?" (เช้าวันถัดไป)":""}`; };
+  let rows = (seq && s.length > 1 ? `<div class="seqh">${ic("timer")}<b>${seq.name}</b><span>${seq.time}${seq.cont?" · ทำต่อเนื่อง":""}</span></div>` : "") + s.map(c=>{
     const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||"").includes(c)).map(([n])=>first(n)) : [];
     const acts = md && Object.keys(md.people).length > 1 ? `<div class="sact"><button onclick="openAct(${d},'swap','${c}')">${ic("users")}ขอแลก</button><button onclick="openAct(${d},'sell','${c}')">${ic("share")}ขาย / หาคนแทน</button></div>` : "";
-    return `<div class="srow ${SH[c].c}">${cute(SH[c].k,40)}<div style="flex:1"><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}${acts}</div></div>`;
+    return `<div class="srow ${SH[c].c}">${cute(SH[c].k,40)}<div style="flex:1"><p class="nm">${SH[c].n}</p><p class="tm">${tOf(c)}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}${acts}</div></div>`;
   }).join("");
   if (!s.length) rows = `<div class="srow o">${cute("off",38)}<div><p class="nm">วันหยุด</p><p class="tm">พักผ่อนให้เต็มที่นะ</p></div></div>`;
   const warn = restIssues().filter(w => w.kind !== "run" && sameDay(w.d, dt));
@@ -463,6 +474,7 @@ function openDay(d){
     <div class="qchips">${["แลกเวร","OT","ลา","นัดหมอ","วันเกิด","ประชุม"].map(q=>`<button class="qchip" onclick="addQuick('${q}')">+ ${q}</button>`).join("")}</div>
     <details class="editd"${s.length?"":" open"}><summary>${ic("edit")}แก้เวรเอง <span>(ใช้เมื่อตารางอ่านผิด หรือเปลี่ยนเวร)</span></summary>
     <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${cute(SH[c].k,24)} ${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
+    <label class="trail"><input type="checkbox" id="trailN" ${s.length>1&&s[s.length-1]==="ด"?"checked":""}> ดึกต่อท้าย (เข้าเที่ยงคืนหลังเวรอื่น เช่น บ่าย → ดึก)</label>
     </details>
     <button class="btn main" style="width:100%;margin-top:8px" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
   openSheet();
@@ -566,7 +578,9 @@ function saveDay(d){
   const k = key(viewY,viewM);
   if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};
   const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};
-  const v = sortS(editSet).join(""); if (v) me[d] = v; else delete me[d];
+  let v = ["ด","ช","บ"].filter(c=>editSet.includes(c));      // เรียงตามเวลา ดึก 00:00 ก่อน เว้นแต่ติ๊ก "ดึกต่อท้าย"
+  if ($("trailN") && $("trailN").checked && v.length > 1 && v[0] === "ด") v = v.slice(1).concat("ด");
+  v = v.join(""); if (v) me[d] = v; else delete me[d];
   send("saveMonth", {key:k, month:DATA.months[k]});
   const date = dk(new Date(viewY, viewM, d)), text = ($("noteText") ? $("noteText").value : "").trim();
   DATA.notes = DATA.notes || {};

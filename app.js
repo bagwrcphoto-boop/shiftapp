@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 24";
+const APP_VERSION = "27 พ.ย. 69 · 25";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -34,7 +34,10 @@ const MONTHS = ["มกราคม","กุมภาพันธ์","มีน
 const DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const pad = n => String(n).padStart(2, "0");
 const key = (y, m) => `${y}-${pad(m + 1)}`;
-const sortS = s => (s || "").split("").filter(c => ORD[c] != null).sort((a, b) => ORD[a] - ORD[b]);
+// เวรในช่องเรียงตามตาราง (บน → ล่าง) = ลำดับเวลา เช่น "บด" = บ่ายต่อดึก (ดึกเริ่ม 24:00), "ดบ" = ดึก 00:00 แล้วบ่าย
+const sortS = s => [...new Set((s || "").split("").filter(c => ORD[c] != null))];
+// เวลาเริ่มของแต่ละเวรในช่อง: เวรถัดไปต้องเริ่มหลังเวรก่อนหน้า (ดึกหลังบ่าย = 24:00 → เช้าวันถัดไป)
+function shiftStarts(y, m, day, s) { let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return { c, st: new Date(y, m - 1, +day, h) }; }); }
 const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 // ---------------- เก็บข้อมูล ----------------
@@ -69,8 +72,7 @@ function allMyShifts(d) {
   const list = [];
   for (const [k, md] of Object.entries(d.months)) {
     const [y, m] = k.split("-").map(Number), me = md.people[d.me] || {};
-    for (const [day, s] of Object.entries(me)) for (const c of sortS(s)) {
-      const st = new Date(y, m - 1, +day, SH[c].s);
+    for (const [day, s] of Object.entries(me)) for (const { c, st } of shiftStarts(y, m, day, s)) {
       list.push({ c, st, en: new Date(st.getTime() + 8 * 3600e3) });
     }
   }
@@ -110,6 +112,7 @@ const PROMPT =
 - ไล่ทีละคอลัมน์อย่างระวัง ให้วันที่ตรงกับคอลัมน์จริง
 งาน: อ่านทุกคนในตาราง ตอบเป็น JSON อย่างเดียว รูปแบบ (shifts เป็นข้อความสั้น ใส่เฉพาะวันที่มีเวร):
 {"year_be":2569,"month":12,"people":[{"name":"ชื่อ นามสกุลตามตาราง","shifts":"1=ชด 2=บ 6=ช","total":30}]}
+ในวันที่มี 2 เวร ให้เรียงตามตาราง บรรทัดบนก่อนแล้วบรรทัดล่าง (เช่น บนเป็น บ ล่างเป็น ด ให้ตอบ บด)
 total คือเลขในคอลัมน์ "ทำงานจริง" ของคนนั้น (ถ้าไม่มีใส่ null)`;
 
 async function askGemini(b64, apiKey) {
@@ -329,17 +332,22 @@ async function syncCalendar(d) {
   const end = new Date(start); end.setFullYear(end.getFullYear() + 2);
   for (const e of await CalendarEvent.between(start, end, [cal])) e.remove();
   if (!d.settings.calendar) return;
-  for (const x of allMyShifts(d).filter(x => x.st >= start)) {
+  for (const x of shiftBlocks(allMyShifts(d)).filter(x => x.st >= start)) {     // เวรต่อกัน (เช่น บ่าย → ดึก) เป็นนัดเดียว
     const e = new CalendarEvent();
-    e.calendar = cal; e.title = SH[x.c].n; e.startDate = x.st; e.endDate = x.en; e.notes = "จากแอปเวรของฉัน";
+    e.calendar = cal; e.title = x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n; e.startDate = x.st; e.endDate = x.en; e.notes = "จากแอปเวรของฉัน";
     e.save();
   }
+}
+function shiftBlocks(list) {
+  const out = [];
+  for (const x of list) { const b = out[out.length - 1]; if (b && x.st.getTime() === b.en.getTime()) { b.en = x.en; b.cs.push(x.c); } else out.push({ c: x.c, st: x.st, en: x.en, cs: [x.c] }); }
+  return out;
 }
 async function syncNotifications(d) {
   const pend = await Notification.allPending();
   const ids = pend.filter(n => n.threadIdentifier === "shiftapp").map(n => n.identifier);
   if (ids.length) await Notification.removePending(ids);
-  const before = +d.settings.notify, now = new Date(), all = allMyShifts(d);
+  const before = +d.settings.notify, now = new Date(), all = shiftBlocks(allMyShifts(d));   // เวรต่อกันเตือนครั้งเดียวตอนเริ่ม
   if (d.settings.eve !== false) {              // เตือนเวรพรุ่งนี้ 20:00 (ล่วงหน้า 14 วัน)
     const byDay = {};
     for (const x of all) { const t = new Date(x.st); t.setHours(0, 0, 0, 0); (byDay[t.getTime()] = byDay[t.getTime()] || []).push(x); }
@@ -348,7 +356,7 @@ async function syncNotifications(d) {
       if (at <= now || at.getTime() - now.getTime() > 14 * 864e5) continue;
       const n = new Notification();
       n.identifier = `shiftapp-eve-${t}`; n.threadIdentifier = "shiftapp";
-      n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
+      n.title = "พรุ่งนี้มีเวร"; n.body = xs.map(x => `${x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n} ${hhmm(x.st)}`).join(" + ");
       n.setTriggerDate(at); await n.schedule();
     }
   }
@@ -358,7 +366,7 @@ async function syncNotifications(d) {
     const n = new Notification();
     n.identifier = `shiftapp-${x.st.getTime()}-${x.c}`;
     n.threadIdentifier = "shiftapp";
-    n.title = `${SH[x.c].n} เริ่ม ${hhmm(x.st)}`;
+    n.title = `${x.cs.length > 1 ? "เวร" + x.cs.map(c => SH[c].n.replace("เวร", "")).join("→") : SH[x.c].n} เริ่ม ${hhmm(x.st)}`;
     n.body = before >= 60 ? `อีก ${before / 60} ชั่วโมงขึ้นเวรแล้วนะ` : `อีก ${before} นาทีขึ้นเวรแล้วนะ`;
     n.setTriggerDate(new Date(x.st.getTime() - before * 6e4));
     await n.schedule();
@@ -520,6 +528,8 @@ const APP_HTML = [
 ".pchips{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto}.pchip{border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:14px;font-weight:600;border-radius:12px;padding:7px 12px}.pchip.on{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}",
 ".sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}",
 ".editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}",
+".seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}",
+".trail{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-top:8px}.trail input{width:18px;height:18px;margin:0;accent-color:var(--accent)}",
 ".toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
@@ -867,7 +877,13 @@ const APP_HTML = [
 "const DOWF = [\"\u0e2d\u0e32\u0e17\u0e34\u0e15\u0e22\u0e4c\",\"\u0e08\u0e31\u0e19\u0e17\u0e23\u0e4c\",\"\u0e2d\u0e31\u0e07\u0e04\u0e32\u0e23\",\"\u0e1e\u0e38\u0e18\",\"\u0e1e\u0e24\u0e2b\u0e31\u0e2a\u0e1a\u0e14\u0e35\",\"\u0e28\u0e38\u0e01\u0e23\u0e4c\",\"\u0e40\u0e2a\u0e32\u0e23\u0e4c\"], DOWS = [\"\u0e2d\u0e32\",\"\u0e08\",\"\u0e2d\",\"\u0e1e\",\"\u0e1e\u0e24\",\"\u0e28\",\"\u0e2a\"];",
 "const $ = id => document.getElementById(id);",
 "const key = (y,m) => `${y}-${String(m+1).padStart(2,\"0\")}`;",
-"const sortS = s => (s||\"\").split(\"\").filter(c=>ORD[c]!=null).sort((a,b)=>ORD[a]-ORD[b]);",
+"const sortS = s => [...new Set((s||\"\").split(\"\").filter(c=>ORD[c]!=null))];   // \u0e40\u0e23\u0e35\u0e22\u0e07\u0e15\u0e32\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e1a\u0e19\u2192\u0e25\u0e48\u0e32\u0e07 = \u0e25\u0e33\u0e14\u0e31\u0e1a\u0e40\u0e27\u0e25\u0e32",
+"function shiftStarts(y, m, d, s){ let prev = -1; return sortS(s).map(c => { let h = SH[c].s; while (h <= prev) h += 24; prev = h; return {c, st:new Date(y, m-1, +d, h)}; }); }",
+"const hm = dt => `${String(dt.getHours()).padStart(2,\"0\")}:${String(dt.getMinutes()).padStart(2,\"0\")}`;",
+"// \u0e0a\u0e37\u0e48\u0e2d/\u0e40\u0e27\u0e25\u0e32\u0e23\u0e27\u0e21\u0e02\u0e2d\u0e07\u0e0a\u0e48\u0e2d\u0e07 \u0e40\u0e0a\u0e48\u0e19 \"\u0e1a\u0e48\u0e32\u0e22 \u2192 \u0e14\u0e36\u0e01\" 16:00 \u2013 08:00",
+"function seqInfo(y, m, d, s){ const L = shiftStarts(y, m, d, s); if (!L.length) return null;",
+"  const en = new Date(L[L.length-1].st.getTime() + 8*3600e3), cont = L.every((x,i)=>!i || x.st - L[i-1].st === 8*3600e3);",
+"  return {L, cont, name: L.map(x=>SH[x.c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\" \u2192 \"), time: `${hm(L[0].st)} \u2013 ${hm(en)}${en.getDate()!==L[0].st.getDate()?\" (\u0e40\u0e0a\u0e49\u0e32\u0e27\u0e31\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b)\":\"\"}`}; }",
 "const first = n => { const w = n.replace(/^(\u0e19\u0e32\u0e07\u0e2a\u0e32\u0e27|\u0e19\u0e32\u0e07|\u0e19\u0e32\u0e22|\u0e19\\.\u0e2a\\.)\\s*/,\"\").split(/\\s+/).filter(Boolean); return /^part/i.test(w[0]||\"\") && w.length > 1 ? w.slice(0, 2).join(\" \") : w[0]; };",
 "const pill = c => `<span class=\"p ${SH[c].c}\">${c}</span>`;",
 "",
@@ -898,9 +914,7 @@ const APP_HTML = [
 "  const list = [];",
 "  for (const [k, md] of Object.entries(DATA.months)){",
 "    const [y,m] = k.split(\"-\").map(Number), me = md.people[DATA.me] || {};",
-"    for (const [d, s] of Object.entries(me)) for (const c of sortS(s)){",
-"      const st = new Date(y, m-1, +d, SH[c].s); list.push({c, st, en:new Date(st.getTime()+8*3600e3)});",
-"    }",
+"    for (const [d, s] of Object.entries(me)) for (const {c, st} of shiftStarts(y, m, d, s)) list.push({c, st, en:new Date(st.getTime()+8*3600e3)});",
 "  }",
 "  return list.sort((a,b)=>a.st-b.st);",
 "}",
@@ -929,12 +943,16 @@ const APP_HTML = [
 "function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math.floor(m%1440/60), mm = m%60;",
 "  return d ? `${d} \u0e27\u0e31\u0e19 ${h} \u0e0a\u0e21.` : h ? `${h} \u0e0a\u0e21. ${mm} \u0e19\u0e32\u0e17\u0e35` : `${mm} \u0e19\u0e32\u0e17\u0e35`; }",
 "function renderHero(){",
-"  const n = now(), list = allMyShifts(), cur = list.find(x=>x.st<=n && x.en>n), nxt = list.find(x=>x.st>n);",
+"  const n = now(), blocks = [];     // \u0e40\u0e27\u0e23\u0e17\u0e35\u0e48\u0e15\u0e48\u0e2d\u0e01\u0e31\u0e19\u0e19\u0e31\u0e1a\u0e40\u0e1b\u0e47\u0e19\u0e01\u0e49\u0e2d\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27 \u0e40\u0e0a\u0e48\u0e19 \u0e1a\u0e48\u0e32\u0e22 \u2192 \u0e14\u0e36\u0e01 16:00 \u2013 08:00",
+"  for (const x of allMyShifts()){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }",
+"  const cur = blocks.find(x=>x.st<=n && x.en>n), nxt = blocks.find(x=>x.st>n);",
+"  const nm = b => b.cs.length > 1 ? b.cs.map(c=>SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\" \u2192 \") : SH[b.cs[0]].n, tm = b => `${hm(b.st)} \u2013 ${hm(b.en)}${b.en.getDate()!==b.st.getDate()?\" (+1)\":\"\"}`;",
+"  const orb = b => b.cs.length > 1 ? `<div class=\"orb\">${cute(SH[b.cs[0]].k,34)}${cute(SH[b.cs[b.cs.length-1]].k,34)}</div>` : `<div class=\"orb\">${cute(SH[b.cs[0]].k,46)}</div>`;",
 "  let h;",
-"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${SH[cur.c].n}</p><p class=\"time\">${SH[cur.c].t}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div><div class=\"orb\">${cute(SH[cur.c].k,46)}</div>`;",
+"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${nm(cur)}</p><p class=\"time\">${tm(cur)}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div>${orb(cur)}`;",
 "  else if (nxt){",
 "    const dd = dayDiff(n, nxt.st), when = dd===0?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":dd===1?\"\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49\":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MSH[nxt.st.getMonth()]}`;",
-"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${SH[nxt.c].n}</p><p class=\"time\">${SH[nxt.c].t}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div><div class=\"orb\">${cute(SH[nxt.c].k,46)}</div>`;",
+"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${nm(nxt)}</p><p class=\"time\">${tm(nxt)}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;",
 "  } else h = `<div><p class=\"when\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e19\u0e49\u0e32</p><p class=\"what\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</p><p class=\"time\">\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p></div><div class=\"orb\">${cute(\"off\",44)}</div>`;",
 "  $(\"hero\").innerHTML = h;",
 "  const t = noteOf(n), nb = $(\"todayNote\");",
@@ -972,12 +990,13 @@ const APP_HTML = [
 "let editSet = \"\";",
 "function openDay(d){",
 "  selDay = d; renderCal();",
-"  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d);",
+"  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d), seq = seqInfo(viewY, viewM+1, d, s.join(\"\"));",
 "  editSet = s.join(\"\");",
-"  let rows = s.map(c=>{",
+"  const tOf = c => { const x = seq.L.find(z=>z.c===c), e = new Date(x.st.getTime()+8*3600e3), eh = hm(e); return `${x.st.getDate()!==d?\"24:00\":hm(x.st)} \u2013 ${eh===\"00:00\"?\"24:00\":eh}${e.getDate()!==d && eh!==\"00:00\"?\" (\u0e40\u0e0a\u0e49\u0e32\u0e27\u0e31\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b)\":\"\"}`; };",
+"  let rows = (seq && s.length > 1 ? `<div class=\"seqh\">${ic(\"timer\")}<b>${seq.name}</b><span>${seq.time}${seq.cont?\" \u00b7 \u0e17\u0e33\u0e15\u0e48\u0e2d\u0e40\u0e19\u0e37\u0e48\u0e2d\u0e07\":\"\"}</span></div>` : \"\") + s.map(c=>{",
 "    const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||\"\").includes(c)).map(([n])=>first(n)) : [];",
 "    const acts = md && Object.keys(md.people).length > 1 ? `<div class=\"sact\"><button onclick=\"openAct(${d},'swap','${c}')\">${ic(\"users\")}\u0e02\u0e2d\u0e41\u0e25\u0e01</button><button onclick=\"openAct(${d},'sell','${c}')\">${ic(\"share\")}\u0e02\u0e32\u0e22 / \u0e2b\u0e32\u0e04\u0e19\u0e41\u0e17\u0e19</button></div>` : \"\";",
-"    return `<div class=\"srow ${SH[c].c}\">${cute(SH[c].k,40)}<div style=\"flex:1\"><p class=\"nm\">${SH[c].n}</p><p class=\"tm\">${SH[c].t}</p>${mates.length?`<p class=\"mates\">\u0e2d\u0e22\u0e39\u0e48\u0e14\u0e49\u0e27\u0e22\u0e01\u0e31\u0e19: ${mates.join(\", \")}</p>`:\"\"}${acts}</div></div>`;",
+"    return `<div class=\"srow ${SH[c].c}\">${cute(SH[c].k,40)}<div style=\"flex:1\"><p class=\"nm\">${SH[c].n}</p><p class=\"tm\">${tOf(c)}</p>${mates.length?`<p class=\"mates\">\u0e2d\u0e22\u0e39\u0e48\u0e14\u0e49\u0e27\u0e22\u0e01\u0e31\u0e19: ${mates.join(\", \")}</p>`:\"\"}${acts}</div></div>`;",
 "  }).join(\"\");",
 "  if (!s.length) rows = `<div class=\"srow o\">${cute(\"off\",38)}<div><p class=\"nm\">\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14</p><p class=\"tm\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e43\u0e2b\u0e49\u0e40\u0e15\u0e47\u0e21\u0e17\u0e35\u0e48\u0e19\u0e30</p></div></div>`;",
 "  const warn = restIssues().filter(w => w.kind !== \"run\" && sameDay(w.d, dt));",
@@ -992,6 +1011,7 @@ const APP_HTML = [
 "    <div class=\"qchips\">${[\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\",\"OT\",\"\u0e25\u0e32\",\"\u0e19\u0e31\u0e14\u0e2b\u0e21\u0e2d\",\"\u0e27\u0e31\u0e19\u0e40\u0e01\u0e34\u0e14\",\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\"].map(q=>`<button class=\"qchip\" onclick=\"addQuick('${q}')\">+ ${q}</button>`).join(\"\")}</div>",
 "    <details class=\"editd\"${s.length?\"\":\" open\"}><summary>${ic(\"edit\")}\u0e41\u0e01\u0e49\u0e40\u0e27\u0e23\u0e40\u0e2d\u0e07 <span>(\u0e43\u0e0a\u0e49\u0e40\u0e21\u0e37\u0e48\u0e2d\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2d\u0e48\u0e32\u0e19\u0e1c\u0e34\u0e14 \u0e2b\u0e23\u0e37\u0e2d\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19\u0e40\u0e27\u0e23)</span></summary>",
 "    <div class=\"tog\">${[\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].map(c=>`<button class=\"c${SH[c].c} ${editSet.includes(c)?\"on\":\"\"}\" onclick=\"togEdit('${c}',this)\">${cute(SH[c].k,24)} ${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")}</button>`).join(\"\")}</div>",
+"    <label class=\"trail\"><input type=\"checkbox\" id=\"trailN\" ${s.length>1&&s[s.length-1]===\"\u0e14\"?\"checked\":\"\"}> \u0e14\u0e36\u0e01\u0e15\u0e48\u0e2d\u0e17\u0e49\u0e32\u0e22 (\u0e40\u0e02\u0e49\u0e32\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07\u0e04\u0e37\u0e19\u0e2b\u0e25\u0e31\u0e07\u0e40\u0e27\u0e23\u0e2d\u0e37\u0e48\u0e19 \u0e40\u0e0a\u0e48\u0e19 \u0e1a\u0e48\u0e32\u0e22 \u2192 \u0e14\u0e36\u0e01)</label>",
 "    </details>",
 "    <button class=\"btn main\" style=\"width:100%;margin-top:8px\" onclick=\"saveDay(${d})\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>`;",
 "  openSheet();",
@@ -1095,7 +1115,9 @@ const APP_HTML = [
 "  const k = key(viewY,viewM);",
 "  if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};",
 "  const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};",
-"  const v = sortS(editSet).join(\"\"); if (v) me[d] = v; else delete me[d];",
+"  let v = [\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].filter(c=>editSet.includes(c));      // \u0e40\u0e23\u0e35\u0e22\u0e07\u0e15\u0e32\u0e21\u0e40\u0e27\u0e25\u0e32 \u0e14\u0e36\u0e01 00:00 \u0e01\u0e48\u0e2d\u0e19 \u0e40\u0e27\u0e49\u0e19\u0e41\u0e15\u0e48\u0e15\u0e34\u0e4a\u0e01 \"\u0e14\u0e36\u0e01\u0e15\u0e48\u0e2d\u0e17\u0e49\u0e32\u0e22\"",
+"  if ($(\"trailN\") && $(\"trailN\").checked && v.length > 1 && v[0] === \"\u0e14\") v = v.slice(1).concat(\"\u0e14\");",
+"  v = v.join(\"\"); if (v) me[d] = v; else delete me[d];",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
 "  const date = dk(new Date(viewY, viewM, d)), text = ($(\"noteText\") ? $(\"noteText\").value : \"\").trim();",
 "  DATA.notes = DATA.notes || {};",
