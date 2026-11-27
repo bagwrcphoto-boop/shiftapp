@@ -153,6 +153,21 @@ body.lock{position:fixed;left:0;right:0;overflow:hidden}.sheet{overscroll-behavi
 html{touch-action:manipulation}*{-webkit-tap-highlight-color:transparent}
 button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:active,.d:active,.pchip:active,.fchip:active,.qchip:active,.sd:active{transform:scale(.96)}
 #decor{will-change:transform}.tabs,.sheet{will-change:transform}
+.score{display:flex;gap:14px;align-items:center;background:var(--tint);border-radius:20px;padding:12px 14px}
+.ring{width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(0,0,0,.08) 0);display:flex;align-items:center;justify-content:center;flex:none}
+.ring b{width:66px;height:66px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:21px;color:var(--title);line-height:1}.ring b small{font-size:10px;color:var(--sub);font-weight:600;margin-top:3px}
+.verdict{font-size:15px;font-weight:700;color:var(--title)}.verdict p{margin:3px 0 0;font-size:12.5px;font-weight:500;color:var(--sub)}
+.why{margin-top:10px;font-size:13px;color:var(--text)}.why .r{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line)}.why .r:last-child{border:0}
+.why .r i{font-style:normal;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;font-weight:800}
+.why .ok i{background:var(--mBg);color:var(--mFg)}.why .wa i{background:var(--oBg);color:var(--oFg)}.why .no i{background:#ffd6d6;color:#a12626}.why b{color:var(--title)}
+.rcal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px}.rh{text-align:center;font-size:11px;color:var(--sub)}
+.rd{height:42px;border-radius:10px;background:var(--dayBg);border:var(--dayBorder);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text)}
+.rd .ics{display:flex}.rd.u{outline:2px solid #f39c3c;background:var(--oBg)}.rd.ck{outline:2px solid var(--mFg)}
+.cmp{display:flex;gap:12px;align-items:center;background:var(--tint);border-radius:16px;padding:10px;flex-wrap:wrap}.cmp img{border-radius:8px;border:2px solid var(--line)}
+.ck4 button{font-size:13px;padding:8px 2px}
+.qmeter{display:flex;gap:6px}.qmeter div{flex:1;background:var(--tint);border-radius:12px;padding:7px 4px;text-align:center;font-size:11px;color:var(--sub);font-weight:600}.qmeter i{display:block;font-style:normal;font-size:13.5px;font-weight:800;margin-top:2px}
+.qg{color:#1f8a4c}.qy{color:#c57a12}.qrd{color:#c0392b}
+.qtips{margin-top:10px;background:var(--oBg);color:var(--oFg);border-radius:16px;padding:10px 12px;font-size:13px}.qtips>b{display:flex;gap:6px;align-items:center;font-size:14px}.qtips ul{margin:6px 0 0;padding-left:18px}.qtips li{margin:3px 0}
 .toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
 .loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
 .spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
@@ -476,6 +491,26 @@ window.glyphSheet = function(k, items, legend){
   const L = draw(["ช", "บ", "ด"].filter(c => legend[c] && legend[c].length).map(c => ({ title: "ตัวอย่างตัว " + c, items: legend[c].map((it, i) => ({ ...it, label: c })) })));
   const Q = draw([{ title: "ตัวที่ต้องตรวจ", items: items.map((it, i) => ({ ...it, label: "#" + (i + 1) })) }]);
   return JSON.stringify([L, Q]);
+};
+
+// ---- ตรวจคุณภาพรูป (ไม่ใช้ AI): ขนาดช่อง, ความคม, ความเอียง, เงา ----
+window.imageQuality = function(){
+  const g = GRID.g; if (!g || !g.ok) return null;
+  const n = g.xs.length - 1, cwView = (g.xs[n] - g.xs[0]) / n, cellPx = cwView / g.sc;     // ความกว้างช่องในรูปจริง (พิกเซล)
+  const [y0] = g.bands[0], y1 = g.bands[g.bands.length-1][1], x0 = g.xs[0], x1 = g.xs[n];
+  // ย่อ/ขยายพื้นที่ตารางให้ช่องกว้าง 24px เพื่อวัดความคมแบบเดียวกันทุกรูป
+  const k = 24 / cwView, W = Math.round((x1 - x0) * k), H = Math.round((y1 - y0) * k);
+  const c = gridCrop(x0, y0, x1 - x0, y1 - y0, W, H), p = c.getContext("2d").getImageData(0, 0, W, H).data, L = new Float32Array(W*H);
+  for (let j = 0; j < L.length; j++){ const i = j*4; L[j] = 0.3*p[i] + 0.59*p[i+1] + 0.11*p[i+2]; }
+  let sum = 0, cnt = 0;
+  for (let y = 1; y < H-1; y++) for (let x = 1; x < W-1; x++){ const j = y*W + x, lap = 4*L[j] - L[j-1] - L[j+1] - L[j-W] - L[j+W]; if (Math.abs(lap) > 8){ sum += lap*lap; cnt++; } }
+  const sharp = cnt ? Math.sqrt(sum / cnt) : 0;
+  // เงา: ความสว่างของพื้นขาวในแต่ละส่วน (แบ่ง 4x3) ต่างกันแค่ไหน
+  const zones = []; for (let zy = 0; zy < 3; zy++) for (let zx = 0; zx < 4; zx++){ const v = [];
+    for (let y = Math.floor(zy*H/3); y < (zy+1)*H/3; y += 2) for (let x = Math.floor(zx*W/4); x < (zx+1)*W/4; x += 2) v.push(L[y*W + x]);
+    v.sort((a, b) => a - b); zones.push(v[Math.floor(v.length*0.9)]); }
+  const shade = Math.max(...zones) - Math.min(...zones);
+  return JSON.stringify({ cellPx: Math.round(cellPx*10)/10, sharp: Math.round(sharp), tilt: Math.abs(g.angle || 0), shade: Math.round(shade), imgW: Math.round((GRID.img.naturalWidth || GRID.img.width)) });
 };
 
 
@@ -941,10 +976,37 @@ function gotPhoto(inp){
     inp.value = "";
     let ok = false;
     try { GRID.img = img; GRID.g = gridDetect(img); ok = GRID.g.ok; } catch(e){}
-    if (ok) sendPhoto(cv); else askCorners(img, cv);   // หาเส้นตารางไม่เจอ (รูปถ่ายเอียง) → ให้แตะมุมตาราง
+    if (!ok) return askCorners(img, cv);   // หาเส้นตารางไม่เจอ (รูปถ่ายเอียง) → ให้แตะมุมตาราง
+    const qa = checkQuality(); if (qa && qa.bad.length) showQuality(qa, cv); else sendPhoto(cv);
   };
   img.onerror = () => { inp.value = ""; onParsed({error:"เปิดรูปนี้ไม่ได้ ลองแคปหน้าจอตารางแล้วเลือกรูปที่แคปแทน"}); };
   img.src = url;
+}
+/* ===== ตรวจคุณภาพรูปก่อนอ่าน ===== */
+function checkQuality(){
+  let q = null; try { q = JSON.parse(imageQuality()); } catch(e){}
+  if (!q) return (window.__quality = null);
+  const bad = [], warn = [], lv = {};
+  if (q.sharp < 40){ bad.push(`ตัวอักษรในช่องเบลอ (ความคม ${q.sharp}/100) ช กับ บ จะแยกยาก`); lv.sharp = "rd"; } else if (q.sharp < 80){ warn.push(`รูปไม่ค่อยคม (ความคม ${q.sharp}/100)`); lv.sharp = "y"; } else lv.sharp = "g";
+  if (q.cellPx < 13){ bad.push(`ตัวอักษรเล็กมาก ช่องกว้างแค่ ~${Math.round(q.cellPx)} พิกเซล (ควร 18 ขึ้นไป) · รูปกว้าง ${q.imgW} พิกเซล`); lv.size = "rd"; } else if (q.cellPx < 17){ warn.push(`ตัวอักษรค่อนข้างเล็ก ช่องกว้าง ~${Math.round(q.cellPx)} พิกเซล`); lv.size = "y"; } else lv.size = "g";
+  if (q.tilt > 4){ bad.push(`รูปเอียงประมาณ ${q.tilt}°`); lv.tilt = "rd"; } else if (q.tilt >= 1){ warn.push(`รูปเอียงเล็กน้อย ${q.tilt}° (แอปปรับให้ตรงแล้ว)`); lv.tilt = "y"; } else lv.tilt = "g";
+  if (q.shade > 45){ warn.push("แสงไม่เท่ากัน มีเงาบางส่วนของตาราง"); lv.shade = "y"; } else lv.shade = "g";
+  return (window.__quality = { q, bad, warn, lv });
+}
+function showQuality(qa, cv){
+  const L = {g:"ดี", y:"พอใช้", rd:"ไม่ผ่าน"}, M = [["sharp","ความคมชัด"],["size","ขนาดตัวอักษร"],["tilt","ความเอียง"],["shade","แสง/เงา"]];
+  $("sheet").innerHTML = `<div class="grab"></div><h2 class="big" style="font-size:22px">รูปนี้อาจอ่านพลาด</h2>
+    <p class="hello" style="margin:2px 0 10px">เช็กคุณภาพรูปก่อนส่งให้ AI อ่าน</p>
+    <div class="qmeter">${M.map(([k,t])=>`<div>${t}<i class="q${qa.lv[k]}">${L[qa.lv[k]]}</i></div>`).join("")}</div>
+    <div class="qtips"><b>${ic("ai")}แนะนำให้ทำแบบนี้ จะอ่านแม่นขึ้น</b><ul>
+      <li><b>แคปหน้าจอ</b> แทนการถ่ายรูปจากจอหรือกระดาษ</li>
+      <li>ในไลน์ เปิดรูปแล้ว<b>ซูมให้ตารางเต็มจอ</b>ก่อนแคป (หมุนแนวนอนจะคมกว่า)</li>
+      <li>เลือกบันทึกเป็น<b>ภาพต้นฉบับ</b> ไม่ใช่รูปที่ถูกบีบ</li>
+      <li>ถ้าต้องถ่ายรูป ถ่ายตรงๆ เต็มกรอบ ไม่มีเงามือ ไม่ย้อนแสง</li></ul></div>
+    <div class="why">${qa.bad.map(t=>`<div class="r no"><i>×</i><span>${t}</span></div>`).join("")}${qa.warn.map(t=>`<div class="r wa"><i>!</i><span>${t}</span></div>`).join("")}</div>
+    <div class="grid2" style="margin-top:12px"><button class="btn" onclick="closeSheet();pickPhoto()">เลือกรูปใหม่</button><button class="btn main" id="qGo">อ่านต่อเลย</button></div>`;
+  $("qGo").onclick = () => sendPhoto(cv);
+  openSheet();
 }
 function sendPhoto(cv){
   onReading();
@@ -992,20 +1054,80 @@ let PARSED = null;
 window.onParsed = function(r){
   const close = `<button class="btn" style="width:100%" onclick="closeSheet()">ปิด</button>`;
   if (r.error){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">อ่านรูปไม่สำเร็จ</p><div class="msg o">${ic("warn")}<span>${r.error}</span></div>${close}`; openSheet(); return; }
-  PARSED = r;
-  const me = r.people[DATA.me];
-  if (!me){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">ไม่เจอชื่อ "${DATA.me}"</p><div class="msg o">${ic("warn")}<span>ชื่อที่อ่านได้: ${Object.keys(r.people).join(", ")}<br>แก้ชื่อในหน้าตั้งค่าให้ตรงกับตาราง แล้วอัปรูปใหม่</span></div>${close}`; openSheet(); return; }
-  const cnt = Object.values(me).map(sortS).flat().length + ((r.vdays||{})[DATA.me]||0), tot = r.totals ? r.totals[DATA.me] : null;
-  const chk = tot==null ? "" : tot===cnt ? `<div class="msg m">${ic("check")}<span>${cnt} เวร ตรงกับช่อง "ทำงานจริง"</span></div>` : `<div class="msg o">${ic("warn")}<span>อ่านได้ ${cnt} เวร แต่ช่อง "ทำงานจริง" = ${tot} ลองเทียบกับตารางอีกที บันทึกแล้วแตะแก้รายวันได้</span></div>`;
-  const unc = r.uncertain || [], dim = new Date(r.year, r.month, 0).getDate();
-  const list = Array.from({length: dim}, (_, i) => i + 1).filter(d => me[d] || unc.includes(d)).map(d=>`<span style="display:inline-flex;gap:3px;align-items:center;margin:0 10px 8px 0;font-weight:600;${unc.includes(d)?"background:#FFE2CF;border-radius:8px;padding:0 5px;outline:2px solid #E0612F":""}">${d} ${me[d] ? sortS(me[d]).map(pill).join("") : "หยุด"}</span>`).join("");
-  const uncMsg = unc.length ? `<div class="msg o">${ic("warn")}<span>AI ไม่แน่ใจวันที่ ${unc.join(", ")} (กรอบส้ม) เทียบกับตารางจริงก่อนนะ บันทึกแล้วแตะแก้รายวันได้</span></div>` : "";
-  $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">${MONTHS[r.month-1]} ${r.year+543}</p>
-    <p class="hello" style="font-size:14px">อ่านได้ ${Object.keys(r.people).length} คนในวอร์ด · เวรของ${first(DATA.me)}</p>${chk}${uncMsg}
-    <div style="margin:10px 0">${list}</div>
-    <div class="grid2"><button class="btn" onclick="closeSheet()">ยกเลิก</button><button class="btn main" onclick="confirmParsed()">${ic("check")}บันทึก</button></div>`;
-  openSheet();
+  PARSED = r; PARSED.checked = PARSED.checked || [];
+  if (!r.people[DATA.me]){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">ไม่เจอชื่อ "${DATA.me}"</p><div class="msg o">${ic("warn")}<span>ชื่อที่อ่านได้: ${Object.keys(r.people).join(", ")}<br>แก้ชื่อในหน้าตั้งค่าให้ตรงกับตาราง แล้วอัปรูปใหม่</span></div>${close}`; openSheet(); return; }
+  renderResult();
 };
+// ความแม่นโดยประมาณ = ค่าเฉลี่ยความมั่นใจรายวัน (จากผลการตรวจแต่ละขั้น) แล้วหักถ้ายอดไม่ตรง/รูปไม่ดี
+function scoreResult(r){
+  const me = r.people[DATA.me], ck = r.checks || null, dim = new Date(r.year, r.month, 0).getDate(), unc = (r.uncertain || []).filter(d => !r.checked.includes(d));
+  const cnt = Object.values(me).map(sortS).flat().length, v = (r.vdays||{})[DATA.me] || 0, tot = r.totals ? r.totals[DATA.me] : null, qa = window.__quality;
+  const R = [];  // [ระดับ, ข้อความ]
+  let p = 0;
+  for (let d = 1; d <= dim; d++){
+    if (r.checked.includes(d)) p += 1;
+    else if (!ck) p += unc.includes(d) ? 0.6 : 0.93;
+    else if (ck.glyphChanged.includes(d)) p += 0.75;
+    else if (ck.majority.includes(d)) p += 0.9;
+    else if (unc.includes(d)) p += 0.6;
+    else p += ck.glyphChecked ? 0.997 : 0.99;
+  }
+  let pct = p / dim * 100;
+  if (tot != null){ if (tot === cnt + v) R.push(["ok", `ยอด <b>${cnt} เวร</b>${v?` + v ${v} วัน`:""} ตรงกับช่อง “ทำงานจริง” = ${tot}`]); else { R.push(["wa", `อ่านได้ <b>${cnt} เวร</b>${v?` + v ${v}`:""} แต่ช่อง “ทำงานจริง” = ${tot} มีบางวันอาจอ่านผิดหรือขาด`]); pct *= 0.9; } }
+  if (ck){
+    R.push(ck.diff.length ? ["wa", `อ่าน 2 รอบไม่ตรงกัน <b>วันที่ ${ck.diff.join(", ")}</b> → อ่านรอบ 3 ตัดสินแล้ว`] : ["ok", `อ่าน 2 รอบ ตรงกัน <b>${dim}/${dim} วัน</b>`]);
+    if (ck.glyphChecked) R.push(ck.glyphChanged.length ? ["wa", `เทียบตัว ช/บ/ด กับตัวอย่างแล้ว <b>วันที่ ${[...new Set(ck.glyphChanged)].join(", ")}</b> อาจอ่านผิด แอปแก้ให้แล้ว`] : ["ok", `เทียบตัว ช/บ/ด กับตัวอย่างในตาราง ตรงทุกตัว (${ck.glyphChecked} ตัว)`]);
+    R.push(["ok", `เจอแถวชื่อ “${esc(ck.name || DATA.me)}” · ตัดช่องครบ ${Math.min(ck.cols, dim)} วัน`]);
+  } else { R.push(["wa", "หาเส้นตารางไม่เจอ ใช้วิธีอ่านทั้งรูป (แม่นน้อยกว่า)"]); pct = Math.min(pct, 85); }
+  if (qa){ for (const t of qa.bad) { R.push(["no", t]); pct *= 0.9; } for (const t of qa.warn) { R.push(["wa", t]); pct *= 0.98; } }
+  if (r.checked.length) R.push(["ok", `เช็กเองแล้ว ${r.checked.length} วัน`]);
+  pct = Math.max(0, Math.min(99, Math.round(pct)));
+  return { pct, R, unc, dim };
+}
+function renderResult(){
+  const r = PARSED, me = r.people[DATA.me], S = scoreResult(r), col = S.pct >= 97 ? "#2fb36b" : S.pct >= 85 ? "#f39c3c" : "#e04848";
+  const verdict = S.unc.length ? (S.pct >= 85 ? `เกือบครบ เช็ก ${S.unc.length} วัน` : `ควรเช็ก ${S.unc.length} วันก่อนบันทึก`) : (S.pct >= 97 ? "น่าจะถูกทั้งหมด" : "ลองเทียบกับตารางอีกที");
+  const sub = S.unc.length ? "แตะวันที่มีกรอบส้ม เทียบกับรูปจริง" : "ทุกการตรวจผ่าน ไม่มีวันที่ต้องเช็ก";
+  const f = new Date(r.year, r.month-1, 1).getDay();
+  let cal = DOWS.map(x=>`<div class="rh">${x}</div>`).join("") + "<div></div>".repeat(f);
+  for (let d = 1; d <= S.dim; d++){ const sh = sortS(me[d]); cal += `<div class="rd ${S.unc.includes(d)?"u":""} ${r.checked.includes(d)?"ck":""}" onclick="checkDay(${d})">${d}<div class="ics">${sh.length ? sh.map(c=>cute(SH[c].k, sh.length>1?14:16)).join("") : `<span style="opacity:.6">${cute("off",13)}</span>`}</div></div>`; }
+  $("sheet").innerHTML = `<div class="grab"></div><h2 class="big" style="font-size:22px">${MONTHS[r.month-1]} ${r.year+543}</h2>
+    <p class="hello" style="margin:2px 0 10px">ตรวจผลก่อนบันทึก · เวรของ${first(DATA.me)}</p>
+    <div class="score"><div class="ring" style="--p:${S.pct};--c:${col}"><b>${S.pct}%<small>ความแม่น</small></b></div><div class="verdict">${verdict}<p>${sub}</p></div></div>
+    <div class="why">${S.R.map(([k,t])=>`<div class="r ${k}"><i>${k==="ok"?"✓":k==="no"?"×":"!"}</i><span>${t}</span></div>`).join("")}</div>
+    <p class="note" style="margin:8px 0 0">% เป็นค่าประมาณจากผลการตรวจข้างบน แตะวันไหนก็ได้เพื่อดูรูปช่องจริง</p>
+    <div class="rcal">${cal}</div>
+    <div class="grid2" style="margin-top:12px">${S.unc.length ? `<button class="btn" onclick="checkDay(${S.unc[0]})">เช็ก ${S.unc.length} วัน</button>` : `<button class="btn" onclick="closeSheet()">ยกเลิก</button>`}<button class="btn main" onclick="confirmParsed()">${ic("check")}บันทึก</button></div>`;
+  openSheet();
+}
+// เช็กทีละวัน: รูปช่องจริงจากตาราง + เลือกเวรบน/ล่าง
+let CK = null;
+function checkDay(d){
+  const r = PARSED, me = r.people[DATA.me], s = sortS(me[d]), ck = r.checks, S = scoreResult(r), list = S.unc;
+  let img = "", ctx = "";
+  try { if (ck && GRID.g && GRID.g.ok){ const g = GRID.g, [y0, y1] = g.bands[ck.label-1], xi = d-1;
+    img = gridCrop(g.xs[xi], y0, g.xs[xi+1]-g.xs[xi], y1-y0, 84, Math.round(84*(y1-y0)/(g.xs[xi+1]-g.xs[xi]))).toDataURL("image/jpeg", .92);
+    const a = Math.max(0, xi-1), b = Math.min(g.xs.length-1, xi+2), hh = (y1-y0)*1.0, top = Math.max(0, y0 - (g.bands[0][1]-g.bands[0][0])*0.0);
+    ctx = gridCrop(g.xs[a], top, g.xs[b]-g.xs[a], hh, 210, Math.round(210*hh/(g.xs[b]-g.xs[a]))).toDataURL("image/jpeg", .9); } } catch(e){}
+  CK = { d, top: s.length === 2 ? s[0] : "", bot: s.length === 2 ? s[1] : (s[0] || "") };   // เวรเดียวส่วนใหญ่อยู่บรรทัดล่าง
+  const pos = list.indexOf(d), info = seqInfo(r.year, r.month, d, s.join(""));
+  const opt = (half) => ["", "ด", "ช", "บ"].map(c=>`<button class="${CK[half]===c?"on":""}" onclick="CK.${half}='${c}';ckRender()">${c ? SH[c].n.replace("เวร","") : "ไม่มี"}</button>`).join("");
+  window.ckRender = () => { $("ckTop").innerHTML = opt("top"); $("ckBot").innerHTML = opt("bot"); const v = [CK.top, CK.bot].filter(Boolean); const si = seqInfo(r.year, r.month, d, v.join("")); $("ckNow").innerHTML = v.length ? `${v.map(c=>cute(SH[c].k,26)).join("")}<b>${si.name}</b><span class="note">${si.time}</span>` : `${cute("off",24)}<b>หยุด</b>`; };
+  $("sheet").innerHTML = `<div class="grab"></div><button class="backb" onclick="renderResult()">${ic("l")}กลับไปหน้าผล</button>
+    <h2 class="big" style="font-size:22px;margin-top:4px">เช็กวันที่ ${d} ${MSH[r.month-1]}</h2><p class="hello" style="margin:2px 0 10px">${pos>=0 ? `${pos+1} จาก ${list.length} วันที่ต้องเช็ก` : "ดูรูปช่องจริงเทียบกับที่อ่านได้"}</p>
+    ${img ? `<p class="lab">รูปจากตาราง</p><div class="cmp"><img src="${img}" style="width:64px"><img src="${ctx}" style="width:190px"></div><p class="note" style="margin:4px 2px 0">ช่องตรงกลางคือวันที่ ${d}</p>` : ""}
+    <p class="lab">AI อ่านได้ / ที่เลือกตอนนี้</p><div class="cmp" id="ckNow" style="gap:8px"></div>
+    <p class="lab">บรรทัดบน</p><div class="tog2 ck4" id="ckTop"></div><p class="lab">บรรทัดล่าง</p><div class="tog2 ck4" id="ckBot"></div>
+    <div class="grid2" style="margin-top:14px"><button class="btn" onclick="renderResult()">ข้าม</button><button class="btn main" onclick="ckSave()">ถูกแล้ว${list.filter(x=>x!==d).length?" ไปวันถัดไป ›":""}</button></div>`;
+  ckRender(); openSheet();
+}
+function ckSave(){
+  const r = PARSED, me = r.people[DATA.me], d = CK.d, v = [...new Set([CK.top, CK.bot].filter(Boolean))].join("");
+  if (v) me[d] = v; else delete me[d];
+  if (!r.checked.includes(d)) r.checked.push(d);
+  const next = scoreResult(r).unc.find(x => x !== d);
+  if (next) checkDay(next); else renderResult();
+}
 /* ===== วางรหัสเวร: "เวร 2569-11 | 1ดช 2บ 6ช ..." ===== */
 function openPaste(){
   $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">วางรหัสเวร</p>

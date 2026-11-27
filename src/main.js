@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 34";
+const APP_VERSION = "28 พ.ย. 69 · 35";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -255,17 +255,18 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
   const [r1, r2] = await Promise.all([askFull(), askFull()]);
   const val = (r, dd) => r.days[dd] || "";
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
+  const checks = { label: +j.label, cols, days, diff: diff.slice(), tie: false, majority: [], glyphChecked: 0, glyphChanged: [], name: String(j.name_seen || "") };
   const cnt = o => Object.values(o).join("").length;
   let final = Object.assign({}, r1.days), uncertain = [];
   const vdays = Math.max(r1.v || 0, r2.v || 0);     // ช่อง v นับรวมใน "ทำงานจริง" ด้วย
   if (diff.length || (total != null && r1.count + vdays !== total)) {
-    progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…");
+    progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…"); checks.tie = true;
     const r3 = await askFull(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
     final = {};
     for (let dd = 1; dd <= days; dd++) {
       const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
       if (pick === undefined) { uncertain.push(dd); if (v[2]) final[dd] = v[2]; } else if (pick) final[dd] = pick;
-      if (pick !== undefined && v.some(x => x !== pick)) uncertain.push(dd);
+      if (pick !== undefined && v.some(x => x !== pick)) { uncertain.push(dd); checks.majority.push(dd); }
     }
   }
   // ตรวจซ้ำ ช/บ/ด: ตัดตัวอักษรแต่ละตัวมาเทียบกับตัวอย่างจากตารางเดียวกัน (ฟอนต์เดียวกัน)
@@ -289,18 +290,18 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
 ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด #4=x`, key, 10000);
       const ans = {};
       for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบดxX])/g)) { const g = items[+x[1] - 1]; if (g) ans[g.d + g.half] = x[2].toLowerCase(); }
-      const known = g => g.c === "ช" || g.c === "บ" || g.c === "ด";
+      const known = g => g.c === "ช" || g.c === "บ" || g.c === "ด"; checks.glyphChecked = items.length;
       // 1) ตัวที่อ่านไว้แล้ว แต่เทียบแล้วเป็นตัวอื่น (ช ↔ บ ↔ ด)
       for (const g of glyphs) { const a = ans[g.d + g.half]; if (!known(g) || !a || a === "x" || a === g.c) continue;
-        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = a; final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); }
+        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = a; final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); checks.glyphChanged.push(g.d); }
       // 2) ครึ่งที่มีตัวอักษรแต่ยังไม่ได้อ่าน (เช่น ช ล่างหายไป) → เติมตามลำดับบน/ล่าง
       for (let dd = 1; dd <= days; dd++) { const top = ans[dd + "top"], bot = ans[dd + "bot"], gs = glyphs.filter(g => g.d === dd && !known(g)); if (!gs.length) continue;
         const want = [top, bot].filter(a => a && a !== "x"), cur = sortS(final[dd]).join("");
-        if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); } }
+        if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); checks.glyphChanged.push(dd); } }
     }
   } catch (e) { console.log("glyph check: " + e); }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, workdays, vdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -312,7 +313,7 @@ async function readRosterClaude(b64, d, key, grid, page) {
       const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {};
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, checks: tiles.checks, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);

@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 34";
+const APP_VERSION = "28 พ.ย. 69 · 35";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -263,17 +263,18 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
   const [r1, r2] = await Promise.all([askFull(), askFull()]);
   const val = (r, dd) => r.days[dd] || "";
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
+  const checks = { label: +j.label, cols, days, diff: diff.slice(), tie: false, majority: [], glyphChecked: 0, glyphChanged: [], name: String(j.name_seen || "") };
   const cnt = o => Object.values(o).join("").length;
   let final = Object.assign({}, r1.days), uncertain = [];
   const vdays = Math.max(r1.v || 0, r2.v || 0);     // ช่อง v นับรวมใน "ทำงานจริง" ด้วย
   if (diff.length || (total != null && r1.count + vdays !== total)) {
-    progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…");
+    progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…"); checks.tie = true;
     const r3 = await askFull(diff.length ? `ตรวจวันที่ ${diff.join(", ")} อย่างละเอียดเป็นพิเศษ` : `ตารางบอกว่าทำงานจริง ${total} เวร ตรวจทีละช่องอีกครั้ง`, CLAUDE_STRONG);
     final = {};
     for (let dd = 1; dd <= days; dd++) {
       const v = [val(r1, dd), val(r2, dd), val(r3, dd)], pick = v.find(x => v.filter(y => y === x).length >= 2);
       if (pick === undefined) { uncertain.push(dd); if (v[2]) final[dd] = v[2]; } else if (pick) final[dd] = pick;
-      if (pick !== undefined && v.some(x => x !== pick)) uncertain.push(dd);
+      if (pick !== undefined && v.some(x => x !== pick)) { uncertain.push(dd); checks.majority.push(dd); }
     }
   }
   // ตรวจซ้ำ ช/บ/ด: ตัดตัวอักษรแต่ละตัวมาเทียบกับตัวอย่างจากตารางเดียวกัน (ฟอนต์เดียวกัน)
@@ -297,18 +298,18 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
 ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด #4=x`, key, 10000);
       const ans = {};
       for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบดxX])/g)) { const g = items[+x[1] - 1]; if (g) ans[g.d + g.half] = x[2].toLowerCase(); }
-      const known = g => g.c === "ช" || g.c === "บ" || g.c === "ด";
+      const known = g => g.c === "ช" || g.c === "บ" || g.c === "ด"; checks.glyphChecked = items.length;
       // 1) ตัวที่อ่านไว้แล้ว แต่เทียบแล้วเป็นตัวอื่น (ช ↔ บ ↔ ด)
       for (const g of glyphs) { const a = ans[g.d + g.half]; if (!known(g) || !a || a === "x" || a === g.c) continue;
-        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = a; final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); }
+        const s = sortS(final[g.d]); const i = s.length === 2 ? (g.half === "top" ? 0 : 1) : 0; s[i] = a; final[g.d] = [...new Set(s)].join(""); uncertain.push(g.d); checks.glyphChanged.push(g.d); }
       // 2) ครึ่งที่มีตัวอักษรแต่ยังไม่ได้อ่าน (เช่น ช ล่างหายไป) → เติมตามลำดับบน/ล่าง
       for (let dd = 1; dd <= days; dd++) { const top = ans[dd + "top"], bot = ans[dd + "bot"], gs = glyphs.filter(g => g.d === dd && !known(g)); if (!gs.length) continue;
         const want = [top, bot].filter(a => a && a !== "x"), cur = sortS(final[dd]).join("");
-        if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); } }
+        if (want.length && want.join("") !== cur && want.length >= cur.length) { final[dd] = [...new Set(want)].join(""); uncertain.push(dd); checks.glyphChanged.push(dd); } }
     }
   } catch (e) { console.log("glyph check: " + e); }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, workdays, vdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -320,7 +321,7 @@ async function readRosterClaude(b64, d, key, grid, page) {
       const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {};
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, vdays, checks: tiles.checks, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);
@@ -568,6 +569,21 @@ const APP_HTML = [
 "html{touch-action:manipulation}*{-webkit-tap-highlight-color:transparent}",
 "button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:active,.d:active,.pchip:active,.fchip:active,.qchip:active,.sd:active{transform:scale(.96)}",
 "#decor{will-change:transform}.tabs,.sheet{will-change:transform}",
+".score{display:flex;gap:14px;align-items:center;background:var(--tint);border-radius:20px;padding:12px 14px}",
+".ring{width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(0,0,0,.08) 0);display:flex;align-items:center;justify-content:center;flex:none}",
+".ring b{width:66px;height:66px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:21px;color:var(--title);line-height:1}.ring b small{font-size:10px;color:var(--sub);font-weight:600;margin-top:3px}",
+".verdict{font-size:15px;font-weight:700;color:var(--title)}.verdict p{margin:3px 0 0;font-size:12.5px;font-weight:500;color:var(--sub)}",
+".why{margin-top:10px;font-size:13px;color:var(--text)}.why .r{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line)}.why .r:last-child{border:0}",
+".why .r i{font-style:normal;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;font-weight:800}",
+".why .ok i{background:var(--mBg);color:var(--mFg)}.why .wa i{background:var(--oBg);color:var(--oFg)}.why .no i{background:#ffd6d6;color:#a12626}.why b{color:var(--title)}",
+".rcal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px}.rh{text-align:center;font-size:11px;color:var(--sub)}",
+".rd{height:42px;border-radius:10px;background:var(--dayBg);border:var(--dayBorder);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text)}",
+".rd .ics{display:flex}.rd.u{outline:2px solid #f39c3c;background:var(--oBg)}.rd.ck{outline:2px solid var(--mFg)}",
+".cmp{display:flex;gap:12px;align-items:center;background:var(--tint);border-radius:16px;padding:10px;flex-wrap:wrap}.cmp img{border-radius:8px;border:2px solid var(--line)}",
+".ck4 button{font-size:13px;padding:8px 2px}",
+".qmeter{display:flex;gap:6px}.qmeter div{flex:1;background:var(--tint);border-radius:12px;padding:7px 4px;text-align:center;font-size:11px;color:var(--sub);font-weight:600}.qmeter i{display:block;font-style:normal;font-size:13.5px;font-weight:800;margin-top:2px}",
+".qg{color:#1f8a4c}.qy{color:#c57a12}.qrd{color:#c0392b}",
+".qtips{margin-top:10px;background:var(--oBg);color:var(--oFg);border-radius:16px;padding:10px 12px;font-size:13px}.qtips>b{display:flex;gap:6px;align-items:center;font-size:14px}.qtips ul{margin:6px 0 0;padding-left:18px}.qtips li{margin:3px 0}",
 ".toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
@@ -891,6 +907,26 @@ const APP_HTML = [
 "  const L = draw([\"\u0e0a\", \"\u0e1a\", \"\u0e14\"].filter(c => legend[c] && legend[c].length).map(c => ({ title: \"\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e15\u0e31\u0e27 \" + c, items: legend[c].map((it, i) => ({ ...it, label: c })) })));",
 "  const Q = draw([{ title: \"\u0e15\u0e31\u0e27\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e15\u0e23\u0e27\u0e08\", items: items.map((it, i) => ({ ...it, label: \"#\" + (i + 1) })) }]);",
 "  return JSON.stringify([L, Q]);",
+"};",
+"",
+"// ---- \u0e15\u0e23\u0e27\u0e08\u0e04\u0e38\u0e13\u0e20\u0e32\u0e1e\u0e23\u0e39\u0e1b (\u0e44\u0e21\u0e48\u0e43\u0e0a\u0e49 AI): \u0e02\u0e19\u0e32\u0e14\u0e0a\u0e48\u0e2d\u0e07, \u0e04\u0e27\u0e32\u0e21\u0e04\u0e21, \u0e04\u0e27\u0e32\u0e21\u0e40\u0e2d\u0e35\u0e22\u0e07, \u0e40\u0e07\u0e32 ----",
+"window.imageQuality = function(){",
+"  const g = GRID.g; if (!g || !g.ok) return null;",
+"  const n = g.xs.length - 1, cwView = (g.xs[n] - g.xs[0]) / n, cellPx = cwView / g.sc;     // \u0e04\u0e27\u0e32\u0e21\u0e01\u0e27\u0e49\u0e32\u0e07\u0e0a\u0e48\u0e2d\u0e07\u0e43\u0e19\u0e23\u0e39\u0e1b\u0e08\u0e23\u0e34\u0e07 (\u0e1e\u0e34\u0e01\u0e40\u0e0b\u0e25)",
+"  const [y0] = g.bands[0], y1 = g.bands[g.bands.length-1][1], x0 = g.xs[0], x1 = g.xs[n];",
+"  // \u0e22\u0e48\u0e2d/\u0e02\u0e22\u0e32\u0e22\u0e1e\u0e37\u0e49\u0e19\u0e17\u0e35\u0e48\u0e15\u0e32\u0e23\u0e32\u0e07\u0e43\u0e2b\u0e49\u0e0a\u0e48\u0e2d\u0e07\u0e01\u0e27\u0e49\u0e32\u0e07 24px \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e27\u0e31\u0e14\u0e04\u0e27\u0e32\u0e21\u0e04\u0e21\u0e41\u0e1a\u0e1a\u0e40\u0e14\u0e35\u0e22\u0e27\u0e01\u0e31\u0e19\u0e17\u0e38\u0e01\u0e23\u0e39\u0e1b",
+"  const k = 24 / cwView, W = Math.round((x1 - x0) * k), H = Math.round((y1 - y0) * k);",
+"  const c = gridCrop(x0, y0, x1 - x0, y1 - y0, W, H), p = c.getContext(\"2d\").getImageData(0, 0, W, H).data, L = new Float32Array(W*H);",
+"  for (let j = 0; j < L.length; j++){ const i = j*4; L[j] = 0.3*p[i] + 0.59*p[i+1] + 0.11*p[i+2]; }",
+"  let sum = 0, cnt = 0;",
+"  for (let y = 1; y < H-1; y++) for (let x = 1; x < W-1; x++){ const j = y*W + x, lap = 4*L[j] - L[j-1] - L[j+1] - L[j-W] - L[j+W]; if (Math.abs(lap) > 8){ sum += lap*lap; cnt++; } }",
+"  const sharp = cnt ? Math.sqrt(sum / cnt) : 0;",
+"  // \u0e40\u0e07\u0e32: \u0e04\u0e27\u0e32\u0e21\u0e2a\u0e27\u0e48\u0e32\u0e07\u0e02\u0e2d\u0e07\u0e1e\u0e37\u0e49\u0e19\u0e02\u0e32\u0e27\u0e43\u0e19\u0e41\u0e15\u0e48\u0e25\u0e30\u0e2a\u0e48\u0e27\u0e19 (\u0e41\u0e1a\u0e48\u0e07 4x3) \u0e15\u0e48\u0e32\u0e07\u0e01\u0e31\u0e19\u0e41\u0e04\u0e48\u0e44\u0e2b\u0e19",
+"  const zones = []; for (let zy = 0; zy < 3; zy++) for (let zx = 0; zx < 4; zx++){ const v = [];",
+"    for (let y = Math.floor(zy*H/3); y < (zy+1)*H/3; y += 2) for (let x = Math.floor(zx*W/4); x < (zx+1)*W/4; x += 2) v.push(L[y*W + x]);",
+"    v.sort((a, b) => a - b); zones.push(v[Math.floor(v.length*0.9)]); }",
+"  const shade = Math.max(...zones) - Math.min(...zones);",
+"  return JSON.stringify({ cellPx: Math.round(cellPx*10)/10, sharp: Math.round(sharp), tilt: Math.abs(g.angle || 0), shade: Math.round(shade), imgW: Math.round((GRID.img.naturalWidth || GRID.img.width)) });",
 "};",
 "",
 "",
@@ -1356,10 +1392,37 @@ const APP_HTML = [
 "    inp.value = \"\";",
 "    let ok = false;",
 "    try { GRID.img = img; GRID.g = gridDetect(img); ok = GRID.g.ok; } catch(e){}",
-"    if (ok) sendPhoto(cv); else askCorners(img, cv);   // \u0e2b\u0e32\u0e40\u0e2a\u0e49\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d (\u0e23\u0e39\u0e1b\u0e16\u0e48\u0e32\u0e22\u0e40\u0e2d\u0e35\u0e22\u0e07) \u2192 \u0e43\u0e2b\u0e49\u0e41\u0e15\u0e30\u0e21\u0e38\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07",
+"    if (!ok) return askCorners(img, cv);   // \u0e2b\u0e32\u0e40\u0e2a\u0e49\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d (\u0e23\u0e39\u0e1b\u0e16\u0e48\u0e32\u0e22\u0e40\u0e2d\u0e35\u0e22\u0e07) \u2192 \u0e43\u0e2b\u0e49\u0e41\u0e15\u0e30\u0e21\u0e38\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07",
+"    const qa = checkQuality(); if (qa && qa.bad.length) showQuality(qa, cv); else sendPhoto(cv);",
 "  };",
 "  img.onerror = () => { inp.value = \"\"; onParsed({error:\"\u0e40\u0e1b\u0e34\u0e14\u0e23\u0e39\u0e1b\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 \u0e25\u0e2d\u0e07\u0e41\u0e04\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e15\u0e32\u0e23\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e41\u0e04\u0e1b\u0e41\u0e17\u0e19\"}); };",
 "  img.src = url;",
+"}",
+"/* ===== \u0e15\u0e23\u0e27\u0e08\u0e04\u0e38\u0e13\u0e20\u0e32\u0e1e\u0e23\u0e39\u0e1b\u0e01\u0e48\u0e2d\u0e19\u0e2d\u0e48\u0e32\u0e19 ===== */",
+"function checkQuality(){",
+"  let q = null; try { q = JSON.parse(imageQuality()); } catch(e){}",
+"  if (!q) return (window.__quality = null);",
+"  const bad = [], warn = [], lv = {};",
+"  if (q.sharp < 40){ bad.push(`\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23\u0e43\u0e19\u0e0a\u0e48\u0e2d\u0e07\u0e40\u0e1a\u0e25\u0e2d (\u0e04\u0e27\u0e32\u0e21\u0e04\u0e21 ${q.sharp}/100) \u0e0a \u0e01\u0e31\u0e1a \u0e1a \u0e08\u0e30\u0e41\u0e22\u0e01\u0e22\u0e32\u0e01`); lv.sharp = \"rd\"; } else if (q.sharp < 80){ warn.push(`\u0e23\u0e39\u0e1b\u0e44\u0e21\u0e48\u0e04\u0e48\u0e2d\u0e22\u0e04\u0e21 (\u0e04\u0e27\u0e32\u0e21\u0e04\u0e21 ${q.sharp}/100)`); lv.sharp = \"y\"; } else lv.sharp = \"g\";",
+"  if (q.cellPx < 13){ bad.push(`\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23\u0e40\u0e25\u0e47\u0e01\u0e21\u0e32\u0e01 \u0e0a\u0e48\u0e2d\u0e07\u0e01\u0e27\u0e49\u0e32\u0e07\u0e41\u0e04\u0e48 ~${Math.round(q.cellPx)} \u0e1e\u0e34\u0e01\u0e40\u0e0b\u0e25 (\u0e04\u0e27\u0e23 18 \u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b) \u00b7 \u0e23\u0e39\u0e1b\u0e01\u0e27\u0e49\u0e32\u0e07 ${q.imgW} \u0e1e\u0e34\u0e01\u0e40\u0e0b\u0e25`); lv.size = \"rd\"; } else if (q.cellPx < 17){ warn.push(`\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23\u0e04\u0e48\u0e2d\u0e19\u0e02\u0e49\u0e32\u0e07\u0e40\u0e25\u0e47\u0e01 \u0e0a\u0e48\u0e2d\u0e07\u0e01\u0e27\u0e49\u0e32\u0e07 ~${Math.round(q.cellPx)} \u0e1e\u0e34\u0e01\u0e40\u0e0b\u0e25`); lv.size = \"y\"; } else lv.size = \"g\";",
+"  if (q.tilt > 4){ bad.push(`\u0e23\u0e39\u0e1b\u0e40\u0e2d\u0e35\u0e22\u0e07\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13 ${q.tilt}\u00b0`); lv.tilt = \"rd\"; } else if (q.tilt >= 1){ warn.push(`\u0e23\u0e39\u0e1b\u0e40\u0e2d\u0e35\u0e22\u0e07\u0e40\u0e25\u0e47\u0e01\u0e19\u0e49\u0e2d\u0e22 ${q.tilt}\u00b0 (\u0e41\u0e2d\u0e1b\u0e1b\u0e23\u0e31\u0e1a\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e41\u0e25\u0e49\u0e27)`); lv.tilt = \"y\"; } else lv.tilt = \"g\";",
+"  if (q.shade > 45){ warn.push(\"\u0e41\u0e2a\u0e07\u0e44\u0e21\u0e48\u0e40\u0e17\u0e48\u0e32\u0e01\u0e31\u0e19 \u0e21\u0e35\u0e40\u0e07\u0e32\u0e1a\u0e32\u0e07\u0e2a\u0e48\u0e27\u0e19\u0e02\u0e2d\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\"); lv.shade = \"y\"; } else lv.shade = \"g\";",
+"  return (window.__quality = { q, bad, warn, lv });",
+"}",
+"function showQuality(qa, cv){",
+"  const L = {g:\"\u0e14\u0e35\", y:\"\u0e1e\u0e2d\u0e43\u0e0a\u0e49\", rd:\"\u0e44\u0e21\u0e48\u0e1c\u0e48\u0e32\u0e19\"}, M = [[\"sharp\",\"\u0e04\u0e27\u0e32\u0e21\u0e04\u0e21\u0e0a\u0e31\u0e14\"],[\"size\",\"\u0e02\u0e19\u0e32\u0e14\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23\"],[\"tilt\",\"\u0e04\u0e27\u0e32\u0e21\u0e40\u0e2d\u0e35\u0e22\u0e07\"],[\"shade\",\"\u0e41\u0e2a\u0e07/\u0e40\u0e07\u0e32\"]];",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><h2 class=\"big\" style=\"font-size:22px\">\u0e23\u0e39\u0e1b\u0e19\u0e35\u0e49\u0e2d\u0e32\u0e08\u0e2d\u0e48\u0e32\u0e19\u0e1e\u0e25\u0e32\u0e14</h2>",
+"    <p class=\"hello\" style=\"margin:2px 0 10px\">\u0e40\u0e0a\u0e47\u0e01\u0e04\u0e38\u0e13\u0e20\u0e32\u0e1e\u0e23\u0e39\u0e1b\u0e01\u0e48\u0e2d\u0e19\u0e2a\u0e48\u0e07\u0e43\u0e2b\u0e49 AI \u0e2d\u0e48\u0e32\u0e19</p>",
+"    <div class=\"qmeter\">${M.map(([k,t])=>`<div>${t}<i class=\"q${qa.lv[k]}\">${L[qa.lv[k]]}</i></div>`).join(\"\")}</div>",
+"    <div class=\"qtips\"><b>${ic(\"ai\")}\u0e41\u0e19\u0e30\u0e19\u0e33\u0e43\u0e2b\u0e49\u0e17\u0e33\u0e41\u0e1a\u0e1a\u0e19\u0e35\u0e49 \u0e08\u0e30\u0e2d\u0e48\u0e32\u0e19\u0e41\u0e21\u0e48\u0e19\u0e02\u0e36\u0e49\u0e19</b><ul>",
+"      <li><b>\u0e41\u0e04\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d</b> \u0e41\u0e17\u0e19\u0e01\u0e32\u0e23\u0e16\u0e48\u0e32\u0e22\u0e23\u0e39\u0e1b\u0e08\u0e32\u0e01\u0e08\u0e2d\u0e2b\u0e23\u0e37\u0e2d\u0e01\u0e23\u0e30\u0e14\u0e32\u0e29</li>",
+"      <li>\u0e43\u0e19\u0e44\u0e25\u0e19\u0e4c \u0e40\u0e1b\u0e34\u0e14\u0e23\u0e39\u0e1b\u0e41\u0e25\u0e49\u0e27<b>\u0e0b\u0e39\u0e21\u0e43\u0e2b\u0e49\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e15\u0e47\u0e21\u0e08\u0e2d</b>\u0e01\u0e48\u0e2d\u0e19\u0e41\u0e04\u0e1b (\u0e2b\u0e21\u0e38\u0e19\u0e41\u0e19\u0e27\u0e19\u0e2d\u0e19\u0e08\u0e30\u0e04\u0e21\u0e01\u0e27\u0e48\u0e32)</li>",
+"      <li>\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e40\u0e1b\u0e47\u0e19<b>\u0e20\u0e32\u0e1e\u0e15\u0e49\u0e19\u0e09\u0e1a\u0e31\u0e1a</b> \u0e44\u0e21\u0e48\u0e43\u0e0a\u0e48\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e16\u0e39\u0e01\u0e1a\u0e35\u0e1a</li>",
+"      <li>\u0e16\u0e49\u0e32\u0e15\u0e49\u0e2d\u0e07\u0e16\u0e48\u0e32\u0e22\u0e23\u0e39\u0e1b \u0e16\u0e48\u0e32\u0e22\u0e15\u0e23\u0e07\u0e46 \u0e40\u0e15\u0e47\u0e21\u0e01\u0e23\u0e2d\u0e1a \u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e07\u0e32\u0e21\u0e37\u0e2d \u0e44\u0e21\u0e48\u0e22\u0e49\u0e2d\u0e19\u0e41\u0e2a\u0e07</li></ul></div>",
+"    <div class=\"why\">${qa.bad.map(t=>`<div class=\"r no\"><i>\u00d7</i><span>${t}</span></div>`).join(\"\")}${qa.warn.map(t=>`<div class=\"r wa\"><i>!</i><span>${t}</span></div>`).join(\"\")}</div>",
+"    <div class=\"grid2\" style=\"margin-top:12px\"><button class=\"btn\" onclick=\"closeSheet();pickPhoto()\">\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e39\u0e1b\u0e43\u0e2b\u0e21\u0e48</button><button class=\"btn main\" id=\"qGo\">\u0e2d\u0e48\u0e32\u0e19\u0e15\u0e48\u0e2d\u0e40\u0e25\u0e22</button></div>`;",
+"  $(\"qGo\").onclick = () => sendPhoto(cv);",
+"  openSheet();",
 "}",
 "function sendPhoto(cv){",
 "  onReading();",
@@ -1407,20 +1470,80 @@ const APP_HTML = [
 "window.onParsed = function(r){",
 "  const close = `<button class=\"btn\" style=\"width:100%\" onclick=\"closeSheet()\">\u0e1b\u0e34\u0e14</button>`;",
 "  if (r.error){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08</p><div class=\"msg o\">${ic(\"warn\")}<span>${r.error}</span></div>${close}`; openSheet(); return; }",
-"  PARSED = r;",
-"  const me = r.people[DATA.me];",
-"  if (!me){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\u0e0a\u0e37\u0e48\u0e2d \"${DATA.me}\"</p><div class=\"msg o\">${ic(\"warn\")}<span>\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49: ${Object.keys(r.people).join(\", \")}<br>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e41\u0e25\u0e49\u0e27\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e43\u0e2b\u0e21\u0e48</span></div>${close}`; openSheet(); return; }",
-"  const cnt = Object.values(me).map(sortS).flat().length + ((r.vdays||{})[DATA.me]||0), tot = r.totals ? r.totals[DATA.me] : null;",
-"  const chk = tot==null ? \"\" : tot===cnt ? `<div class=\"msg m\">${ic(\"check\")}<span>${cnt} \u0e40\u0e27\u0e23 \u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\"</span></div>` : `<div class=\"msg o\">${ic(\"warn\")}<span>\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${cnt} \u0e40\u0e27\u0e23 \u0e41\u0e15\u0e48\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" = ${tot} \u0e25\u0e2d\u0e07\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2d\u0e35\u0e01\u0e17\u0e35 \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\u0e41\u0e15\u0e30\u0e41\u0e01\u0e49\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19\u0e44\u0e14\u0e49</span></div>`;",
-"  const unc = r.uncertain || [], dim = new Date(r.year, r.month, 0).getDate();",
-"  const list = Array.from({length: dim}, (_, i) => i + 1).filter(d => me[d] || unc.includes(d)).map(d=>`<span style=\"display:inline-flex;gap:3px;align-items:center;margin:0 10px 8px 0;font-weight:600;${unc.includes(d)?\"background:#FFE2CF;border-radius:8px;padding:0 5px;outline:2px solid #E0612F\":\"\"}\">${d} ${me[d] ? sortS(me[d]).map(pill).join(\"\") : \"\u0e2b\u0e22\u0e38\u0e14\"}</span>`).join(\"\");",
-"  const uncMsg = unc.length ? `<div class=\"msg o\">${ic(\"warn\")}<span>AI \u0e44\u0e21\u0e48\u0e41\u0e19\u0e48\u0e43\u0e08\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${unc.join(\", \")} (\u0e01\u0e23\u0e2d\u0e1a\u0e2a\u0e49\u0e21) \u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07\u0e08\u0e23\u0e34\u0e07\u0e01\u0e48\u0e2d\u0e19\u0e19\u0e30 \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\u0e41\u0e15\u0e30\u0e41\u0e01\u0e49\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19\u0e44\u0e14\u0e49</span></div>` : \"\";",
-"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">${MONTHS[r.month-1]} ${r.year+543}</p>",
-"    <p class=\"hello\" style=\"font-size:14px\">\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 ${Object.keys(r.people).length} \u0e04\u0e19\u0e43\u0e19\u0e27\u0e2d\u0e23\u0e4c\u0e14 \u00b7 \u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}</p>${chk}${uncMsg}",
-"    <div style=\"margin:10px 0\">${list}</div>",
-"    <div class=\"grid2\"><button class=\"btn\" onclick=\"closeSheet()\">\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01</button><button class=\"btn main\" onclick=\"confirmParsed()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button></div>`;",
-"  openSheet();",
+"  PARSED = r; PARSED.checked = PARSED.checked || [];",
+"  if (!r.people[DATA.me]){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\u0e0a\u0e37\u0e48\u0e2d \"${DATA.me}\"</p><div class=\"msg o\">${ic(\"warn\")}<span>\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49: ${Object.keys(r.people).join(\", \")}<br>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e41\u0e25\u0e49\u0e27\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e43\u0e2b\u0e21\u0e48</span></div>${close}`; openSheet(); return; }",
+"  renderResult();",
 "};",
+"// \u0e04\u0e27\u0e32\u0e21\u0e41\u0e21\u0e48\u0e19\u0e42\u0e14\u0e22\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13 = \u0e04\u0e48\u0e32\u0e40\u0e09\u0e25\u0e35\u0e48\u0e22\u0e04\u0e27\u0e32\u0e21\u0e21\u0e31\u0e48\u0e19\u0e43\u0e08\u0e23\u0e32\u0e22\u0e27\u0e31\u0e19 (\u0e08\u0e32\u0e01\u0e1c\u0e25\u0e01\u0e32\u0e23\u0e15\u0e23\u0e27\u0e08\u0e41\u0e15\u0e48\u0e25\u0e30\u0e02\u0e31\u0e49\u0e19) \u0e41\u0e25\u0e49\u0e27\u0e2b\u0e31\u0e01\u0e16\u0e49\u0e32\u0e22\u0e2d\u0e14\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07/\u0e23\u0e39\u0e1b\u0e44\u0e21\u0e48\u0e14\u0e35",
+"function scoreResult(r){",
+"  const me = r.people[DATA.me], ck = r.checks || null, dim = new Date(r.year, r.month, 0).getDate(), unc = (r.uncertain || []).filter(d => !r.checked.includes(d));",
+"  const cnt = Object.values(me).map(sortS).flat().length, v = (r.vdays||{})[DATA.me] || 0, tot = r.totals ? r.totals[DATA.me] : null, qa = window.__quality;",
+"  const R = [];  // [\u0e23\u0e30\u0e14\u0e31\u0e1a, \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21]",
+"  let p = 0;",
+"  for (let d = 1; d <= dim; d++){",
+"    if (r.checked.includes(d)) p += 1;",
+"    else if (!ck) p += unc.includes(d) ? 0.6 : 0.93;",
+"    else if (ck.glyphChanged.includes(d)) p += 0.75;",
+"    else if (ck.majority.includes(d)) p += 0.9;",
+"    else if (unc.includes(d)) p += 0.6;",
+"    else p += ck.glyphChecked ? 0.997 : 0.99;",
+"  }",
+"  let pct = p / dim * 100;",
+"  if (tot != null){ if (tot === cnt + v) R.push([\"ok\", `\u0e22\u0e2d\u0e14 <b>${cnt} \u0e40\u0e27\u0e23</b>${v?` + v ${v} \u0e27\u0e31\u0e19`:\"\"} \u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e0a\u0e48\u0e2d\u0e07 \u201c\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\u201d = ${tot}`]); else { R.push([\"wa\", `\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 <b>${cnt} \u0e40\u0e27\u0e23</b>${v?` + v ${v}`:\"\"} \u0e41\u0e15\u0e48\u0e0a\u0e48\u0e2d\u0e07 \u201c\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\u201d = ${tot} \u0e21\u0e35\u0e1a\u0e32\u0e07\u0e27\u0e31\u0e19\u0e2d\u0e32\u0e08\u0e2d\u0e48\u0e32\u0e19\u0e1c\u0e34\u0e14\u0e2b\u0e23\u0e37\u0e2d\u0e02\u0e32\u0e14`]); pct *= 0.9; } }",
+"  if (ck){",
+"    R.push(ck.diff.length ? [\"wa\", `\u0e2d\u0e48\u0e32\u0e19 2 \u0e23\u0e2d\u0e1a\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19 <b>\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${ck.diff.join(\", \")}</b> \u2192 \u0e2d\u0e48\u0e32\u0e19\u0e23\u0e2d\u0e1a 3 \u0e15\u0e31\u0e14\u0e2a\u0e34\u0e19\u0e41\u0e25\u0e49\u0e27`] : [\"ok\", `\u0e2d\u0e48\u0e32\u0e19 2 \u0e23\u0e2d\u0e1a \u0e15\u0e23\u0e07\u0e01\u0e31\u0e19 <b>${dim}/${dim} \u0e27\u0e31\u0e19</b>`]);",
+"    if (ck.glyphChecked) R.push(ck.glyphChanged.length ? [\"wa\", `\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e15\u0e31\u0e27 \u0e0a/\u0e1a/\u0e14 \u0e01\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27 <b>\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${[...new Set(ck.glyphChanged)].join(\", \")}</b> \u0e2d\u0e32\u0e08\u0e2d\u0e48\u0e32\u0e19\u0e1c\u0e34\u0e14 \u0e41\u0e2d\u0e1b\u0e41\u0e01\u0e49\u0e43\u0e2b\u0e49\u0e41\u0e25\u0e49\u0e27`] : [\"ok\", `\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e15\u0e31\u0e27 \u0e0a/\u0e1a/\u0e14 \u0e01\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e15\u0e23\u0e07\u0e17\u0e38\u0e01\u0e15\u0e31\u0e27 (${ck.glyphChecked} \u0e15\u0e31\u0e27)`]);",
+"    R.push([\"ok\", `\u0e40\u0e08\u0e2d\u0e41\u0e16\u0e27\u0e0a\u0e37\u0e48\u0e2d \u201c${esc(ck.name || DATA.me)}\u201d \u00b7 \u0e15\u0e31\u0e14\u0e0a\u0e48\u0e2d\u0e07\u0e04\u0e23\u0e1a ${Math.min(ck.cols, dim)} \u0e27\u0e31\u0e19`]);",
+"  } else { R.push([\"wa\", \"\u0e2b\u0e32\u0e40\u0e2a\u0e49\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d \u0e43\u0e0a\u0e49\u0e27\u0e34\u0e18\u0e35\u0e2d\u0e48\u0e32\u0e19\u0e17\u0e31\u0e49\u0e07\u0e23\u0e39\u0e1b (\u0e41\u0e21\u0e48\u0e19\u0e19\u0e49\u0e2d\u0e22\u0e01\u0e27\u0e48\u0e32)\"]); pct = Math.min(pct, 85); }",
+"  if (qa){ for (const t of qa.bad) { R.push([\"no\", t]); pct *= 0.9; } for (const t of qa.warn) { R.push([\"wa\", t]); pct *= 0.98; } }",
+"  if (r.checked.length) R.push([\"ok\", `\u0e40\u0e0a\u0e47\u0e01\u0e40\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27 ${r.checked.length} \u0e27\u0e31\u0e19`]);",
+"  pct = Math.max(0, Math.min(99, Math.round(pct)));",
+"  return { pct, R, unc, dim };",
+"}",
+"function renderResult(){",
+"  const r = PARSED, me = r.people[DATA.me], S = scoreResult(r), col = S.pct >= 97 ? \"#2fb36b\" : S.pct >= 85 ? \"#f39c3c\" : \"#e04848\";",
+"  const verdict = S.unc.length ? (S.pct >= 85 ? `\u0e40\u0e01\u0e37\u0e2d\u0e1a\u0e04\u0e23\u0e1a \u0e40\u0e0a\u0e47\u0e01 ${S.unc.length} \u0e27\u0e31\u0e19` : `\u0e04\u0e27\u0e23\u0e40\u0e0a\u0e47\u0e01 ${S.unc.length} \u0e27\u0e31\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01`) : (S.pct >= 97 ? \"\u0e19\u0e48\u0e32\u0e08\u0e30\u0e16\u0e39\u0e01\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14\" : \"\u0e25\u0e2d\u0e07\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2d\u0e35\u0e01\u0e17\u0e35\");",
+"  const sub = S.unc.length ? \"\u0e41\u0e15\u0e30\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e21\u0e35\u0e01\u0e23\u0e2d\u0e1a\u0e2a\u0e49\u0e21 \u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e23\u0e39\u0e1b\u0e08\u0e23\u0e34\u0e07\" : \"\u0e17\u0e38\u0e01\u0e01\u0e32\u0e23\u0e15\u0e23\u0e27\u0e08\u0e1c\u0e48\u0e32\u0e19 \u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e0a\u0e47\u0e01\";",
+"  const f = new Date(r.year, r.month-1, 1).getDay();",
+"  let cal = DOWS.map(x=>`<div class=\"rh\">${x}</div>`).join(\"\") + \"<div></div>\".repeat(f);",
+"  for (let d = 1; d <= S.dim; d++){ const sh = sortS(me[d]); cal += `<div class=\"rd ${S.unc.includes(d)?\"u\":\"\"} ${r.checked.includes(d)?\"ck\":\"\"}\" onclick=\"checkDay(${d})\">${d}<div class=\"ics\">${sh.length ? sh.map(c=>cute(SH[c].k, sh.length>1?14:16)).join(\"\") : `<span style=\"opacity:.6\">${cute(\"off\",13)}</span>`}</div></div>`; }",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><h2 class=\"big\" style=\"font-size:22px\">${MONTHS[r.month-1]} ${r.year+543}</h2>",
+"    <p class=\"hello\" style=\"margin:2px 0 10px\">\u0e15\u0e23\u0e27\u0e08\u0e1c\u0e25\u0e01\u0e48\u0e2d\u0e19\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 \u00b7 \u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}</p>",
+"    <div class=\"score\"><div class=\"ring\" style=\"--p:${S.pct};--c:${col}\"><b>${S.pct}%<small>\u0e04\u0e27\u0e32\u0e21\u0e41\u0e21\u0e48\u0e19</small></b></div><div class=\"verdict\">${verdict}<p>${sub}</p></div></div>",
+"    <div class=\"why\">${S.R.map(([k,t])=>`<div class=\"r ${k}\"><i>${k===\"ok\"?\"\u2713\":k===\"no\"?\"\u00d7\":\"!\"}</i><span>${t}</span></div>`).join(\"\")}</div>",
+"    <p class=\"note\" style=\"margin:8px 0 0\">% \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e48\u0e32\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13\u0e08\u0e32\u0e01\u0e1c\u0e25\u0e01\u0e32\u0e23\u0e15\u0e23\u0e27\u0e08\u0e02\u0e49\u0e32\u0e07\u0e1a\u0e19 \u0e41\u0e15\u0e30\u0e27\u0e31\u0e19\u0e44\u0e2b\u0e19\u0e01\u0e47\u0e44\u0e14\u0e49\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e14\u0e39\u0e23\u0e39\u0e1b\u0e0a\u0e48\u0e2d\u0e07\u0e08\u0e23\u0e34\u0e07</p>",
+"    <div class=\"rcal\">${cal}</div>",
+"    <div class=\"grid2\" style=\"margin-top:12px\">${S.unc.length ? `<button class=\"btn\" onclick=\"checkDay(${S.unc[0]})\">\u0e40\u0e0a\u0e47\u0e01 ${S.unc.length} \u0e27\u0e31\u0e19</button>` : `<button class=\"btn\" onclick=\"closeSheet()\">\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01</button>`}<button class=\"btn main\" onclick=\"confirmParsed()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button></div>`;",
+"  openSheet();",
+"}",
+"// \u0e40\u0e0a\u0e47\u0e01\u0e17\u0e35\u0e25\u0e30\u0e27\u0e31\u0e19: \u0e23\u0e39\u0e1b\u0e0a\u0e48\u0e2d\u0e07\u0e08\u0e23\u0e34\u0e07\u0e08\u0e32\u0e01\u0e15\u0e32\u0e23\u0e32\u0e07 + \u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e27\u0e23\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07",
+"let CK = null;",
+"function checkDay(d){",
+"  const r = PARSED, me = r.people[DATA.me], s = sortS(me[d]), ck = r.checks, S = scoreResult(r), list = S.unc;",
+"  let img = \"\", ctx = \"\";",
+"  try { if (ck && GRID.g && GRID.g.ok){ const g = GRID.g, [y0, y1] = g.bands[ck.label-1], xi = d-1;",
+"    img = gridCrop(g.xs[xi], y0, g.xs[xi+1]-g.xs[xi], y1-y0, 84, Math.round(84*(y1-y0)/(g.xs[xi+1]-g.xs[xi]))).toDataURL(\"image/jpeg\", .92);",
+"    const a = Math.max(0, xi-1), b = Math.min(g.xs.length-1, xi+2), hh = (y1-y0)*1.0, top = Math.max(0, y0 - (g.bands[0][1]-g.bands[0][0])*0.0);",
+"    ctx = gridCrop(g.xs[a], top, g.xs[b]-g.xs[a], hh, 210, Math.round(210*hh/(g.xs[b]-g.xs[a]))).toDataURL(\"image/jpeg\", .9); } } catch(e){}",
+"  CK = { d, top: s.length === 2 ? s[0] : \"\", bot: s.length === 2 ? s[1] : (s[0] || \"\") };   // \u0e40\u0e27\u0e23\u0e40\u0e14\u0e35\u0e22\u0e27\u0e2a\u0e48\u0e27\u0e19\u0e43\u0e2b\u0e0d\u0e48\u0e2d\u0e22\u0e39\u0e48\u0e1a\u0e23\u0e23\u0e17\u0e31\u0e14\u0e25\u0e48\u0e32\u0e07",
+"  const pos = list.indexOf(d), info = seqInfo(r.year, r.month, d, s.join(\"\"));",
+"  const opt = (half) => [\"\", \"\u0e14\", \"\u0e0a\", \"\u0e1a\"].map(c=>`<button class=\"${CK[half]===c?\"on\":\"\"}\" onclick=\"CK.${half}='${c}';ckRender()\">${c ? SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\") : \"\u0e44\u0e21\u0e48\u0e21\u0e35\"}</button>`).join(\"\");",
+"  window.ckRender = () => { $(\"ckTop\").innerHTML = opt(\"top\"); $(\"ckBot\").innerHTML = opt(\"bot\"); const v = [CK.top, CK.bot].filter(Boolean); const si = seqInfo(r.year, r.month, d, v.join(\"\")); $(\"ckNow\").innerHTML = v.length ? `${v.map(c=>cute(SH[c].k,26)).join(\"\")}<b>${si.name}</b><span class=\"note\">${si.time}</span>` : `${cute(\"off\",24)}<b>\u0e2b\u0e22\u0e38\u0e14</b>`; };",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><button class=\"backb\" onclick=\"renderResult()\">${ic(\"l\")}\u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e1c\u0e25</button>",
+"    <h2 class=\"big\" style=\"font-size:22px;margin-top:4px\">\u0e40\u0e0a\u0e47\u0e01\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${d} ${MSH[r.month-1]}</h2><p class=\"hello\" style=\"margin:2px 0 10px\">${pos>=0 ? `${pos+1} \u0e08\u0e32\u0e01 ${list.length} \u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e0a\u0e47\u0e01` : \"\u0e14\u0e39\u0e23\u0e39\u0e1b\u0e0a\u0e48\u0e2d\u0e07\u0e08\u0e23\u0e34\u0e07\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e01\u0e31\u0e1a\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49\"}</p>",
+"    ${img ? `<p class=\"lab\">\u0e23\u0e39\u0e1b\u0e08\u0e32\u0e01\u0e15\u0e32\u0e23\u0e32\u0e07</p><div class=\"cmp\"><img src=\"${img}\" style=\"width:64px\"><img src=\"${ctx}\" style=\"width:190px\"></div><p class=\"note\" style=\"margin:4px 2px 0\">\u0e0a\u0e48\u0e2d\u0e07\u0e15\u0e23\u0e07\u0e01\u0e25\u0e32\u0e07\u0e04\u0e37\u0e2d\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${d}</p>` : \"\"}",
+"    <p class=\"lab\">AI \u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49 / \u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49</p><div class=\"cmp\" id=\"ckNow\" style=\"gap:8px\"></div>",
+"    <p class=\"lab\">\u0e1a\u0e23\u0e23\u0e17\u0e31\u0e14\u0e1a\u0e19</p><div class=\"tog2 ck4\" id=\"ckTop\"></div><p class=\"lab\">\u0e1a\u0e23\u0e23\u0e17\u0e31\u0e14\u0e25\u0e48\u0e32\u0e07</p><div class=\"tog2 ck4\" id=\"ckBot\"></div>",
+"    <div class=\"grid2\" style=\"margin-top:14px\"><button class=\"btn\" onclick=\"renderResult()\">\u0e02\u0e49\u0e32\u0e21</button><button class=\"btn main\" onclick=\"ckSave()\">\u0e16\u0e39\u0e01\u0e41\u0e25\u0e49\u0e27${list.filter(x=>x!==d).length?\" \u0e44\u0e1b\u0e27\u0e31\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b \u203a\":\"\"}</button></div>`;",
+"  ckRender(); openSheet();",
+"}",
+"function ckSave(){",
+"  const r = PARSED, me = r.people[DATA.me], d = CK.d, v = [...new Set([CK.top, CK.bot].filter(Boolean))].join(\"\");",
+"  if (v) me[d] = v; else delete me[d];",
+"  if (!r.checked.includes(d)) r.checked.push(d);",
+"  const next = scoreResult(r).unc.find(x => x !== d);",
+"  if (next) checkDay(next); else renderResult();",
+"}",
 "/* ===== \u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23: \"\u0e40\u0e27\u0e23 2569-11 | 1\u0e14\u0e0a 2\u0e1a 6\u0e0a ...\" ===== */",
 "function openPaste(){",
 "  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23</p>",

@@ -221,3 +221,23 @@ window.glyphSheet = function(k, items, legend){
   const Q = draw([{ title: "ตัวที่ต้องตรวจ", items: items.map((it, i) => ({ ...it, label: "#" + (i + 1) })) }]);
   return JSON.stringify([L, Q]);
 };
+
+// ---- ตรวจคุณภาพรูป (ไม่ใช้ AI): ขนาดช่อง, ความคม, ความเอียง, เงา ----
+window.imageQuality = function(){
+  const g = GRID.g; if (!g || !g.ok) return null;
+  const n = g.xs.length - 1, cwView = (g.xs[n] - g.xs[0]) / n, cellPx = cwView / g.sc;     // ความกว้างช่องในรูปจริง (พิกเซล)
+  const [y0] = g.bands[0], y1 = g.bands[g.bands.length-1][1], x0 = g.xs[0], x1 = g.xs[n];
+  // ย่อ/ขยายพื้นที่ตารางให้ช่องกว้าง 24px เพื่อวัดความคมแบบเดียวกันทุกรูป
+  const k = 24 / cwView, W = Math.round((x1 - x0) * k), H = Math.round((y1 - y0) * k);
+  const c = gridCrop(x0, y0, x1 - x0, y1 - y0, W, H), p = c.getContext("2d").getImageData(0, 0, W, H).data, L = new Float32Array(W*H);
+  for (let j = 0; j < L.length; j++){ const i = j*4; L[j] = 0.3*p[i] + 0.59*p[i+1] + 0.11*p[i+2]; }
+  let sum = 0, cnt = 0;
+  for (let y = 1; y < H-1; y++) for (let x = 1; x < W-1; x++){ const j = y*W + x, lap = 4*L[j] - L[j-1] - L[j+1] - L[j-W] - L[j+W]; if (Math.abs(lap) > 8){ sum += lap*lap; cnt++; } }
+  const sharp = cnt ? Math.sqrt(sum / cnt) : 0;
+  // เงา: ความสว่างของพื้นขาวในแต่ละส่วน (แบ่ง 4x3) ต่างกันแค่ไหน
+  const zones = []; for (let zy = 0; zy < 3; zy++) for (let zx = 0; zx < 4; zx++){ const v = [];
+    for (let y = Math.floor(zy*H/3); y < (zy+1)*H/3; y += 2) for (let x = Math.floor(zx*W/4); x < (zx+1)*W/4; x += 2) v.push(L[y*W + x]);
+    v.sort((a, b) => a - b); zones.push(v[Math.floor(v.length*0.9)]); }
+  const shade = Math.max(...zones) - Math.min(...zones);
+  return JSON.stringify({ cellPx: Math.round(cellPx*10)/10, sharp: Math.round(sharp), tilt: Math.abs(g.angle || 0), shade: Math.round(shade), imgW: Math.round((GRID.img.naturalWidth || GRID.img.width)) });
+};
