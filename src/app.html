@@ -685,12 +685,49 @@ function gotPhoto(inp){
     const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth*sc); cv.height = Math.round(img.naturalHeight*sc);
     const x = cv.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0,0,cv.width,cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
     inp.value = "";
-    let grid = null;
-    try { GRID.img = img; GRID.g = gridDetect(img); grid = GRID.g.ok ? { bands: GRID.g.bands.length, cols: GRID.g.xs.length - 1 } : null; } catch(e){ grid = null; }
-    send("readPhoto", { b64: cv.toDataURL("image/jpeg", .9).split(",")[1], grid });
+    let ok = false;
+    try { GRID.img = img; GRID.g = gridDetect(img); ok = GRID.g.ok; } catch(e){}
+    if (ok) sendPhoto(cv); else askCorners(img, cv);   // หาเส้นตารางไม่เจอ (รูปถ่ายเอียง) → ให้แตะมุมตาราง
   };
   img.onerror = () => { inp.value = ""; onParsed({error:"เปิดรูปนี้ไม่ได้ ลองแคปหน้าจอตารางแล้วเลือกรูปที่แคปแทน"}); };
   img.src = url;
+}
+function sendPhoto(cv){
+  onReading();
+  const grid = GRID.g && GRID.g.ok ? { bands: GRID.g.bands.length, cols: GRID.g.xs.length - 1 } : null;
+  send("readPhoto", { b64: cv.toDataURL("image/jpeg", .9).split(",")[1], grid });
+}
+/* รูปถ่ายเอียง: แตะมุมตาราง 4 มุม แล้วแอปดึงให้ตรงก่อนอ่าน */
+let CORN = null;
+function askCorners(img, cv){
+  CORN = {img, cv, pts: []};
+  const prev = cv.toDataURL("image/jpeg", .8);
+  $("sheet").innerHTML = `<div class="grab"></div><h2 class="big" style="font-size:21px">ช่วยแตะมุมตารางหน่อย</h2>
+    <p class="hello" id="cornHint" style="margin:4px 0 10px">รูปนี้เอียง แตะมุมกรอบตาราง (เส้นนอกสุด) ตามลำดับ: <b>ซ้ายบน</b> → ขวาบน → ขวาล่าง → ซ้ายล่าง</p>
+    <div id="cornBox" style="position:relative;touch-action:manipulation"><img id="cornImg" src="${prev}" style="width:100%;border-radius:12px;display:block" onclick="tapCorner(event)"><svg id="cornSvg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" style="flex:1" onclick="CORN.pts=[];drawCorners()">เริ่มแตะใหม่</button>
+    <button class="btn main" style="flex:1" id="cornGo" disabled onclick="useCorners()">${ic("check")}ใช้มุมนี้</button></div>
+    <button class="btn" style="width:100%;margin-top:8px" onclick="GRID.g={ok:false};sendPhoto(CORN.cv)">ข้าม ให้ AI อ่านทั้งรูปเลย (แม่นน้อยกว่า)</button>`;
+  openSheet();
+}
+function tapCorner(e){
+  if (CORN.pts.length >= 4) return;
+  const r = e.target.getBoundingClientRect(), w = CORN.img.naturalWidth || CORN.img.width;
+  const k = w / r.width; CORN.pts.push([(e.clientX - r.left) * k, (e.clientY - r.top) * k]); drawCorners();
+}
+function drawCorners(){
+  const names = ["ซ้ายบน","ขวาบน","ขวาล่าง","ซ้ายล่าง"], im = $("cornImg"), w = CORN.img.naturalWidth || CORN.img.width, h = CORN.img.naturalHeight || CORN.img.height;
+  $("cornSvg").setAttribute("viewBox", `0 0 ${w} ${h}`);
+  const P = CORN.pts, R = w/90;
+  $("cornSvg").innerHTML = (P.length > 1 ? `<polygon points="${P.map(p=>p.join(",")).join(" ")}" fill="rgba(232,90,140,.15)" stroke="#E85A8C" stroke-width="${R/2.5}"/>` : "") + P.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="${R}" fill="#E85A8C" stroke="#fff" stroke-width="${R/3}"/>`).join("");
+  $("cornHint").innerHTML = P.length < 4 ? `แตะมุม <b>${names[P.length]}</b> ของกรอบตาราง (${P.length}/4)` : "ครบ 4 มุมแล้ว กด \"ใช้มุมนี้\" ได้เลย";
+  $("cornGo").disabled = P.length < 4;
+}
+function useCorners(){
+  const w = warpQuad(CORN.img, CORN.pts); let ok = false;
+  try { GRID.img = w; GRID.g = gridDetect(w); ok = GRID.g.ok; } catch(e){}
+  if (!ok) toastErr("ยังหาเส้นตารางไม่เจอ จะให้ AI อ่านทั้งรูปแทน");
+  sendPhoto(w);
 }
 window.onProgress = function(t){ const el = $("progTxt"); if (el) el.textContent = t; };
 window.onReading = function(){

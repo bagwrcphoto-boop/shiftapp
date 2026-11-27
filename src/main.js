@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 20";
+const APP_VERSION = "27 พ.ย. 69 · 21";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -217,6 +217,8 @@ async function readByTiles(b64, d, key, page) {
   const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
   if (!(month >= 1 && month <= 12) || !year) throw new Error("อ่านเดือนไม่ได้");
   const days = new Date(year, month, 0).getDate();
+  const cols = +(await page("GRID.g && GRID.g.xs ? GRID.g.xs.length - 1 : 0"));
+  if (cols && cols < days) throw new Error(`เห็นคอลัมน์วันที่แค่ ${cols} จาก ${days}`);   // ตัดช่องไม่ครบ → วันอาจเลื่อน ใช้วิธีสำรอง
   const tiles = await page(`makeTiles(${+j.label}, ${days})`);
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
   const workdays = j.workdays != null && +j.workdays > 0 && +j.workdays <= 31 ? +j.workdays : null;
