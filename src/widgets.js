@@ -81,7 +81,14 @@ const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พ
 function untilText(ms) { const m = Math.max(0, Math.round(ms / 6e4)), dd = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
   return dd >= 2 ? `อีก ${dd} วัน` : dd === 1 ? `อีก 1 วัน ${h} ชม.` : h ? `อีก ${h} ชม. ${mm} น.` : `อีก ${mm} นาที`; }
 function greet(now) { const h = now.getHours(); return h < 5 ? "ราตรีสวัสดิ์" : h < 12 ? "อรุณสวัสดิ์" : h < 17 ? "สวัสดีตอนบ่าย" : h < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ"; }
-function nextShift(d, now) { const list = allMyShifts(d); return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) }; }
+const bLabel = it => it.cs.map(c => SH_LABEL[c]).join(" → ");              // เวรต่อกัน = ก้อนเดียว เช่น "บ่าย → ดึก"
+function dayLabelS(dt, s) {                       // ป้ายของวัน: ต่อกัน "บ่าย→ดึก" / ไม่ต่อ "ดึก+บ่าย" (เรียงตามเวลา)
+  const st = shiftStarts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), s.join(""));
+  const cont = st.every((x, i) => !i || x.st - st[i - 1].st === 8 * 36e5);
+  return st.map(x => SH_LABEL[x.c]).join(cont ? "→" : "+");
+}
+const bEnd = it => SH_END[it.cs[it.cs.length - 1]];
+function nextShift(d, now) { const list = shiftBlocks(allMyShifts(d)); return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) }; }
 function nextNote(d, now, days = 7) {
   for (let i = 0; i < days; i++) { const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), t = noteOn(d, dt); if (t) return { dt, t, i }; }
   return null;
@@ -100,13 +107,13 @@ function nextCapsule(c, I, T, d, now, x, y, w, h, compact) {
   const { cur, nxt } = nextShift(d, now), it = cur || nxt;
   rr(c, x, y, w, h, h * 0.38, CA(T.card, T.dark ? 0.14 : 0.82));
   if (!it) { tx(c, "ยังไม่มีเวร", x + 8, y + h / 2 - 8, w - 16, 16, F("Bold", 11.5), CA(T.title), "center"); return; }
-  const is = h - 8; img(c, I, SH_ICON[it.c], x + 4, y + 4, is);
+  const is = h - 8; if (it.cs.length > 1) shiftIcons(c, I, it.cs, x + 4 + is / 2, y + 4 + is / 2, is * 0.68); else img(c, I, SH_ICON[it.c], x + 4, y + 4, is);
   const tx0 = x + 8 + is, tw = w - is - 14;
   if (compact) { const ms = (cur ? it.en : it.st) - now, hh = Math.floor(ms / 36e5), dd2 = Math.floor(hh / 24);
     tx(c, dd2 >= 2 ? `อีก ${dd2} วัน` : hh >= 1 ? `อีก ${hh} ชม.` : `อีก ${Math.max(1, Math.round(ms / 6e4))} นาที`, tx0, y + h / 2 - 8, tw, 16, F("Bold", 11), CA(T.title)); return; }
   const dd = dayDiffW(now, it.st);
-  tx(c, cur ? `ตอนนี้ เวร${SH_LABEL[it.c]}` : `${dayLabel(dd, it.st)} เวร${SH_LABEL[it.c]}`, tx0, y + 3, tw, 16, F("Bold", 11.5), CA(T.title));
-  tx(c, cur ? `เลิก ${SH_END[it.c]} · ${untilText(it.en - now)}` : `${hhmm(it.st)} · ${untilText(it.st - now)}`, tx0, y + h / 2 + 1, tw, 14, F("Medium", 9.5), CA(T.sub));
+  tx(c, cur ? `ตอนนี้ เวร${bLabel(it)}` : `${dayLabel(dd, it.st)} เวร${bLabel(it)}`, tx0, y + 3, tw, 16, F("Bold", it.cs.length > 1 ? 10 : 11.5), CA(T.title));
+  tx(c, cur ? `เลิก ${bEnd(it)} · ${untilText(it.en - now)}` : `${hhmm(it.st)}–${bEnd(it)} · ${untilText(it.st - now)}`, tx0, y + h / 2 + 1, tw, 14, F("Medium", 9.5), CA(T.sub));
 }
 
 // ----- ใหญ่ -----
@@ -177,7 +184,7 @@ function drawMedium(d, now, I, T, sz) {
     const isz = Math.min(cw * 0.6, 24);
     if (s === null) tx(c, "–", x, top + chh * 0.55, cw, 16, F("Bold", 12), CA(T.sub), "center");
     else shiftIcons(c, I, s, x + cw / 2, top + chh * 0.62, isz);
-    if (s) tx(c, s.length ? s.map(z => SH_LABEL[z]).join("+") : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
+    if (s) tx(c, s.length ? dayLabelS(dt, s) : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, top + 3, 11);
   }
   return c.getImage();
@@ -192,9 +199,10 @@ function drawSmall(d, now, I, T, sz) {
   const dd = dayDiffW(now, it.st);
   tx(c, cur ? "ตอนนี้กำลังอยู่เวร" : `เวรถัดไป · ${dayLabel(dd, it.st)}`, P, P - 2, W - 2 * P, 14, F("SemiBold", 10.5), CA(T.sub));
   const isz = Math.round(W * 0.31);
-  img(c, I, SH_ICON[it.c], P - 2, P + 16, isz);
-  tx(c, `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", 18), CA(T.title));
-  tx(c, `${hhmm(it.st)}–${SH_END[it.c]}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
+  const multi = it.cs.length > 1;
+  if (multi) shiftIcons(c, I, it.cs, P - 2 + isz / 2, P + 16 + isz / 2, isz * 0.68); else img(c, I, SH_ICON[it.c], P - 2, P + 16, isz);
+  tx(c, multi ? bLabel(it) : `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", multi ? 14 : 18), CA(T.title));
+  tx(c, `${hhmm(it.st)}–${bEnd(it)}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
   const note = nextNote(d, now, 2), nh = note ? 20 : 0;
   const py = H - P - 22 - (note ? nh + 5 : 0), label = cur ? `เลิกเวร${untilText(it.en - now).replace("อีก", " อีก")}` : untilText(it.st - now);
   // แถบ 4 วันถัดไป เติมที่ว่างตรงกลาง

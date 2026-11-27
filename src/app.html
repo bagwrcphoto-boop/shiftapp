@@ -238,6 +238,9 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
     <div class="set"><span class="l"><i data-i="key"></i>Claude key</span><span class="r" id="setKeyC"></span></div>
   </div>
   <button class="btn" style="width:100%;margin-bottom:14px" onclick="openProfile()"><i data-i="edit"></i>แก้ชื่อ / API key</button>
+  <div class="card"><div class="set"><span class="l"><i data-i="calsync"></i>สำรองข้อมูล iCloud</span><span class="r" id="setBk"></span></div>
+    <p class="note" style="margin:6px 0 10px">สำรองอัตโนมัติทุกครั้งที่บันทึก (เวร โน้ต ซื้อ-ขาย) · ไม่มี API key ในไฟล์สำรอง</p>
+    <div class="grid2"><button class="btn" onclick="send('backupNow')">สำรองตอนนี้</button><button class="btn" onclick="send('restoreBackup')">กู้คืน</button></div></div>
   <button class="btn" style="width:100%;margin-bottom:14px" onclick="openPaste()"><i data-i="list"></i>วางรหัสเวร</button>
   <div class="card">
     <div class="set"><span class="l"><i data-i="sun"></i>เวรเช้า</span><span class="r">08:00 – 16:00</span></div>
@@ -698,6 +701,7 @@ function renderSet(){
   $("setName").textContent = DATA.me;
   $("verNote").textContent = DATA.version ? "เวอร์ชัน " + DATA.version : "";
   $("setKeyC").textContent = DATA.hasKey.claude ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง";
+  $("setBk").textContent = DATA.icloud === false ? "ปิดอยู่" : "เปิดอยู่";
   $("setNotify").value = String(DATA.settings.notify);
   $("setCal").classList.toggle("on", !!DATA.settings.calendar);
   $("setEve").classList.toggle("on", DATA.settings.eve !== false);
@@ -1005,6 +1009,7 @@ if (!DATA){
     months:{"2026-12":{people, totals:{[me]:30}, work:{[me]:19}}}, notes:{"2026-12-03":"ประชุมวอร์ด 13:00 (ตัวอย่าง)","2026-12-08":"แลกเวรกับเพื่อน เอ (ตัวอย่าง)"}};
 }
 initView(); renderAll();
+if (DATA.restored) setTimeout(()=>toast("กู้ข้อมูลจาก iCloud แล้ว"), 600);
 </script>
 </body>
 </html>

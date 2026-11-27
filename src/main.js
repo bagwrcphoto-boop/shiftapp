@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 35";
+const APP_VERSION = "28 พ.ย. 69 · 37";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -53,7 +53,32 @@ function loadData() {
   d.settings = Object.assign({ notify: 60, calendar: true, ai: "gemini", theme: { style: "glass", palette: "sakura" } }, d.settings || {});
   return d;
 }
-function saveData(d) { fm.writeString(FILE, JSON.stringify(d)); }
+function saveData(d) { fm.writeString(FILE, JSON.stringify(d)); backupData(d); }
+// ---- สำรองข้อมูลไป iCloud Drive (โฟลเดอร์ Scriptable/shiftapp-backup) ไม่มี API key ในไฟล์ ----
+function icloudFm() { try { const ic = FileManager.iCloud(); ic.documentsDirectory(); return ic; } catch (e) { return null; } }
+function backupDir(ic) { const dir = ic.joinPath(ic.documentsDirectory(), "shiftapp-backup"); if (!ic.fileExists(dir)) ic.createDirectory(dir, true); return dir; }
+function backupData(d) {
+  const ic = icloudFm(); if (!ic) return;
+  try {
+    const dir = backupDir(ic), txt = JSON.stringify(Object.assign({}, d, { backupAt: new Date().toISOString() }));
+    ic.writeString(ic.joinPath(dir, "latest.json"), txt);
+    ic.writeString(ic.joinPath(dir, `backup-${new Date().toISOString().slice(0, 10)}.json`), txt);   // วันละไฟล์ เก็บ 14 วันล่าสุด
+    const old = ic.listContents(dir).filter(f => /^backup-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+    for (const f of old.slice(0, Math.max(0, old.length - 14))) ic.remove(ic.joinPath(dir, f));
+  } catch (e) { console.log("backup: " + e); }
+}
+async function readBackup() {
+  const ic = icloudFm(); if (!ic) return null;
+  try { const f = ic.joinPath(backupDir(ic), "latest.json"); if (!ic.fileExists(f)) return null;
+    if (!ic.isFileDownloaded(f)) await ic.downloadFileFromiCloud(f);
+    const d = JSON.parse(ic.readString(f)); return d && d.months ? d : null; } catch (e) { return null; }
+}
+// เปิดแอปครั้งแรกบนเครื่องใหม่/ลงใหม่ → กู้จาก iCloud อัตโนมัติ
+async function restoreIfEmpty() {
+  if (fm.fileExists(FILE)) return false;
+  const b = await readBackup(); if (!b) return false;
+  delete b.backupAt; fm.writeString(FILE, JSON.stringify(b)); return true;
+}
 function getKey(ai) {
   if (ai === "claude") return Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : CLAUDE_KEY.trim();
   return Keychain.contains(K_GEMINI) ? Keychain.get(K_GEMINI) : GEMINI_KEY.trim();
@@ -387,6 +412,17 @@ async function syncNotifications(d) {
       n.setTriggerDate(at); await n.schedule();
     }
   }
+  {                                            // ใกล้สิ้นเดือน ยังไม่มีตารางเดือนหน้า → เตือนอัปโหลด (วันที่ 25 และวันสุดท้าย 10:00)
+    const nx = new Date(now.getFullYear(), now.getMonth() + 1, 1), key = `${nx.getFullYear()}-${String(nx.getMonth() + 1).padStart(2, "0")}`;
+    if (!(d.months || {})[key]) for (const day of [25, new Date(nx - 864e5).getDate()]) {
+      const at = new Date(now.getFullYear(), now.getMonth(), day, 10, 0, 0);
+      if (at <= now) continue;
+      const n = new Notification();
+      n.identifier = `shiftapp-upload-${key}-${day}`; n.threadIdentifier = "shiftapp";
+      n.title = "ยังไม่มีตารางเวรเดือนหน้า"; n.body = `ได้ตารางเดือน${MONTHS[nx.getMonth()]}แล้ว ถ่ายรูปส่งเข้าแอปได้เลย`;
+      n.setTriggerDate(at); await n.schedule();
+    }
+  }
   if (!before) return;
   const list = all.filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 40);
   for (const x of list) {
@@ -404,15 +440,61 @@ async function syncAll(d) {
   try { await syncNotifications(d); } catch (e) { console.log("notify: " + e); }
 }
 
+// ---------------- ฟอนต์/ไอคอนเก็บในเครื่อง (เปิดได้ตอนไม่มีเน็ต) ----------------
+const FONT_Q = { "Mali": "Mali:wght@400;500;600;700", "Itim": "Itim", "Mitr": "Mitr:wght@400;500;600", "IBM Plex Sans Thai": "IBM+Plex+Sans+Thai:wght@400;500;600;700", "Noto Serif Thai": "Noto+Serif+Thai:wght@500;600;700" };
+const ICON_CSS = { ph: "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/duotone/style.css", phb: "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css", tb: "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" };
+const STYLE_ASSET = { glass: [["Mali"], "ph"], dark: [["Mali"], "ph"], minimal: [["IBM Plex Sans Thai"], "tb"], planner: [["Itim"], "ph"], clay: [["Mitr"], "phb"],
+  nude: [["IBM Plex Sans Thai", "Noto Serif Thai"], "ph"], pearl: [["Mitr"], "ph"], satin: [["IBM Plex Sans Thai", "Noto Serif Thai"], "ph"], luxe: [["IBM Plex Sans Thai", "Noto Serif Thai"], "tb"] };
+const ASSET_DIR = fm.joinPath(fm.documentsDirectory(), "shiftapp-assets");
+const assetFile = key => fm.joinPath(ASSET_DIR, key.replace(/[^A-Za-z0-9]+/g, "_") + ".css");
+function assetKeys(style) { const [fonts, icon] = STYLE_ASSET[style] || STYLE_ASSET.glass; return [...fonts.map(f => "font:" + f), "icon:" + icon]; }
+function readAssets(style) {          // ถ้าเก็บไว้ครบ คืน CSS ทั้งหมด (ไม่ใช้เน็ต)
+  const ks = assetKeys(style); if (!ks.every(k => fm.fileExists(assetFile(k)))) return null;
+  return ks.map(k => fm.readString(assetFile(k))).join("\n");
+}
+async function dataUri(url) { const r = new Request(url); r.timeoutInterval = 20; const data = await r.load(); return "data:font/woff2;base64," + data.toBase64String(); }
+async function buildAsset(key) {
+  let css;
+  if (key.startsWith("font:")) {
+    const r = new Request(`https://fonts.googleapis.com/css2?family=${FONT_Q[key.slice(5)]}&display=swap`); r.timeoutInterval = 20;
+    r.headers = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" };
+    const txt = await r.loadString(), parts = [];
+    for (const m of txt.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*(@font-face\s*\{[^}]*\})/g)) {   // เก็บเฉพาะชุดอักษรไทย + อังกฤษ
+      if (m[1] !== "thai" && m[1] !== "latin") continue;
+      const u = (m[2].match(/url\(([^)]+)\)/) || [])[1]; if (!u) continue;
+      parts.push(m[2].replace(u, await dataUri(u.replace(/["']/g, ""))));
+    }
+    if (!parts.length) throw new Error("font css empty");
+    css = parts.join("\n");
+  } else {
+    const base = ICON_CSS[key.slice(5)], r = new Request(base); r.timeoutInterval = 20; css = await r.loadString();
+    const face = (css.match(/@font-face\s*\{[^}]*\}/) || [])[0]; if (!face) throw new Error("icon css");
+    const rel = (face.match(/url\(["']?([^"')]+\.woff2[^"')]*)["']?\)/) || [])[1]; if (!rel) throw new Error("icon woff2");
+    const abs = rel.startsWith("http") ? rel : base.replace(/[^/]*$/, "") + rel.replace(/^\.\//, "");
+    const fam = (face.match(/font-family:\s*([^;]+);/) || [])[1];
+    css = css.replace(face, `@font-face{font-family:${fam};src:url(${await dataUri(abs)}) format("woff2");font-weight:normal;font-style:normal;font-display:block}`);
+  }
+  if (!fm.fileExists(ASSET_DIR)) fm.createDirectory(ASSET_DIR, true);
+  fm.writeString(assetFile(key), css);
+}
+async function cacheAssets(style) { for (const k of assetKeys(style)) if (!fm.fileExists(assetFile(k))) { try { await buildAsset(k); } catch (e) { console.log("asset " + k + ": " + e); } } }
+
 // ---------------- หน้าแอป ----------------
 const APP_HTML = /*__HTML__*/"";
 
 async function runApp() {
+  const fromBackup = await restoreIfEmpty();
   let d = loadData();
   const wv = new WebView();
-  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION });
+  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup });
   const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
-  const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
+  let html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
+  const style0 = ((d.settings || {}).theme || {}).style || "glass", local = readAssets(style0);
+  if (local) {   // ใช้ฟอนต์/ไอคอนในเครื่อง ไม่ต้องรอเน็ต; ลิงก์เดิมย้ายไปโหลดทีหลังแบบไม่บล็อก (เผื่อสลับธีม)
+    const late = [];
+    html = html.replace(/<link[^>]+(fonts\.googleapis|cdn\.jsdelivr)[^>]*>\s*/g, t => { if (/stylesheet/.test(t)) late.push(t.trim().replace(/\/?>$/, ` media="print" onload="this.media='all'">`)); return ""; })
+      .replace("</head>", `<style>${local}</style></head>`).replace("</body>", late.join("") + "</body>");
+  }
   const call = s => wv.evaluateJavaScript(s, false);
   let busy = false;
   const pendingFriends = {}, restored = {};
@@ -432,6 +514,7 @@ async function runApp() {
       saveData(d);
     } else if (m.type === "saveSettings") {
       d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
+      cacheAssets(((d.settings.theme || {}).style) || "glass");   // เปลี่ยนธีม → เก็บฟอนต์ธีมใหม่ไว้ด้วย
     } else if (m.type === "readPhoto") {
       let r;
       const p = typeof m.payload === "string" ? { b64: m.payload, grid: null } : m.payload;
@@ -446,6 +529,18 @@ async function runApp() {
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); await call(`window.reapplyTrades && reapplyTrades(${js(k)})`); }
       });
+    } else if (m.type === "backupNow") {
+      backupData(d); const ok = !!icloudFm();
+      await call(`toast(${js(ok ? "สำรองไป iCloud แล้ว" : "ใช้ iCloud ไม่ได้ (เปิด iCloud Drive ให้ Scriptable ก่อน)")})`); return;
+    } else if (m.type === "restoreBackup") {
+      const b = await readBackup();
+      if (!b) { await call(`toastErr(${js("ไม่เจอไฟล์สำรองใน iCloud")})`); return; }
+      const a = new Alert(); a.title = "กู้คืนข้อมูลจาก iCloud?";
+      a.message = `ไฟล์สำรองเมื่อ ${b.backupAt ? new Date(b.backupAt).toLocaleString("th-TH") : "-"}\nข้อมูลในเครื่องตอนนี้จะถูกแทนที่`;
+      a.addDestructiveAction("กู้คืน"); a.addCancelAction("ยกเลิก");
+      if (await a.presentAlert() === -1) return;
+      delete b.backupAt; d = b; fm.writeString(FILE, JSON.stringify(d)); await syncAll(d);
+      await call(`setData(${js(payload())})`); await call(`toast(${js("กู้คืนแล้ว")})`); return;
     } else if (m.type === "saveTrades") {         // ซื้อ-ขายเวร
       d.trades = m.payload || []; saveData(d);
     } else if (m.type === "shareText") {
@@ -509,6 +604,8 @@ async function runApp() {
   await wv.loadHTML(html, "https://localhost/");
   let open = true;
   const shown = wv.present(true).then(() => { open = false; });
+  syncNotifications(d).catch(e => console.log("notify: " + e));   // เปิดแอปทุกครั้ง อัปเดตแจ้งเตือน (เช่น เตือนอัปโหลดเดือนหน้า)
+  if (!local) cacheAssets(style0);     // ครั้งแรก: โหลดเก็บไว้เบื้องหลัง ครั้งหน้าเปิดได้แม้ไม่มีเน็ต
   const sleep = ms => new Promise(r => Timer.schedule(ms, false, r));
   while (open) {                                   // เช็กคำสั่งจากหน้าแอปทุก 0.4 วินาที (กันกรณีสัญญาณไม่ถึง)
     try { await pump(); } catch (e) { console.log(e); }

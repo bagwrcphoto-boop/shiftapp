@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 35";
+const APP_VERSION = "28 พ.ย. 69 · 37";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -61,7 +61,32 @@ function loadData() {
   d.settings = Object.assign({ notify: 60, calendar: true, ai: "gemini", theme: { style: "glass", palette: "sakura" } }, d.settings || {});
   return d;
 }
-function saveData(d) { fm.writeString(FILE, JSON.stringify(d)); }
+function saveData(d) { fm.writeString(FILE, JSON.stringify(d)); backupData(d); }
+// ---- สำรองข้อมูลไป iCloud Drive (โฟลเดอร์ Scriptable/shiftapp-backup) ไม่มี API key ในไฟล์ ----
+function icloudFm() { try { const ic = FileManager.iCloud(); ic.documentsDirectory(); return ic; } catch (e) { return null; } }
+function backupDir(ic) { const dir = ic.joinPath(ic.documentsDirectory(), "shiftapp-backup"); if (!ic.fileExists(dir)) ic.createDirectory(dir, true); return dir; }
+function backupData(d) {
+  const ic = icloudFm(); if (!ic) return;
+  try {
+    const dir = backupDir(ic), txt = JSON.stringify(Object.assign({}, d, { backupAt: new Date().toISOString() }));
+    ic.writeString(ic.joinPath(dir, "latest.json"), txt);
+    ic.writeString(ic.joinPath(dir, `backup-${new Date().toISOString().slice(0, 10)}.json`), txt);   // วันละไฟล์ เก็บ 14 วันล่าสุด
+    const old = ic.listContents(dir).filter(f => /^backup-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+    for (const f of old.slice(0, Math.max(0, old.length - 14))) ic.remove(ic.joinPath(dir, f));
+  } catch (e) { console.log("backup: " + e); }
+}
+async function readBackup() {
+  const ic = icloudFm(); if (!ic) return null;
+  try { const f = ic.joinPath(backupDir(ic), "latest.json"); if (!ic.fileExists(f)) return null;
+    if (!ic.isFileDownloaded(f)) await ic.downloadFileFromiCloud(f);
+    const d = JSON.parse(ic.readString(f)); return d && d.months ? d : null; } catch (e) { return null; }
+}
+// เปิดแอปครั้งแรกบนเครื่องใหม่/ลงใหม่ → กู้จาก iCloud อัตโนมัติ
+async function restoreIfEmpty() {
+  if (fm.fileExists(FILE)) return false;
+  const b = await readBackup(); if (!b) return false;
+  delete b.backupAt; fm.writeString(FILE, JSON.stringify(b)); return true;
+}
 function getKey(ai) {
   if (ai === "claude") return Keychain.contains(K_CLAUDE) ? Keychain.get(K_CLAUDE) : CLAUDE_KEY.trim();
   return Keychain.contains(K_GEMINI) ? Keychain.get(K_GEMINI) : GEMINI_KEY.trim();
@@ -395,6 +420,17 @@ async function syncNotifications(d) {
       n.setTriggerDate(at); await n.schedule();
     }
   }
+  {                                            // ใกล้สิ้นเดือน ยังไม่มีตารางเดือนหน้า → เตือนอัปโหลด (วันที่ 25 และวันสุดท้าย 10:00)
+    const nx = new Date(now.getFullYear(), now.getMonth() + 1, 1), key = `${nx.getFullYear()}-${String(nx.getMonth() + 1).padStart(2, "0")}`;
+    if (!(d.months || {})[key]) for (const day of [25, new Date(nx - 864e5).getDate()]) {
+      const at = new Date(now.getFullYear(), now.getMonth(), day, 10, 0, 0);
+      if (at <= now) continue;
+      const n = new Notification();
+      n.identifier = `shiftapp-upload-${key}-${day}`; n.threadIdentifier = "shiftapp";
+      n.title = "ยังไม่มีตารางเวรเดือนหน้า"; n.body = `ได้ตารางเดือน${MONTHS[nx.getMonth()]}แล้ว ถ่ายรูปส่งเข้าแอปได้เลย`;
+      n.setTriggerDate(at); await n.schedule();
+    }
+  }
   if (!before) return;
   const list = all.filter(x => x.st.getTime() - before * 6e4 > now.getTime()).slice(0, 40);
   for (const x of list) {
@@ -411,6 +447,45 @@ async function syncAll(d) {
   try { await syncCalendar(d); } catch (e) { console.log("calendar: " + e); }
   try { await syncNotifications(d); } catch (e) { console.log("notify: " + e); }
 }
+
+// ---------------- ฟอนต์/ไอคอนเก็บในเครื่อง (เปิดได้ตอนไม่มีเน็ต) ----------------
+const FONT_Q = { "Mali": "Mali:wght@400;500;600;700", "Itim": "Itim", "Mitr": "Mitr:wght@400;500;600", "IBM Plex Sans Thai": "IBM+Plex+Sans+Thai:wght@400;500;600;700", "Noto Serif Thai": "Noto+Serif+Thai:wght@500;600;700" };
+const ICON_CSS = { ph: "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/duotone/style.css", phb: "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css", tb: "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" };
+const STYLE_ASSET = { glass: [["Mali"], "ph"], dark: [["Mali"], "ph"], minimal: [["IBM Plex Sans Thai"], "tb"], planner: [["Itim"], "ph"], clay: [["Mitr"], "phb"],
+  nude: [["IBM Plex Sans Thai", "Noto Serif Thai"], "ph"], pearl: [["Mitr"], "ph"], satin: [["IBM Plex Sans Thai", "Noto Serif Thai"], "ph"], luxe: [["IBM Plex Sans Thai", "Noto Serif Thai"], "tb"] };
+const ASSET_DIR = fm.joinPath(fm.documentsDirectory(), "shiftapp-assets");
+const assetFile = key => fm.joinPath(ASSET_DIR, key.replace(/[^A-Za-z0-9]+/g, "_") + ".css");
+function assetKeys(style) { const [fonts, icon] = STYLE_ASSET[style] || STYLE_ASSET.glass; return [...fonts.map(f => "font:" + f), "icon:" + icon]; }
+function readAssets(style) {          // ถ้าเก็บไว้ครบ คืน CSS ทั้งหมด (ไม่ใช้เน็ต)
+  const ks = assetKeys(style); if (!ks.every(k => fm.fileExists(assetFile(k)))) return null;
+  return ks.map(k => fm.readString(assetFile(k))).join("\n");
+}
+async function dataUri(url) { const r = new Request(url); r.timeoutInterval = 20; const data = await r.load(); return "data:font/woff2;base64," + data.toBase64String(); }
+async function buildAsset(key) {
+  let css;
+  if (key.startsWith("font:")) {
+    const r = new Request(`https://fonts.googleapis.com/css2?family=${FONT_Q[key.slice(5)]}&display=swap`); r.timeoutInterval = 20;
+    r.headers = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" };
+    const txt = await r.loadString(), parts = [];
+    for (const m of txt.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*(@font-face\s*\{[^}]*\})/g)) {   // เก็บเฉพาะชุดอักษรไทย + อังกฤษ
+      if (m[1] !== "thai" && m[1] !== "latin") continue;
+      const u = (m[2].match(/url\(([^)]+)\)/) || [])[1]; if (!u) continue;
+      parts.push(m[2].replace(u, await dataUri(u.replace(/["']/g, ""))));
+    }
+    if (!parts.length) throw new Error("font css empty");
+    css = parts.join("\n");
+  } else {
+    const base = ICON_CSS[key.slice(5)], r = new Request(base); r.timeoutInterval = 20; css = await r.loadString();
+    const face = (css.match(/@font-face\s*\{[^}]*\}/) || [])[0]; if (!face) throw new Error("icon css");
+    const rel = (face.match(/url\(["']?([^"')]+\.woff2[^"')]*)["']?\)/) || [])[1]; if (!rel) throw new Error("icon woff2");
+    const abs = rel.startsWith("http") ? rel : base.replace(/[^/]*$/, "") + rel.replace(/^\.\//, "");
+    const fam = (face.match(/font-family:\s*([^;]+);/) || [])[1];
+    css = css.replace(face, `@font-face{font-family:${fam};src:url(${await dataUri(abs)}) format("woff2");font-weight:normal;font-style:normal;font-display:block}`);
+  }
+  if (!fm.fileExists(ASSET_DIR)) fm.createDirectory(ASSET_DIR, true);
+  fm.writeString(assetFile(key), css);
+}
+async function cacheAssets(style) { for (const k of assetKeys(style)) if (!fm.fileExists(assetFile(k))) { try { await buildAsset(k); } catch (e) { console.log("asset " + k + ": " + e); } } }
 
 // ---------------- หน้าแอป ----------------
 const APP_HTML = [
@@ -654,6 +729,9 @@ const APP_HTML = [
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"key\"></i>Claude key</span><span class=\"r\" id=\"setKeyC\"></span></div>",
 "  </div>",
 "  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"openProfile()\"><i data-i=\"edit\"></i>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d / API key</button>",
+"  <div class=\"card\"><div class=\"set\"><span class=\"l\"><i data-i=\"calsync\"></i>\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25 iCloud</span><span class=\"r\" id=\"setBk\"></span></div>",
+"    <p class=\"note\" style=\"margin:6px 0 10px\">\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34\u0e17\u0e38\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07\u0e17\u0e35\u0e48\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 (\u0e40\u0e27\u0e23 \u0e42\u0e19\u0e49\u0e15 \u0e0b\u0e37\u0e49\u0e2d-\u0e02\u0e32\u0e22) \u00b7 \u0e44\u0e21\u0e48\u0e21\u0e35 API key \u0e43\u0e19\u0e44\u0e1f\u0e25\u0e4c\u0e2a\u0e33\u0e23\u0e2d\u0e07</p>",
+"    <div class=\"grid2\"><button class=\"btn\" onclick=\"send('backupNow')\">\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49</button><button class=\"btn\" onclick=\"send('restoreBackup')\">\u0e01\u0e39\u0e49\u0e04\u0e37\u0e19</button></div></div>",
 "  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"openPaste()\"><i data-i=\"list\"></i>\u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23</button>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"sun\"></i>\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32</span><span class=\"r\">08:00 \u2013 16:00</span></div>",
@@ -1366,6 +1444,7 @@ const APP_HTML = [
 "  $(\"setName\").textContent = DATA.me;",
 "  $(\"verNote\").textContent = DATA.version ? \"\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19 \" + DATA.version : \"\";",
 "  $(\"setKeyC\").textContent = DATA.hasKey.claude ? \"\u0e15\u0e31\u0e49\u0e07\u0e41\u0e25\u0e49\u0e27\" : \"\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e15\u0e31\u0e49\u0e07\";",
+"  $(\"setBk\").textContent = DATA.icloud === false ? \"\u0e1b\u0e34\u0e14\u0e2d\u0e22\u0e39\u0e48\" : \"\u0e40\u0e1b\u0e34\u0e14\u0e2d\u0e22\u0e39\u0e48\";",
 "  $(\"setNotify\").value = String(DATA.settings.notify);",
 "  $(\"setCal\").classList.toggle(\"on\", !!DATA.settings.calendar);",
 "  $(\"setEve\").classList.toggle(\"on\", DATA.settings.eve !== false);",
@@ -1673,6 +1752,7 @@ const APP_HTML = [
 "    months:{\"2026-12\":{people, totals:{[me]:30}, work:{[me]:19}}}, notes:{\"2026-12-03\":\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\u0e27\u0e2d\u0e23\u0e4c\u0e14 13:00 (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\",\"2026-12-08\":\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\u0e01\u0e31\u0e1a\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e40\u0e2d (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\"}};",
 "}",
 "initView(); renderAll();",
+"if (DATA.restored) setTimeout(()=>toast(\"\u0e01\u0e39\u0e49\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e08\u0e32\u0e01 iCloud \u0e41\u0e25\u0e49\u0e27\"), 600);",
 "</script>",
 "</body>",
 "</html>",
@@ -1680,11 +1760,18 @@ const APP_HTML = [
 ].join("\n");
 
 async function runApp() {
+  const fromBackup = await restoreIfEmpty();
   let d = loadData();
   const wv = new WebView();
-  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION });
+  const payload = () => Object.assign({}, d, { hasKey: hasKey(), version: APP_VERSION, icloud: !!icloudFm(), restored: fromBackup });
   const js = v => JSON.stringify(v).replace(/</g, "\\u003c").split(String.fromCharCode(0x2028)).join("\\u2028").split(String.fromCharCode(0x2029)).join("\\u2029");
-  const html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
+  let html = APP_HTML.replace("/*__DATA__*/null", js(payload()));
+  const style0 = ((d.settings || {}).theme || {}).style || "glass", local = readAssets(style0);
+  if (local) {   // ใช้ฟอนต์/ไอคอนในเครื่อง ไม่ต้องรอเน็ต; ลิงก์เดิมย้ายไปโหลดทีหลังแบบไม่บล็อก (เผื่อสลับธีม)
+    const late = [];
+    html = html.replace(/<link[^>]+(fonts\.googleapis|cdn\.jsdelivr)[^>]*>\s*/g, t => { if (/stylesheet/.test(t)) late.push(t.trim().replace(/\/?>$/, ` media="print" onload="this.media='all'">`)); return ""; })
+      .replace("</head>", `<style>${local}</style></head>`).replace("</body>", late.join("") + "</body>");
+  }
   const call = s => wv.evaluateJavaScript(s, false);
   let busy = false;
   const pendingFriends = {}, restored = {};
@@ -1704,6 +1791,7 @@ async function runApp() {
       saveData(d);
     } else if (m.type === "saveSettings") {
       d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
+      cacheAssets(((d.settings.theme || {}).style) || "glass");   // เปลี่ยนธีม → เก็บฟอนต์ธีมใหม่ไว้ด้วย
     } else if (m.type === "readPhoto") {
       let r;
       const p = typeof m.payload === "string" ? { b64: m.payload, grid: null } : m.payload;
@@ -1718,6 +1806,18 @@ async function runApp() {
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); await call(`window.reapplyTrades && reapplyTrades(${js(k)})`); }
       });
+    } else if (m.type === "backupNow") {
+      backupData(d); const ok = !!icloudFm();
+      await call(`toast(${js(ok ? "สำรองไป iCloud แล้ว" : "ใช้ iCloud ไม่ได้ (เปิด iCloud Drive ให้ Scriptable ก่อน)")})`); return;
+    } else if (m.type === "restoreBackup") {
+      const b = await readBackup();
+      if (!b) { await call(`toastErr(${js("ไม่เจอไฟล์สำรองใน iCloud")})`); return; }
+      const a = new Alert(); a.title = "กู้คืนข้อมูลจาก iCloud?";
+      a.message = `ไฟล์สำรองเมื่อ ${b.backupAt ? new Date(b.backupAt).toLocaleString("th-TH") : "-"}\nข้อมูลในเครื่องตอนนี้จะถูกแทนที่`;
+      a.addDestructiveAction("กู้คืน"); a.addCancelAction("ยกเลิก");
+      if (await a.presentAlert() === -1) return;
+      delete b.backupAt; d = b; fm.writeString(FILE, JSON.stringify(d)); await syncAll(d);
+      await call(`setData(${js(payload())})`); await call(`toast(${js("กู้คืนแล้ว")})`); return;
     } else if (m.type === "saveTrades") {         // ซื้อ-ขายเวร
       d.trades = m.payload || []; saveData(d);
     } else if (m.type === "shareText") {
@@ -1781,6 +1881,8 @@ async function runApp() {
   await wv.loadHTML(html, "https://localhost/");
   let open = true;
   const shown = wv.present(true).then(() => { open = false; });
+  syncNotifications(d).catch(e => console.log("notify: " + e));   // เปิดแอปทุกครั้ง อัปเดตแจ้งเตือน (เช่น เตือนอัปโหลดเดือนหน้า)
+  if (!local) cacheAssets(style0);     // ครั้งแรก: โหลดเก็บไว้เบื้องหลัง ครั้งหน้าเปิดได้แม้ไม่มีเน็ต
   const sleep = ms => new Promise(r => Timer.schedule(ms, false, r));
   while (open) {                                   // เช็กคำสั่งจากหน้าแอปทุก 0.4 วินาที (กันกรณีสัญญาณไม่ถึง)
     try { await pump(); } catch (e) { console.log(e); }
@@ -1877,7 +1979,14 @@ const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พ
 function untilText(ms) { const m = Math.max(0, Math.round(ms / 6e4)), dd = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
   return dd >= 2 ? `อีก ${dd} วัน` : dd === 1 ? `อีก 1 วัน ${h} ชม.` : h ? `อีก ${h} ชม. ${mm} น.` : `อีก ${mm} นาที`; }
 function greet(now) { const h = now.getHours(); return h < 5 ? "ราตรีสวัสดิ์" : h < 12 ? "อรุณสวัสดิ์" : h < 17 ? "สวัสดีตอนบ่าย" : h < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ"; }
-function nextShift(d, now) { const list = allMyShifts(d); return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) }; }
+const bLabel = it => it.cs.map(c => SH_LABEL[c]).join(" → ");              // เวรต่อกัน = ก้อนเดียว เช่น "บ่าย → ดึก"
+function dayLabelS(dt, s) {                       // ป้ายของวัน: ต่อกัน "บ่าย→ดึก" / ไม่ต่อ "ดึก+บ่าย" (เรียงตามเวลา)
+  const st = shiftStarts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), s.join(""));
+  const cont = st.every((x, i) => !i || x.st - st[i - 1].st === 8 * 36e5);
+  return st.map(x => SH_LABEL[x.c]).join(cont ? "→" : "+");
+}
+const bEnd = it => SH_END[it.cs[it.cs.length - 1]];
+function nextShift(d, now) { const list = shiftBlocks(allMyShifts(d)); return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) }; }
 function nextNote(d, now, days = 7) {
   for (let i = 0; i < days; i++) { const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), t = noteOn(d, dt); if (t) return { dt, t, i }; }
   return null;
@@ -1896,13 +2005,13 @@ function nextCapsule(c, I, T, d, now, x, y, w, h, compact) {
   const { cur, nxt } = nextShift(d, now), it = cur || nxt;
   rr(c, x, y, w, h, h * 0.38, CA(T.card, T.dark ? 0.14 : 0.82));
   if (!it) { tx(c, "ยังไม่มีเวร", x + 8, y + h / 2 - 8, w - 16, 16, F("Bold", 11.5), CA(T.title), "center"); return; }
-  const is = h - 8; img(c, I, SH_ICON[it.c], x + 4, y + 4, is);
+  const is = h - 8; if (it.cs.length > 1) shiftIcons(c, I, it.cs, x + 4 + is / 2, y + 4 + is / 2, is * 0.68); else img(c, I, SH_ICON[it.c], x + 4, y + 4, is);
   const tx0 = x + 8 + is, tw = w - is - 14;
   if (compact) { const ms = (cur ? it.en : it.st) - now, hh = Math.floor(ms / 36e5), dd2 = Math.floor(hh / 24);
     tx(c, dd2 >= 2 ? `อีก ${dd2} วัน` : hh >= 1 ? `อีก ${hh} ชม.` : `อีก ${Math.max(1, Math.round(ms / 6e4))} นาที`, tx0, y + h / 2 - 8, tw, 16, F("Bold", 11), CA(T.title)); return; }
   const dd = dayDiffW(now, it.st);
-  tx(c, cur ? `ตอนนี้ เวร${SH_LABEL[it.c]}` : `${dayLabel(dd, it.st)} เวร${SH_LABEL[it.c]}`, tx0, y + 3, tw, 16, F("Bold", 11.5), CA(T.title));
-  tx(c, cur ? `เลิก ${SH_END[it.c]} · ${untilText(it.en - now)}` : `${hhmm(it.st)} · ${untilText(it.st - now)}`, tx0, y + h / 2 + 1, tw, 14, F("Medium", 9.5), CA(T.sub));
+  tx(c, cur ? `ตอนนี้ เวร${bLabel(it)}` : `${dayLabel(dd, it.st)} เวร${bLabel(it)}`, tx0, y + 3, tw, 16, F("Bold", it.cs.length > 1 ? 10 : 11.5), CA(T.title));
+  tx(c, cur ? `เลิก ${bEnd(it)} · ${untilText(it.en - now)}` : `${hhmm(it.st)}–${bEnd(it)} · ${untilText(it.st - now)}`, tx0, y + h / 2 + 1, tw, 14, F("Medium", 9.5), CA(T.sub));
 }
 
 // ----- ใหญ่ -----
@@ -1973,7 +2082,7 @@ function drawMedium(d, now, I, T, sz) {
     const isz = Math.min(cw * 0.6, 24);
     if (s === null) tx(c, "–", x, top + chh * 0.55, cw, 16, F("Bold", 12), CA(T.sub), "center");
     else shiftIcons(c, I, s, x + cw / 2, top + chh * 0.62, isz);
-    if (s) tx(c, s.length ? s.map(z => SH_LABEL[z]).join("+") : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
+    if (s) tx(c, s.length ? dayLabelS(dt, s) : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, top + 3, 11);
   }
   return c.getImage();
@@ -1988,9 +2097,10 @@ function drawSmall(d, now, I, T, sz) {
   const dd = dayDiffW(now, it.st);
   tx(c, cur ? "ตอนนี้กำลังอยู่เวร" : `เวรถัดไป · ${dayLabel(dd, it.st)}`, P, P - 2, W - 2 * P, 14, F("SemiBold", 10.5), CA(T.sub));
   const isz = Math.round(W * 0.31);
-  img(c, I, SH_ICON[it.c], P - 2, P + 16, isz);
-  tx(c, `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", 18), CA(T.title));
-  tx(c, `${hhmm(it.st)}–${SH_END[it.c]}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
+  const multi = it.cs.length > 1;
+  if (multi) shiftIcons(c, I, it.cs, P - 2 + isz / 2, P + 16 + isz / 2, isz * 0.68); else img(c, I, SH_ICON[it.c], P - 2, P + 16, isz);
+  tx(c, multi ? bLabel(it) : `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", multi ? 14 : 18), CA(T.title));
+  tx(c, `${hhmm(it.st)}–${bEnd(it)}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
   const note = nextNote(d, now, 2), nh = note ? 20 : 0;
   const py = H - P - 22 - (note ? nh + 5 : 0), label = cur ? `เลิกเวร${untilText(it.en - now).replace("อีก", " อีก")}` : untilText(it.st - now);
   // แถบ 4 วันถัดไป เติมที่ว่างตรงกลาง
