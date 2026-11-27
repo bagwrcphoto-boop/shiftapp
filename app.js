@@ -51,6 +51,8 @@ function loadData() {
       for (const [k, v] of Object.entries(old)) d.months[k] = { people: { [me]: v }, totals: {} };
     }
   }
+  if (!d.me && DEFAULT_NAME) d.me = DEFAULT_NAME;
+  d.notes = d.notes || {};
   d.settings = Object.assign({ notify: 60, calendar: true, ai: "gemini", theme: { style: "glass", palette: "sakura" } }, d.settings || {});
   return d;
 }
@@ -81,6 +83,7 @@ function shiftsOn(d, date) {
 const norm = s => String(s).replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/, "").replace(/\s+/g, "");
 function findMe(people, me) {
   const n = norm(me), names = Object.keys(people);
+  if (!n) return null;
   return names.find(x => norm(x) === n) || names.find(x => norm(x).includes(n) || n.includes(norm(x)))
       || names.find(x => norm(x).split("").filter((c, i) => c === n[i]).length >= n.length - 2 && Math.abs(norm(x).length - n.length) <= 2);
 }
@@ -261,6 +264,16 @@ const APP_HTML = [
 ".d .ps{display:flex;gap:2px}",
 ".d .p{font-size:11px;padding:0 4px;line-height:16px;border-radius:7px}",
 ".dot{width:5px;height:5px;border-radius:50%;background:var(--dot);margin-top:6px}",
+".cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}",
+".d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}",
+".d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}",
+".d.past{opacity:.55}",
+".notebox{width:100%;min-height:84px;border:2px solid var(--line);border-radius:16px;padding:10px 12px;font:inherit;font-size:15px;background:var(--nbBg);color:var(--text);resize:vertical;outline:none}",
+".notebox:focus{border-color:var(--accent)}",
+".qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}",
+".qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}",
+".notecard{display:flex;gap:10px;align-items:flex-start}",
+".notecard .t{font-size:15px;white-space:pre-wrap;flex:1}",
 ".chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}",
 ".chip{display:inline-flex;align-items:center;gap:3px;border-radius:12px;padding:5px 7px;font-size:13px;font-weight:700;white-space:nowrap}",
 "/* sheet */",
@@ -346,6 +359,7 @@ const APP_HTML = [
 "<section class=\"page on\" id=\"p-cal\">",
 "  <div style=\"margin-bottom:14px\"><p class=\"hello\" id=\"hello\"></p><h1 class=\"big\">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e09\u0e31\u0e19</h1></div>",
 "  <div class=\"card hero\" id=\"hero\"></div>",
+"  <div class=\"card\" id=\"todayNote\" style=\"display:none\"></div>",
 "  <div class=\"card\" id=\"calCard\">",
 "    <div class=\"cal-h\"><button class=\"nb\" onclick=\"moveMonth(-1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\"><i data-i=\"l\"></i></button><span class=\"t\" id=\"calTitle\"></span><button class=\"nb\" onclick=\"moveMonth(1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
 "    <div class=\"dow\"><div class=\"we\">\u0e2d\u0e32</div><div>\u0e08</div><div>\u0e2d</div><div>\u0e1e</div><div>\u0e1e\u0e24</div><div>\u0e28</div><div class=\"we\">\u0e2a</div></div>",
@@ -428,6 +442,7 @@ const APP_HTML = [
 " peach:{name:\"\u0e1e\u0e35\u0e0a\",accent:\"#E0612F\",title:\"#662812\",sub:\"#8C4A2B\",text:\"#3C281E\",body:\"#FFEFE4\",tint:\"#FFE6D6\",blobs:[\"#FFC2A0\",\"#FFD9A0\",\"#FFB0C0\",\"#FFE7B0\"],dark:{body:\"#24130C\",card:\"#3A2216\",accent:\"#FF9D70\",title:\"#FFF3EC\",sub:\"#F2CDB8\",blobs:[\"#B04A1E\",\"#A8306A\",\"#B07A18\",\"#8A3A2A\"]}},",
 " mocha:{name:\"\u0e04\u0e23\u0e35\u0e21\u0e21\u0e2d\u0e04\u0e04\u0e48\u0e32\",accent:\"#9C6A45\",title:\"#47301F\",sub:\"#6E523E\",text:\"#352619\",body:\"#F5EDE4\",tint:\"#EFE3D6\",blobs:[\"#E8D2BC\",\"#F2DCC8\",\"#DCC4B0\",\"#EADBC8\"],dark:{body:\"#1C1511\",card:\"#2E241D\",accent:\"#D9A97F\",title:\"#FAF2EA\",sub:\"#DCC7B4\",blobs:[\"#6E4A30\",\"#5A3E2E\",\"#7A5638\",\"#4E3A2C\"]}},",
 "};",
+"const CUTE = {\"sun\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><g stroke=\\\"#FFB347\\\" stroke-width=\\\"5\\\" stroke-linecap=\\\"round\\\"><path d=\\\"M32 4v7M32 53v7M4 32h7M53 32h7M12 12l5 5M47 47l5 5M52 12l-5 5M17 47l-5 5\\\"/></g><circle cx=\\\"32\\\" cy=\\\"32\\\" r=\\\"17\\\" fill=\\\"#FFD166\\\"/><circle cx=\\\"32\\\" cy=\\\"32\\\" r=\\\"17\\\" fill=\\\"none\\\" stroke=\\\"#FFB347\\\" stroke-width=\\\"2\\\"/><circle cx=\\\"26\\\" cy=\\\"30\\\" r=\\\"2.3\\\" fill=\\\"#5A3A2E\\\"/><circle cx=\\\"38\\\" cy=\\\"30\\\" r=\\\"2.3\\\" fill=\\\"#5A3A2E\\\"/><ellipse cx=\\\"22\\\" cy=\\\"36\\\" rx=\\\"3.4\\\" ry=\\\"2.2\\\" fill=\\\"#FF8FA3\\\" opacity=\\\".8\\\"/><ellipse cx=\\\"42\\\" cy=\\\"36\\\" rx=\\\"3.4\\\" ry=\\\"2.2\\\" fill=\\\"#FF8FA3\\\" opacity=\\\".8\\\"/><path d=\\\"M28 36q4 4 8 0\\\" stroke=\\\"#5A3A2E\\\" stroke-width=\\\"2.2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/></svg>\", \"sunset\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><circle cx=\\\"38\\\" cy=\\\"26\\\" r=\\\"15\\\" fill=\\\"#FFB38A\\\"/><circle cx=\\\"38\\\" cy=\\\"26\\\" r=\\\"15\\\" fill=\\\"none\\\" stroke=\\\"#FF9466\\\" stroke-width=\\\"2\\\"/><path d=\\\"M33 24q2-2 4 0M41 24q2-2 4 0\\\" stroke=\\\"#6B3A2E\\\" stroke-width=\\\"2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><path d=\\\"M14 50a10 10 0 0 1 2-19.8A13 13 0 0 1 40 30a9 9 0 0 1 10 9.5A8 8 0 0 1 48 55H18a8 8 0 0 1-4-5z\\\" fill=\\\"#BFD7FF\\\"/><path d=\\\"M14 50a10 10 0 0 1 2-19.8A13 13 0 0 1 40 30a9 9 0 0 1 10 9.5A8 8 0 0 1 48 55H18a8 8 0 0 1-4-5z\\\" fill=\\\"none\\\" stroke=\\\"#8FB4F2\\\" stroke-width=\\\"2\\\"/><circle cx=\\\"25\\\" cy=\\\"44\\\" r=\\\"2\\\" fill=\\\"#3B4F7E\\\"/><circle cx=\\\"35\\\" cy=\\\"44\\\" r=\\\"2\\\" fill=\\\"#3B4F7E\\\"/><ellipse cx=\\\"21\\\" cy=\\\"48\\\" rx=\\\"2.8\\\" ry=\\\"1.8\\\" fill=\\\"#FF9FB5\\\" opacity=\\\".8\\\"/><ellipse cx=\\\"39\\\" cy=\\\"48\\\" rx=\\\"2.8\\\" ry=\\\"1.8\\\" fill=\\\"#FF9FB5\\\" opacity=\\\".8\\\"/><path d=\\\"M28 47q2 2.5 4 0\\\" stroke=\\\"#3B4F7E\\\" stroke-width=\\\"1.8\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/></svg>\", \"moon\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><path d=\\\"M40 8a24 24 0 1 0 18 34A20 20 0 0 1 40 8z\\\" fill=\\\"#CDB8FF\\\" stroke=\\\"#A88BF0\\\" stroke-width=\\\"2\\\"/><path d=\\\"M20 34q3 3 6 0M31 34q3 3 6 0\\\" stroke=\\\"#4A2F8C\\\" stroke-width=\\\"2.2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><ellipse cx=\\\"19\\\" cy=\\\"40\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF9FC4\\\" opacity=\\\".85\\\"/><ellipse cx=\\\"38\\\" cy=\\\"40\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF9FC4\\\" opacity=\\\".85\\\"/><path d=\\\"M26 42q2.5 2 5 0\\\" stroke=\\\"#4A2F8C\\\" stroke-width=\\\"1.8\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><path d=\\\"M50 10l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z\\\" fill=\\\"#FFD166\\\"/><text x=\\\"46\\\" y=\\\"32\\\" font-size=\\\"9\\\" font-weight=\\\"700\\\" fill=\\\"#A88BF0\\\" font-family=\\\"sans-serif\\\">z</text><text x=\\\"52\\\" y=\\\"26\\\" font-size=\\\"7\\\" font-weight=\\\"700\\\" fill=\\\"#A88BF0\\\" font-family=\\\"sans-serif\\\">z</text></svg>\", \"off\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><path d=\\\"M32 56S8 42 8 24a12 12 0 0 1 24-4 12 12 0 0 1 24 4c0 18-24 32-24 32z\\\" fill=\\\"#FFB3CC\\\" stroke=\\\"#F48FB1\\\" stroke-width=\\\"2\\\"/><circle cx=\\\"25\\\" cy=\\\"30\\\" r=\\\"2.2\\\" fill=\\\"#7A2E4E\\\"/><circle cx=\\\"39\\\" cy=\\\"30\\\" r=\\\"2.2\\\" fill=\\\"#7A2E4E\\\"/><ellipse cx=\\\"21\\\" cy=\\\"35\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF7FA6\\\" opacity=\\\".7\\\"/><ellipse cx=\\\"43\\\" cy=\\\"35\\\" rx=\\\"3\\\" ry=\\\"2\\\" fill=\\\"#FF7FA6\\\" opacity=\\\".7\\\"/><path d=\\\"M28 35q4 4 8 0\\\" stroke=\\\"#7A2E4E\\\" stroke-width=\\\"2.2\\\" fill=\\\"none\\\" stroke-linecap=\\\"round\\\"/><ellipse cx=\\\"20\\\" cy=\\\"20\\\" rx=\\\"4\\\" ry=\\\"2.5\\\" fill=\\\"#fff\\\" opacity=\\\".6\\\" transform=\\\"rotate(-30 20 20)\\\"/></svg>\", \"note\": \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" viewBox=\\\"0 0 64 64\\\"><rect x=\\\"10\\\" y=\\\"10\\\" width=\\\"44\\\" height=\\\"46\\\" rx=\\\"10\\\" fill=\\\"#FFF3B0\\\" stroke=\\\"#F2C94C\\\" stroke-width=\\\"2\\\"/><rect x=\\\"22\\\" y=\\\"5\\\" width=\\\"20\\\" height=\\\"10\\\" rx=\\\"4\\\" fill=\\\"#F7A8C4\\\"/><path d=\\\"M19 30h26M19 39h18\\\" stroke=\\\"#D9A93A\\\" stroke-width=\\\"3\\\" stroke-linecap=\\\"round\\\"/><path d=\\\"M44 44l6-6 4 4-6 6h-4z\\\" fill=\\\"#F48FB1\\\"/></svg>\"};",
 "",
 "",
 "/* ===== \u0e44\u0e2d\u0e04\u0e2d\u0e19 ===== */",
@@ -491,7 +506,11 @@ const APP_HTML = [
 "}",
 "",
 "/* ===== \u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e1e\u0e37\u0e49\u0e19\u0e10\u0e32\u0e19 ===== */",
-"const SH = {\"\u0e14\":{n:\"\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\",i:\"moon\",t:\"00:00 \u2013 08:00\",s:0,c:\"n\"},\"\u0e0a\":{n:\"\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32\",i:\"sun\",t:\"08:00 \u2013 16:00\",s:8,c:\"m\"},\"\u0e1a\":{n:\"\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22\",i:\"sunset\",t:\"16:00 \u2013 24:00\",s:16,c:\"a\"}};",
+"const SH = {\"\u0e14\":{n:\"\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\",i:\"moon\",k:\"moon\",t:\"00:00 \u2013 08:00\",s:0,c:\"n\"},\"\u0e0a\":{n:\"\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32\",i:\"sun\",k:\"sun\",t:\"08:00 \u2013 16:00\",s:8,c:\"m\"},\"\u0e1a\":{n:\"\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22\",i:\"sunset\",k:\"sunset\",t:\"16:00 \u2013 24:00\",s:16,c:\"a\"}};",
+"const cute = (k, s) => `<span class=\"cute\" style=\"width:${s}px;height:${s}px\">${CUTE[k]}</span>`;",
+"const esc = s => String(s).replace(/[&<>\"]/g, c => ({\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",\"\\\"\":\"&quot;\"}[c]));",
+"const dk = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,\"0\")}-${String(dt.getDate()).padStart(2,\"0\")}`;",
+"const noteOf = dt => ((DATA.notes||{})[dk(dt)]||\"\").trim();",
 "const ORD = {\"\u0e14\":0,\"\u0e0a\":1,\"\u0e1a\":2};",
 "const MONTHS = [\"\u0e21\u0e01\u0e23\u0e32\u0e04\u0e21\",\"\u0e01\u0e38\u0e21\u0e20\u0e32\u0e1e\u0e31\u0e19\u0e18\u0e4c\",\"\u0e21\u0e35\u0e19\u0e32\u0e04\u0e21\",\"\u0e40\u0e21\u0e29\u0e32\u0e22\u0e19\",\"\u0e1e\u0e24\u0e29\u0e20\u0e32\u0e04\u0e21\",\"\u0e21\u0e34\u0e16\u0e38\u0e19\u0e32\u0e22\u0e19\",\"\u0e01\u0e23\u0e01\u0e0e\u0e32\u0e04\u0e21\",\"\u0e2a\u0e34\u0e07\u0e2b\u0e32\u0e04\u0e21\",\"\u0e01\u0e31\u0e19\u0e22\u0e32\u0e22\u0e19\",\"\u0e15\u0e38\u0e25\u0e32\u0e04\u0e21\",\"\u0e1e\u0e24\u0e28\u0e08\u0e34\u0e01\u0e32\u0e22\u0e19\",\"\u0e18\u0e31\u0e19\u0e27\u0e32\u0e04\u0e21\"];",
 "const DOWF = [\"\u0e2d\u0e32\u0e17\u0e34\u0e15\u0e22\u0e4c\",\"\u0e08\u0e31\u0e19\u0e17\u0e23\u0e4c\",\"\u0e2d\u0e31\u0e07\u0e04\u0e32\u0e23\",\"\u0e1e\u0e38\u0e18\",\"\u0e1e\u0e24\u0e2b\u0e31\u0e2a\u0e1a\u0e14\u0e35\",\"\u0e28\u0e38\u0e01\u0e23\u0e4c\",\"\u0e40\u0e2a\u0e32\u0e23\u0e4c\"], DOWS = [\"\u0e2d\u0e32\",\"\u0e08\",\"\u0e2d\",\"\u0e1e\",\"\u0e1e\u0e24\",\"\u0e28\",\"\u0e2a\"];",
@@ -540,12 +559,15 @@ const APP_HTML = [
 "function renderHero(){",
 "  const n = now(), list = allMyShifts(), cur = list.find(x=>x.st<=n && x.en>n), nxt = list.find(x=>x.st>n);",
 "  let h;",
-"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${SH[cur.c].n}</p><p class=\"time\">${SH[cur.c].t}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div><div class=\"orb\">${ic(SH[cur.c].i)}</div>`;",
+"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${SH[cur.c].n}</p><p class=\"time\">${SH[cur.c].t}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div><div class=\"orb\">${cute(SH[cur.c].k,46)}</div>`;",
 "  else if (nxt){",
 "    const dd = dayDiff(n, nxt.st), when = dd===0?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":dd===1?\"\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49\":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MONTHS[nxt.st.getMonth()].slice(0,3)}.`;",
-"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${SH[nxt.c].n}</p><p class=\"time\">${SH[nxt.c].t}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div><div class=\"orb\">${ic(SH[nxt.c].i)}</div>`;",
-"  } else h = `<div><p class=\"when\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e19\u0e49\u0e32</p><p class=\"what\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</p><p class=\"time\">\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p></div><div class=\"orb\">${ic(\"flower\")}</div>`;",
+"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${SH[nxt.c].n}</p><p class=\"time\">${SH[nxt.c].t}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div><div class=\"orb\">${cute(SH[nxt.c].k,46)}</div>`;",
+"  } else h = `<div><p class=\"when\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e19\u0e49\u0e32</p><p class=\"what\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</p><p class=\"time\">\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p></div><div class=\"orb\">${cute(\"off\",44)}</div>`;",
 "  $(\"hero\").innerHTML = h;",
+"  const t = noteOf(n), nb = $(\"todayNote\");",
+"  nb.style.display = t ? \"\" : \"none\";",
+"  if (t) nb.innerHTML = `<div class=\"notecard\">${cute(\"note\",30)}<div><p class=\"h3\" style=\"font-size:14px\">\u0e42\u0e19\u0e49\u0e15\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49</p><p class=\"t\">${esc(t)}</p></div></div>`;",
 "}",
 "",
 "/* ===== \u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19 ===== */",
@@ -561,8 +583,10 @@ const APP_HTML = [
 "  let h = \"<div></div>\".repeat(f);",
 "  for (let d=1; d<=days; d++){",
 "    const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;",
-"    const ps = s.length ? `<div class=\"ps\">${s.map(pill).join(\"\")}</div>` : (md ? '<div class=\"dot\"></div>' : \"\");",
-"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${isToday(d)?\"t\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}</div>`;",
+"    const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());",
+"    const ps = s.length ? `<div class=\"ics\">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join(\"\")}</div>` : (md ? `<div class=\"ics\" style=\"opacity:.75\">${cute(\"off\",17)}</div>` : \"\");",
+"    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class=\"pin\">${CUTE.note}</span>` : \"\";",
+"    h += `<div class=\"d ${s.length?\"h\":\"\"} ${isToday(d)?\"t\":\"\"} ${past&&!isToday(d)?\"past\":\"\"} ${selDay===d?\"sel\":\"\"}\" onclick=\"openDay(${d})\"><span class=\"nn ${we?\"we\":\"\"}\">${d}</span>${ps}${pin}</div>`;",
 "  }",
 "  $(\"days\").innerHTML = h;",
 "  $(\"chips\").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class=\"note\" style=\"width:100%\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49 \u0e01\u0e14 \"\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e40\u0e27\u0e23\" \u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p>`;",
@@ -580,17 +604,21 @@ const APP_HTML = [
 "  editSet = s.join(\"\");",
 "  let rows = s.map(c=>{",
 "    const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||\"\").includes(c)).map(([n])=>first(n)) : [];",
-"    return `<div class=\"srow ${SH[c].c}\">${ic(SH[c].i)}<div><p class=\"nm\">${SH[c].n}</p><p class=\"tm\">${SH[c].t}</p>${mates.length?`<p class=\"mates\">\u0e2d\u0e22\u0e39\u0e48\u0e14\u0e49\u0e27\u0e22\u0e01\u0e31\u0e19: ${mates.join(\", \")}</p>`:\"\"}</div></div>`;",
+"    return `<div class=\"srow ${SH[c].c}\">${cute(SH[c].k,40)}<div><p class=\"nm\">${SH[c].n}</p><p class=\"tm\">${SH[c].t}</p>${mates.length?`<p class=\"mates\">\u0e2d\u0e22\u0e39\u0e48\u0e14\u0e49\u0e27\u0e22\u0e01\u0e31\u0e19: ${mates.join(\", \")}</p>`:\"\"}</div></div>`;",
 "  }).join(\"\");",
-"  if (!s.length) rows = `<div class=\"srow o\">${ic(\"off\")}<div><p class=\"nm\">\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14</p><p class=\"tm\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e43\u0e2b\u0e49\u0e40\u0e15\u0e47\u0e21\u0e17\u0e35\u0e48\u0e19\u0e30</p></div></div>`;",
+"  if (!s.length) rows = `<div class=\"srow o\">${cute(\"off\",38)}<div><p class=\"nm\">\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14</p><p class=\"tm\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e43\u0e2b\u0e49\u0e40\u0e15\u0e47\u0e21\u0e17\u0e35\u0e48\u0e19\u0e30</p></div></div>`;",
 "  $(\"sheet\").innerHTML = `<div class=\"grab\"></div>",
 "    <h2 class=\"big\" style=\"font-size:22px\">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>",
 "    <p class=\"hello\" style=\"margin-bottom:12px\">${isToday(d)?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}",
 "    <p class=\"h3\" style=\"margin-top:16px\">\u0e41\u0e01\u0e49\u0e40\u0e27\u0e23</p>",
-"    <div class=\"tog\">${[\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].map(c=>`<button class=\"c${SH[c].c} ${editSet.includes(c)?\"on\":\"\"}\" onclick=\"togEdit('${c}',this)\">${ic(SH[c].i)} ${c}</button>`).join(\"\")}</div>",
-"    <button class=\"btn main\" style=\"width:100%\" onclick=\"saveDay(${d})\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>`;",
+"    <div class=\"tog\">${[\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].map(c=>`<button class=\"c${SH[c].c} ${editSet.includes(c)?\"on\":\"\"}\" onclick=\"togEdit('${c}',this)\">${cute(SH[c].k,24)} ${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")}</button>`).join(\"\")}</div>",
+"    <p class=\"h3\" style=\"margin-top:6px;display:flex;align-items:center;gap:6px\">${cute(\"note\",24)}\u0e42\u0e19\u0e49\u0e15</p>",
+"    <textarea class=\"notebox\" id=\"noteText\" placeholder=\"\u0e08\u0e14\u0e2d\u0e30\u0e44\u0e23\u0e01\u0e47\u0e44\u0e14\u0e49 \u0e40\u0e0a\u0e48\u0e19 \u0e41\u0e25\u0e01\u0e40\u0e27\u0e23 \u0e19\u0e31\u0e14\u0e2b\u0e21\u0e2d \u0e0b\u0e37\u0e49\u0e2d\u0e02\u0e2d\u0e07\" style=\"margin-top:8px\">${esc(noteOf(dt))}</textarea>",
+"    <div class=\"qchips\">${[\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\",\"OT\",\"\u0e25\u0e32\",\"\u0e19\u0e31\u0e14\u0e2b\u0e21\u0e2d\",\"\u0e27\u0e31\u0e19\u0e40\u0e01\u0e34\u0e14\",\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\"].map(q=>`<button class=\"qchip\" onclick=\"addQuick('${q}')\">+ ${q}</button>`).join(\"\")}</div>",
+"    <button class=\"btn main\" style=\"width:100%;margin-top:8px\" onclick=\"saveDay(${d})\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>`;",
 "  openSheet();",
 "}",
+"function addQuick(q){ const t = $(\"noteText\"); t.value = (t.value.trim() ? t.value.trim() + \" \u00b7 \" : \"\") + q + \" \"; t.focus(); }",
 "function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,\"\") : editSet + c; el.classList.toggle(\"on\"); }",
 "function saveDay(d){",
 "  const k = key(viewY,viewM);",
@@ -598,6 +626,9 @@ const APP_HTML = [
 "  const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};",
 "  const v = sortS(editSet).join(\"\"); if (v) me[d] = v; else delete me[d];",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
+"  const date = dk(new Date(viewY, viewM, d)), text = ($(\"noteText\") ? $(\"noteText\").value : \"\").trim();",
+"  DATA.notes = DATA.notes || {};",
+"  if (text !== ((DATA.notes[date]||\"\").trim())){ if (text) DATA.notes[date] = text; else delete DATA.notes[date]; send(\"saveNote\", {date, text}); }",
 "  closeSheet(); renderAll(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27\");",
 "}",
 "function openSheet(){ $(\"mask\").classList.add(\"on\"); $(\"sheet\").classList.add(\"on\"); }",
@@ -774,7 +805,7 @@ const APP_HTML = [
 "  const q = new URLSearchParams(location.search);",
 "  DATA = {preview:true, today:\"2026-12-03\", time:\"13:00\", me, hasKey:{gemini:true, claude:false},",
 "    settings:{notify:60, calendar:true, ai:\"gemini\", theme:{style:q.get(\"s\")||\"glass\", palette:q.get(\"p\")||\"sakura\"}},",
-"    months:{\"2026-12\":{people, totals:{[me]:30}}}};",
+"    months:{\"2026-12\":{people, totals:{[me]:30}}}, notes:{\"2026-12-03\":\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\u0e27\u0e2d\u0e23\u0e4c\u0e14 13:00 (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\",\"2026-12-08\":\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\u0e01\u0e31\u0e1a\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e40\u0e2d (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\"}};",
 "}",
 "initView(); renderAll();",
 "</script>",
@@ -795,6 +826,10 @@ async function runApp() {
   async function handle(m) {
     if (m.type === "saveMonth") {
       d.months[m.payload.key] = m.payload.month; saveData(d); await syncAll(d);
+    } else if (m.type === "saveNote") {
+      d.notes = d.notes || {};
+      if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];
+      saveData(d);
     } else if (m.type === "saveSettings") {
       d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
     } else if (m.type === "readPhoto") {
@@ -852,126 +887,218 @@ async function runApp() {
   await shown;
 }
 
-// ---------------- วิดเจ็ต ----------------
-function theme(d) {
-  const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
-  if (t.style === "dark") return { dark: true, bg: p.dark.body, card: p.dark.card, title: p.dark.title, sub: p.dark.sub, text: p.dark.title, accent: p.dark.accent, onAccent: p.dark.body, dot: p.dark.accent,
-    shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] }, off: ["#4A3226", "#FFD0B4"] };
-  const bg = t.style === "minimal" ? "#FAF8F7" : t.style === "planner" ? "#FBF5EC" : t.style === "clay" ? p.tint : p.body;
-  return { dark: false, bg, card: "#FFFFFF", title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF", dot: p.accent,
-    shift: { "ช": ["#CDEFD9", "#1F5A3B"], "บ": ["#D3E3FF", "#24427E"], "ด": ["#E2D8FF", "#4A2F8C"] }, off: ["#FFE2CF", "#8E4A22"] };
-}
 const C = h => new Color(h);
 const F = (w, s) => new Font(`SukhumvitSet-${w}`, s);
 function txt(stack, s, font, color, opts = {}) { const t = stack.addText(s); t.font = font; t.textColor = color; if (opts.lines) t.lineLimit = opts.lines; if (opts.min) t.minimumScaleFactor = opts.min; return t; }
-function badge(stack, c, T, size = 11) {
-  const b = stack.addStack(); b.backgroundColor = C(T.shift[c][0]); b.cornerRadius = size * 0.65; b.setPadding(0, size * 0.35, 0, size * 0.35);
-  txt(b, c, F("Bold", size), C(T.shift[c][1])); return b;
-}
 function sym(stack, name, size, color) { const i = stack.addImage(SFSymbol.named(name).image); i.imageSize = new Size(size, size); i.tintColor = color; return i; }
-const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พรุ่งนี้" : `${DOW[date.getDay()]} ${date.getDate()}`;
 
-function nextShift(d, now) {
-  const list = allMyShifts(d);
-  return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) };
-}
+// ---------------- วิดเจ็ต (วาดเป็นภาพ) ----------------
+const ICON_URL = "https://raw.githubusercontent.com/bagwrcphoto-boop/shiftapp/main/icons/";
+const ICON_NAMES = ["sun", "sunset", "moon", "off", "note"];
+const SH_ICON = { "ช": "sun", "บ": "sunset", "ด": "moon" };
+const SH_LABEL = { "ช": "เช้า", "บ": "บ่าย", "ด": "ดึก" };
+const SH_END = { "ช": "16:00", "บ": "24:00", "ด": "08:00" };
 
-function widgetSmall(d, now, T) {
-  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(14, 14, 12, 14);
-  const { cur, nxt } = nextShift(d, now), x = cur || nxt;
-  const top = w.addStack(); top.centerAlignContent();
-  txt(top, cur ? "ตอนนี้" : "เวรถัดไป", F("Medium", 12), C(T.sub)); top.addSpacer();
-  if (x) sym(top, SH[x.c].sym, 18, C(T.accent));
-  w.addSpacer(4);
-  if (!x) { txt(w, "ยังไม่มีเวร", F("Bold", 18), C(T.title)); txt(w, "แตะเพื่ออัปรูปตาราง", F("Text", 12), C(T.sub)); return w; }
-  const dd = Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
-  txt(w, SH[x.c].n, F("Bold", 22), C(T.title), { lines: 1, min: 0.7 });
-  txt(w, `${dayLabel(dd, x.st)} · ${hhmm(x.st)}–${x.c === "บ" ? "24:00" : hhmm(x.en)}`, F("Medium", 13), C(T.text), { lines: 1, min: 0.7 });
-  w.addSpacer();
-  const ms = (cur ? x.en : x.st) - now, h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4);
-  const pill = w.addStack(); pill.backgroundColor = C(T.accent); pill.cornerRadius = 10; pill.setPadding(3, 8, 3, 8);
-  txt(pill, cur ? `อีก ${h} ชม. ${m} น. เลิก` : h >= 48 ? `อีก ${Math.floor(h / 24)} วัน` : `อีก ${h} ชม. ${m} น.`, F("Bold", 12), C(T.onAccent), { lines: 1, min: 0.7 });
-  w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);
-  return w;
-}
-
-function widgetMedium(d, now, T) {
-  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(12, 10, 12, 10);
-  const head = w.addStack(); head.centerAlignContent(); head.setPadding(0, 4, 0, 4);
-  txt(head, "เวร 7 วันข้างหน้า", F("Bold", 15), C(T.title)); head.addSpacer();
-  txt(head, `${MONTHS[now.getMonth()]} ${now.getFullYear() + 543}`, F("Text", 12), C(T.sub));
-  w.addSpacer(8);
-  const row = w.addStack();
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-    const s = shiftsOn(d, date), today = i === 0;
-    const col = row.addStack(); col.layoutVertically(); col.size = new Size(44, 98); col.cornerRadius = 14;
-    col.backgroundColor = today ? C(T.accent) : C(T.dark ? T.card : "#FFFFFF");
-    col.setPadding(6, 0, 6, 0);
-    const fg = today ? C(T.onAccent) : C(T.text), we = date.getDay() === 0 || date.getDay() === 6;
-    const r1 = col.addStack(); r1.addSpacer(); txt(r1, DOW[date.getDay()], F("Medium", 11), today ? fg : C(we ? T.accent : T.sub)); r1.addSpacer();
-    const r2 = col.addStack(); r2.addSpacer(); txt(r2, String(date.getDate()), F("Bold", 17), fg); r2.addSpacer();
-    col.addSpacer(4);
-    if (!s || !s.length) { const r = col.addStack(); r.addSpacer(); txt(r, s ? "หยุด" : "-", F("Medium", 11), today ? fg : C(T.sub)); r.addSpacer(); }
-    else for (const c of s) { const r = col.addStack(); r.addSpacer(); badge(r, c, T, 12); r.addSpacer(); col.addSpacer(2); }
-    col.addSpacer();
-    if (i < 6) row.addSpacer(4);
+async function loadIcons() {
+  const dir = fm.joinPath(fm.documentsDirectory(), "shiftapp-icons");
+  if (!fm.fileExists(dir)) fm.createDirectory(dir, true);
+  const out = {};
+  for (const n of ICON_NAMES) {
+    const p = fm.joinPath(dir, n + ".png");
+    if (!fm.fileExists(p)) {
+      try { const r = new Request(ICON_URL + n + ".png"); r.timeoutInterval = 6; const img = await r.loadImage(); fm.writeImage(p, img); } catch (e) {}
+    }
+    if (fm.fileExists(p)) out[n] = fm.readImage(p);
   }
-  const next = new Date(now); next.setHours(24, 1, 0, 0); w.refreshAfterDate = next;
-  return w;
+  return out;
 }
 
-function widgetLarge(d, now, T) {
-  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(12, 8, 8, 8);
-  const cur = key(now.getFullYear(), now.getMonth()), ks = Object.keys(d.months).sort();
-  const k = d.months[cur] ? cur : (ks.find(x => x > cur) || ks[ks.length - 1]);
-  if (!k) { txt(w, "ยังไม่มีข้อมูลเวร\nแตะเพื่อเปิดแอปแล้วอัปรูปตาราง", F("Medium", 14), C(T.title)); return w; }
+// ขนาดวิดเจ็ต (pt) ตามขนาดจอ
+function widgetSize(family) {
+  const s = Device.screenSize(), w = Math.min(s.width, s.height), h = Math.max(s.width, s.height);
+  const T = { "430x932": [170, 364, 382], "440x956": [170, 364, 382], "428x926": [170, 364, 382], "414x896": [169, 360, 379],
+    "402x874": [162, 345, 363], "393x852": [158, 338, 354], "390x844": [158, 338, 354], "375x812": [155, 329, 345],
+    "414x736": [159, 348, 357], "375x667": [148, 321, 324], "320x568": [141, 292, 311] };
+  const v = T[`${w}x${h}`] || [Math.round(w * 0.405), Math.round(w * 0.86), Math.round(w * 0.9)];
+  if (family === "small") return new Size(v[0], v[0]);
+  if (family === "medium") return new Size(v[1], v[0]);
+  return new Size(v[1], v[2]);
+}
+
+const hexToRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 & 255, n & 255]; };
+const mixHex = (a, b, t) => { const x = hexToRgb(a), y = hexToRgb(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
+const CA = (h, a = 1) => new Color(h, a);
+
+function wTheme(d) {
+  const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
+  if (t.style === "dark") {
+    const q = p.dark;
+    return { dark: true, g1: q.body, g2: q.card, b1: q.blobs[0], b2: q.blobs[1], title: q.title, sub: q.sub, text: q.title, accent: q.accent, onAccent: q.body,
+      card: "#FFFFFF", cardA: 0.1, offA: 0.06, pastA: 0.55, past: q.body,
+      shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] } };
+  }
+  return { dark: false, g1: mixHex(p.body, "#FFD6E6", t.palette === "sakura" ? 0.35 : 0.1), g2: mixHex(p.blobs[1], "#FFFFFF", 0.72), b1: p.blobs[0], b2: p.blobs[1],
+    title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF",
+    card: "#FFFFFF", cardA: 0.62, offA: 0.42, pastA: 0.45, past: "#FFFFFF",
+    shift: { "ช": ["#D9F4E3", "#1F5A3B"], "บ": ["#DFEAFF", "#24427E"], "ด": ["#ECE4FF", "#4A2F8C"] } };
+}
+
+// ----- เครื่องมือวาด -----
+function newCtx(sz) { const c = new DrawContext(); c.size = sz; c.respectScreenScale = true; c.opaque = false; return c; }
+function rr(c, x, y, w, h, r, color) { const p = new Path(); p.addRoundedRect(new Rect(x, y, w, h), r, r); c.addPath(p); c.setFillColor(color); c.fillPath(); }
+function rrStroke(c, x, y, w, h, r, color, lw) { const p = new Path(); p.addRoundedRect(new Rect(x, y, w, h), r, r); c.addPath(p); c.setStrokeColor(color); c.setLineWidth(lw); c.strokePath(); }
+function tx(c, s, x, y, w, h, font, color, align) {
+  c.setFont(font); c.setTextColor(color);
+  if (align === "center") c.setTextAlignedCenter(); else if (align === "right") c.setTextAlignedRight(); else c.setTextAlignedLeft();
+  c.drawTextInRect(String(s), new Rect(x, y, w, h));
+}
+function img(c, I, name, x, y, s) { if (I[name]) c.drawImageInRect(I[name], new Rect(x, y, s, s)); }
+function drawBg(c, sz, T) {
+  const n = 48;
+  for (let i = 0; i < n; i++) { c.setFillColor(CA(mixHex(T.g1, T.g2, i / (n - 1)))); c.fillRect(new Rect(0, sz.height * i / n, sz.width, sz.height / n + 1)); }
+  const blob = (cx, cy, r, hex, a) => { for (let k = 14; k >= 1; k--) { const q = r * k / 14; c.setFillColor(CA(hex, a / 14)); c.fillEllipse(new Rect(cx - q, cy - q, q * 2, q * 2)); } };
+  blob(sz.width * 0.92, -sz.height * 0.08, sz.width * 0.42, T.b1, T.dark ? 0.5 : 0.55);
+  blob(sz.width * 0.05, sz.height * 1.08, sz.width * 0.42, T.b2, T.dark ? 0.45 : 0.45);
+}
+const shortName = d => String(d.me || "").replace(/^(นางสาว|นาง|นาย)/, "").split(" ")[0];
+const dkey = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+const noteOn = (d, dt) => ((d.notes || {})[dkey(dt)] || "").trim();
+const TH_MON = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const dayDiffW = (a, b) => Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()) - new Date(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
+const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พรุ่งนี้" : `${DOW[date.getDay()]} ${date.getDate()} ${TH_MON[date.getMonth()]}`;
+function untilText(ms) { const m = Math.max(0, Math.round(ms / 6e4)), dd = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
+  return dd >= 2 ? `อีก ${dd} วัน` : dd === 1 ? `อีก 1 วัน ${h} ชม.` : h ? `อีก ${h} ชม. ${mm} น.` : `อีก ${mm} นาที`; }
+function greet(now) { const h = now.getHours(); return h < 5 ? "ราตรีสวัสดิ์" : h < 12 ? "อรุณสวัสดิ์" : h < 17 ? "สวัสดีตอนบ่าย" : h < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ"; }
+function nextShift(d, now) { const list = allMyShifts(d); return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) }; }
+function nextNote(d, now, days = 7) {
+  for (let i = 0; i < days; i++) { const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), t = noteOn(d, dt); if (t) return { dt, t, i }; }
+  return null;
+}
+function nextOff(d, now) {
+  for (let i = 0; i < 45; i++) { const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt); if (s && !s.length) return dt; }
+  return null;
+}
+function clip(s, n) { s = String(s).replace(/\s+/g, " "); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+function shiftIcons(c, I, s, cx, cy, size) {          // วาดไอคอน 1-2 อันตรงกลาง
+  if (s.length <= 1) { img(c, I, s.length ? SH_ICON[s[0]] : "off", cx - size / 2, cy - size / 2, size); return; }
+  const z = size * 0.78, gap = -z * 0.12, tw = z * 2 + gap;
+  s.slice(0, 2).forEach((x, j) => img(c, I, SH_ICON[x], cx - tw / 2 + j * (z + gap), cy - z / 2, z));
+}
+function nextCapsule(c, I, T, d, now, x, y, w, h, compact) {
+  const { cur, nxt } = nextShift(d, now), it = cur || nxt;
+  rr(c, x, y, w, h, h * 0.38, CA(T.card, T.dark ? 0.14 : 0.82));
+  if (!it) { tx(c, "ยังไม่มีเวร", x + 8, y + h / 2 - 8, w - 16, 16, F("Bold", 11.5), CA(T.title), "center"); return; }
+  const is = h - 8; img(c, I, SH_ICON[it.c], x + 4, y + 4, is);
+  const tx0 = x + 8 + is, tw = w - is - 14;
+  if (compact) { const ms = (cur ? it.en : it.st) - now, hh = Math.floor(ms / 36e5), dd2 = Math.floor(hh / 24);
+    tx(c, dd2 >= 2 ? `อีก ${dd2} วัน` : hh >= 1 ? `อีก ${hh} ชม.` : `อีก ${Math.max(1, Math.round(ms / 6e4))} นาที`, tx0, y + h / 2 - 8, tw, 16, F("Bold", 11), CA(T.title)); return; }
+  const dd = dayDiffW(now, it.st);
+  tx(c, cur ? `ตอนนี้ เวร${SH_LABEL[it.c]}` : `${dayLabel(dd, it.st)} เวร${SH_LABEL[it.c]}`, tx0, y + 3, tw, 16, F("Bold", 11.5), CA(T.title));
+  tx(c, cur ? `เลิก ${SH_END[it.c]} · ${untilText(it.en - now)}` : `${hhmm(it.st)} · ${untilText(it.st - now)}`, tx0, y + h / 2 + 1, tw, 14, F("Medium", 9.5), CA(T.sub));
+}
+
+// ----- ใหญ่ -----
+function drawLarge(d, now, I, T, sz) {
+  const c = newCtx(sz); drawBg(c, sz, T);
+  const W = sz.width, H = sz.height, P = 12;
+  const curK = key(now.getFullYear(), now.getMonth()), ks = Object.keys(d.months).sort();
+  const k = d.months[curK] ? curK : (ks.find(x => x > curK) || ks[ks.length - 1]);
+  if (!k) { tx(c, "ยังไม่มีข้อมูลเวร", P, H / 2 - 24, W - 2 * P, 22, F("Bold", 17), CA(T.title), "center"); tx(c, "แตะเพื่อเปิดแอปแล้วอัปรูปตาราง", P, H / 2 + 2, W - 2 * P, 18, F("Medium", 12), CA(T.sub), "center"); return c.getImage(); }
   const [y, mm] = k.split("-").map(Number), m = mm - 1, me = d.months[k].people[d.me] || {};
   const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate(), rows = Math.ceil((first + days) / 7);
   const isThis = now.getFullYear() === y && now.getMonth() === m;
-  let total = 0; for (const s of Object.values(me)) total += sortS(s).length;
-
-  const head = w.addStack(); head.centerAlignContent(); head.setPadding(0, 6, 0, 6);
-  const L = head.addStack(); L.layoutVertically();
-  txt(L, `${MONTHS[m]} ${y + 543}`, F("Bold", 16), C(T.title));
-  txt(L, `เวรของ${d.me.replace(/^(นางสาว|นาง|นาย)/, "").split(" ")[0]}`, F("Text", 11), C(T.sub));
-  head.addSpacer();
-  const R = head.addStack(); R.layoutVertically();
-  const r1 = R.addStack(); r1.addSpacer(); txt(r1, String(total), F("Bold", 18), C(T.title));
-  const r2 = R.addStack(); r2.addSpacer(); txt(r2, "เวร", F("Text", 11), C(T.sub));
-  w.addSpacer(6);
-
-  const CW = 40, CH = rows === 6 ? 36 : 40;
-  const dr = w.addStack();
-  for (let i = 0; i < 7; i++) { const c = dr.addStack(); c.size = new Size(CW, 14); c.centerAlignContent(); txt(c, DOW[i], F("Medium", 10), C(i === 0 || i === 6 ? T.accent : T.sub)); }
-  w.addSpacer(2);
-  let day = 1 - first;
-  while (day <= days) {
-    const row = w.addStack();
-    for (let i = 0; i < 7; i++, day++) {
-      const cell = row.addStack(); cell.size = new Size(CW, CH); cell.layoutVertically();
-      if (day < 1 || day > days) continue;
-      const today = isThis && day === now.getDate();
-      const nr = cell.addStack(); nr.addSpacer();
-      const circ = nr.addStack(); circ.size = new Size(20, 18); circ.cornerRadius = 9; circ.centerAlignContent();
-      if (today) circ.backgroundColor = C(T.accent);
-      txt(circ, String(day), F(today ? "Bold" : "Text", 11), today ? C(T.onAccent) : C(i === 0 || i === 6 ? T.accent : T.text));
-      nr.addSpacer(); cell.addSpacer(2);
-      const s = sortS(me[day]), sr = cell.addStack(); sr.addSpacer(); sr.centerAlignContent();
-      if (!s.length) { const dot = sr.addStack(); dot.size = new Size(4, 4); dot.cornerRadius = 2; dot.backgroundColor = new Color(T.dot, 0.4); }
-      s.forEach((c, j) => { if (j) sr.addSpacer(2); badge(sr, c, T, 10); });
-      sr.addSpacer();
-    }
+  // หัว
+  tx(c, `${MONTHS[m]} ${y + 543}`, P, P - 2, W * 0.55, 22, F("Bold", 17), CA(T.title));
+  tx(c, `${greet(now)} ${shortName(d)}`, P, P + 20, W * 0.5, 15, F("Medium", 10.5), CA(T.sub));
+  const capW = Math.min(158, W * 0.47); nextCapsule(c, I, T, d, now, W - P - capW, P - 2, capW, 36);
+  // ชื่อวัน
+  const top = P + 40, gap = 4, cw = (W - 2 * P - 6 * gap) / 7;
+  DOW.forEach((n, i) => tx(c, n, P + i * (cw + gap), top, cw, 12, F("Bold", 9.5), CA(i === 0 || i === 6 ? T.accent : T.sub, 0.85), "center"));
+  // ส่วนล่าง
+  const note = nextNote(d, now), footH = 24, gTop = top + 15, gH = H - gTop - P - footH - 6;
+  const ch = (gH - (rows - 1) * gap) / rows;
+  for (let day = 1; day <= days; day++) {
+    const i = first + day - 1, x = P + (i % 7) * (cw + gap), yy = gTop + Math.floor(i / 7) * (ch + gap);
+    const s = sortS(me[day]), dt = new Date(y, m, day), past = dt < new Date(now.getFullYear(), now.getMonth(), now.getDate()), today = isThis && day === now.getDate();
+    rr(c, x, yy, cw, ch, 9, s.length ? CA(T.shift[s[0]][0], T.dark ? 0.9 : 1) : CA(T.card, T.offA));
+    const isz = Math.min(cw * 0.56, ch * 0.56, 26);
+    shiftIcons(c, I, s, x + cw / 2, yy + ch * 0.6, s.length ? isz : isz * 0.72);
+    tx(c, day, x + 4, yy + 1, cw - 6, 12, F(today ? "Bold" : "SemiBold", 9.5), CA(today ? T.accent : T.text, 0.85));
+    if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, yy + 2, 11);
+    if (past && !today) rr(c, x, yy, cw, ch, 9, CA(T.past, T.pastA));
+    if (today) rrStroke(c, x + 1, yy + 1, cw - 2, ch - 2, 8, CA(T.accent), 2);
   }
-  if (rows <= 5) {
-    w.addSpacer(6);
-    const lg = w.addStack(); lg.addSpacer(); lg.centerAlignContent();
-    [["ช", "เช้า"], ["บ", "บ่าย"], ["ด", "ดึก"]].forEach(([c, l], j) => { if (j) lg.addSpacer(10); badge(lg, c, T, 10); lg.addSpacer(3); txt(lg, l, F("Text", 11), C(T.text)); });
-    lg.addSpacer();
+  // แถบล่าง: โน้ต หรือ สรุปเวร
+  const fy = H - P - footH;
+  rr(c, P, fy, W - 2 * P, footH, 11, CA(T.card, T.dark ? 0.12 : 0.8));
+  if (note) {
+    img(c, I, "note", P + 4, fy + 3, 18);
+    const when = note.i === 0 ? "วันนี้" : note.i === 1 ? "พรุ่งนี้" : `${note.dt.getDate()} ${TH_MON[note.dt.getMonth()]}`;
+    tx(c, `${when} · ${clip(note.t, 34)}`, P + 26, fy + 4, W - 2 * P - 32, 16, F("SemiBold", 11), CA(T.title));
+  } else {
+    const cnt = { "ช": 0, "บ": 0, "ด": 0 }; let done = 0, total = 0;
+    for (let day = 1; day <= days; day++) for (const x of sortS(me[day])) { cnt[x]++; total++; if (new Date(y, m, day, SH[x].s + 8) <= now) done++; }
+    let xx = P + 6;
+    for (const x of ["ช", "บ", "ด"]) { img(c, I, SH_ICON[x], xx, fy + 4, 16); tx(c, cnt[x], xx + 18, fy + 5, 22, 14, F("Bold", 11), CA(T.shift[x][1] && !T.dark ? T.shift[x][1] : T.title)); xx += 44; }
+    const bx = xx + 2, bw = W - P - 8 - bx - 70; rr(c, bx, fy + 9, bw, 6, 3, CA(T.accent, 0.18)); if (total) rr(c, bx, fy + 9, Math.max(6, bw * done / total), 6, 3, CA(T.accent));
+    tx(c, `ผ่านไป ${done}/${total}`, W - P - 74, fy + 5, 68, 14, F("Bold", 10), CA(T.sub), "right");
   }
-  const next = new Date(now); next.setHours(24, 1, 0, 0); w.refreshAfterDate = next;
+  return c.getImage();
+}
+
+// ----- กลาง -----
+function drawMedium(d, now, I, T, sz) {
+  const c = newCtx(sz); drawBg(c, sz, T);
+  const W = sz.width, H = sz.height, P = 11;
+  const off = nextOff(d, now);
+  tx(c, "7 วันข้างหน้า", P, P - 3, W * 0.5, 19, F("Bold", 14.5), CA(T.title));
+  tx(c, off ? `วันหยุดถัดไป · ${dayLabel(dayDiffW(now, off), off)}` : "ยังไม่มีวันหยุดในตาราง", P, P + 15, W * 0.6, 14, F("Medium", 10), CA(T.sub));
+  nextCapsule(c, I, T, d, now, W - P - 92, P - 2, 92, 28, true);
+  const top = P + 34, gap = 5, cw = (W - 2 * P - 6 * gap) / 7, chh = H - top - P;
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + i * (cw + gap), today = i === 0;
+    rr(c, x, top, cw, chh, 12, today ? CA(T.dark ? mixHex(T.accent, T.g1, 0.6) : mixHex(T.accent, "#FFFFFF", 0.62)) : CA(T.card, T.cardA));
+    if (today) rrStroke(c, x + 1, top + 1, cw - 2, chh - 2, 11, CA(T.accent), 2);
+    const we = dt.getDay() === 0 || dt.getDay() === 6;
+    tx(c, DOW[dt.getDay()], x, top + 5, cw, 12, F("Bold", 9.5), CA(we ? T.accent : T.sub), "center");
+    tx(c, dt.getDate(), x, top + 16, cw, 20, F("Bold", 15), CA(T.title), "center");
+    const isz = Math.min(cw * 0.6, 24);
+    if (s === null) tx(c, "–", x, top + chh * 0.55, cw, 16, F("Bold", 12), CA(T.sub), "center");
+    else shiftIcons(c, I, s, x + cw / 2, top + chh * 0.62, isz);
+    if (s) tx(c, s.length ? s.map(z => SH_LABEL[z]).join("+") : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
+    if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, top + 3, 11);
+  }
+  return c.getImage();
+}
+
+// ----- เล็ก -----
+function drawSmall(d, now, I, T, sz) {
+  const c = newCtx(sz); drawBg(c, sz, T);
+  const W = sz.width, H = sz.height, P = 12;
+  const { cur, nxt } = nextShift(d, now), it = cur || nxt;
+  if (!it) { img(c, I, "off", W / 2 - 26, P + 10, 52); tx(c, "ยังไม่มีเวร", P, P + 68, W - 2 * P, 20, F("Bold", 15), CA(T.title), "center"); tx(c, "แตะเพื่ออัปรูปตาราง", P, P + 90, W - 2 * P, 16, F("Medium", 10.5), CA(T.sub), "center"); return c.getImage(); }
+  const dd = dayDiffW(now, it.st);
+  tx(c, cur ? "ตอนนี้กำลังอยู่เวร" : `เวรถัดไป · ${dayLabel(dd, it.st)}`, P, P - 2, W - 2 * P, 14, F("SemiBold", 10.5), CA(T.sub));
+  const isz = Math.round(W * 0.31);
+  img(c, I, SH_ICON[it.c], P - 2, P + 16, isz);
+  tx(c, `เวร${SH_LABEL[it.c]}`, P + isz + 2, P + 18, W - isz - P - 6, 24, F("Bold", 18), CA(T.title));
+  tx(c, `${hhmm(it.st)}–${SH_END[it.c]}`, P + isz + 2, P + 42, W - isz - P - 6, 16, F("Bold", 11.5), CA(T.text));
+  const note = nextNote(d, now, 2), nh = note ? 20 : 0;
+  const py = H - P - 22 - (note ? nh + 5 : 0), label = cur ? `เลิกเวร${untilText(it.en - now).replace("อีก", " อีก")}` : untilText(it.st - now);
+  const pw = Math.min(W - 2 * P, label.length * 6.4 + 18);
+  rr(c, P, py, pw, 22, 11, CA(T.accent)); tx(c, label, P, py + 3, pw, 16, F("Bold", 11.5), CA(T.onAccent), "center");
+  if (note) { const ny = H - P - nh; rr(c, P, ny, W - 2 * P, nh, 9, CA(T.card, T.dark ? 0.12 : 0.8)); img(c, I, "note", P + 3, ny + 2, 16); tx(c, clip(note.t, 18), P + 22, ny + 3, W - 2 * P - 26, 14, F("SemiBold", 9.5), CA(T.title)); }
+  return c.getImage();
+}
+
+async function drawnWidget(d, now, family) {
+  const I = await loadIcons(), T = wTheme(d), sz = widgetSize(family);
+  const w = new ListWidget(); w.setPadding(0, 0, 0, 0);
+  w.backgroundImage = family === "small" ? drawSmall(d, now, I, T, sz) : family === "medium" ? drawMedium(d, now, I, T, sz) : drawLarge(d, now, I, T, sz);
+  const next = new Date(now.getTime() + 15 * 6e4); w.refreshAfterDate = next;
   return w;
 }
+
 
 function widgetLock(d, now, family) {
   const w = new ListWidget();
@@ -995,17 +1122,14 @@ function widgetLock(d, now, family) {
   return w;
 }
 
-function buildWidget(d, now, family) {
+async function buildWidget(d, now, family) {
   if (String(family).startsWith("accessory")) return widgetLock(d, now, family);
-  const T = theme(d);
-  if (family === "small") return widgetSmall(d, now, T);
-  if (family === "medium") return widgetMedium(d, now, T);
-  return widgetLarge(d, now, T);
+  return await drawnWidget(d, now, family === "small" || family === "medium" ? family : "large");
 }
 
 // ---------------- เริ่มทำงาน ----------------
 if (config.runsInWidget || config.runsInAccessoryWidget) {
-  Script.setWidget(buildWidget(loadData(), new Date(), config.widgetFamily));
+  Script.setWidget(await buildWidget(loadData(), new Date(), config.widgetFamily));
 } else {
   await runApp();
 }

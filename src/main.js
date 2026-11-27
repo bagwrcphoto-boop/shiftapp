@@ -43,6 +43,8 @@ function loadData() {
       for (const [k, v] of Object.entries(old)) d.months[k] = { people: { [me]: v }, totals: {} };
     }
   }
+  if (!d.me && DEFAULT_NAME) d.me = DEFAULT_NAME;
+  d.notes = d.notes || {};
   d.settings = Object.assign({ notify: 60, calendar: true, ai: "gemini", theme: { style: "glass", palette: "sakura" } }, d.settings || {});
   return d;
 }
@@ -73,6 +75,7 @@ function shiftsOn(d, date) {
 const norm = s => String(s).replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/, "").replace(/\s+/g, "");
 function findMe(people, me) {
   const n = norm(me), names = Object.keys(people);
+  if (!n) return null;
   return names.find(x => norm(x) === n) || names.find(x => norm(x).includes(n) || n.includes(norm(x)))
       || names.find(x => norm(x).split("").filter((c, i) => c === n[i]).length >= n.length - 2 && Math.abs(norm(x).length - n.length) <= 2);
 }
@@ -210,6 +213,10 @@ async function runApp() {
   async function handle(m) {
     if (m.type === "saveMonth") {
       d.months[m.payload.key] = m.payload.month; saveData(d); await syncAll(d);
+    } else if (m.type === "saveNote") {
+      d.notes = d.notes || {};
+      if (m.payload.text) d.notes[m.payload.date] = m.payload.text; else delete d.notes[m.payload.date];
+      saveData(d);
     } else if (m.type === "saveSettings") {
       d.settings = Object.assign(d.settings, m.payload); saveData(d); await syncAll(d);
     } else if (m.type === "readPhoto") {
@@ -267,126 +274,12 @@ async function runApp() {
   await shown;
 }
 
-// ---------------- วิดเจ็ต ----------------
-function theme(d) {
-  const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
-  if (t.style === "dark") return { dark: true, bg: p.dark.body, card: p.dark.card, title: p.dark.title, sub: p.dark.sub, text: p.dark.title, accent: p.dark.accent, onAccent: p.dark.body, dot: p.dark.accent,
-    shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] }, off: ["#4A3226", "#FFD0B4"] };
-  const bg = t.style === "minimal" ? "#FAF8F7" : t.style === "planner" ? "#FBF5EC" : t.style === "clay" ? p.tint : p.body;
-  return { dark: false, bg, card: "#FFFFFF", title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF", dot: p.accent,
-    shift: { "ช": ["#CDEFD9", "#1F5A3B"], "บ": ["#D3E3FF", "#24427E"], "ด": ["#E2D8FF", "#4A2F8C"] }, off: ["#FFE2CF", "#8E4A22"] };
-}
 const C = h => new Color(h);
 const F = (w, s) => new Font(`SukhumvitSet-${w}`, s);
 function txt(stack, s, font, color, opts = {}) { const t = stack.addText(s); t.font = font; t.textColor = color; if (opts.lines) t.lineLimit = opts.lines; if (opts.min) t.minimumScaleFactor = opts.min; return t; }
-function badge(stack, c, T, size = 11) {
-  const b = stack.addStack(); b.backgroundColor = C(T.shift[c][0]); b.cornerRadius = size * 0.65; b.setPadding(0, size * 0.35, 0, size * 0.35);
-  txt(b, c, F("Bold", size), C(T.shift[c][1])); return b;
-}
 function sym(stack, name, size, color) { const i = stack.addImage(SFSymbol.named(name).image); i.imageSize = new Size(size, size); i.tintColor = color; return i; }
-const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พรุ่งนี้" : `${DOW[date.getDay()]} ${date.getDate()}`;
 
-function nextShift(d, now) {
-  const list = allMyShifts(d);
-  return { cur: list.find(x => x.st <= now && x.en > now), nxt: list.find(x => x.st > now) };
-}
-
-function widgetSmall(d, now, T) {
-  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(14, 14, 12, 14);
-  const { cur, nxt } = nextShift(d, now), x = cur || nxt;
-  const top = w.addStack(); top.centerAlignContent();
-  txt(top, cur ? "ตอนนี้" : "เวรถัดไป", F("Medium", 12), C(T.sub)); top.addSpacer();
-  if (x) sym(top, SH[x.c].sym, 18, C(T.accent));
-  w.addSpacer(4);
-  if (!x) { txt(w, "ยังไม่มีเวร", F("Bold", 18), C(T.title)); txt(w, "แตะเพื่ออัปรูปตาราง", F("Text", 12), C(T.sub)); return w; }
-  const dd = Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
-  txt(w, SH[x.c].n, F("Bold", 22), C(T.title), { lines: 1, min: 0.7 });
-  txt(w, `${dayLabel(dd, x.st)} · ${hhmm(x.st)}–${x.c === "บ" ? "24:00" : hhmm(x.en)}`, F("Medium", 13), C(T.text), { lines: 1, min: 0.7 });
-  w.addSpacer();
-  const ms = (cur ? x.en : x.st) - now, h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4);
-  const pill = w.addStack(); pill.backgroundColor = C(T.accent); pill.cornerRadius = 10; pill.setPadding(3, 8, 3, 8);
-  txt(pill, cur ? `อีก ${h} ชม. ${m} น. เลิก` : h >= 48 ? `อีก ${Math.floor(h / 24)} วัน` : `อีก ${h} ชม. ${m} น.`, F("Bold", 12), C(T.onAccent), { lines: 1, min: 0.7 });
-  w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);
-  return w;
-}
-
-function widgetMedium(d, now, T) {
-  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(12, 10, 12, 10);
-  const head = w.addStack(); head.centerAlignContent(); head.setPadding(0, 4, 0, 4);
-  txt(head, "เวร 7 วันข้างหน้า", F("Bold", 15), C(T.title)); head.addSpacer();
-  txt(head, `${MONTHS[now.getMonth()]} ${now.getFullYear() + 543}`, F("Text", 12), C(T.sub));
-  w.addSpacer(8);
-  const row = w.addStack();
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-    const s = shiftsOn(d, date), today = i === 0;
-    const col = row.addStack(); col.layoutVertically(); col.size = new Size(44, 98); col.cornerRadius = 14;
-    col.backgroundColor = today ? C(T.accent) : C(T.dark ? T.card : "#FFFFFF");
-    col.setPadding(6, 0, 6, 0);
-    const fg = today ? C(T.onAccent) : C(T.text), we = date.getDay() === 0 || date.getDay() === 6;
-    const r1 = col.addStack(); r1.addSpacer(); txt(r1, DOW[date.getDay()], F("Medium", 11), today ? fg : C(we ? T.accent : T.sub)); r1.addSpacer();
-    const r2 = col.addStack(); r2.addSpacer(); txt(r2, String(date.getDate()), F("Bold", 17), fg); r2.addSpacer();
-    col.addSpacer(4);
-    if (!s || !s.length) { const r = col.addStack(); r.addSpacer(); txt(r, s ? "หยุด" : "-", F("Medium", 11), today ? fg : C(T.sub)); r.addSpacer(); }
-    else for (const c of s) { const r = col.addStack(); r.addSpacer(); badge(r, c, T, 12); r.addSpacer(); col.addSpacer(2); }
-    col.addSpacer();
-    if (i < 6) row.addSpacer(4);
-  }
-  const next = new Date(now); next.setHours(24, 1, 0, 0); w.refreshAfterDate = next;
-  return w;
-}
-
-function widgetLarge(d, now, T) {
-  const w = new ListWidget(); w.backgroundColor = C(T.bg); w.setPadding(12, 8, 8, 8);
-  const cur = key(now.getFullYear(), now.getMonth()), ks = Object.keys(d.months).sort();
-  const k = d.months[cur] ? cur : (ks.find(x => x > cur) || ks[ks.length - 1]);
-  if (!k) { txt(w, "ยังไม่มีข้อมูลเวร\nแตะเพื่อเปิดแอปแล้วอัปรูปตาราง", F("Medium", 14), C(T.title)); return w; }
-  const [y, mm] = k.split("-").map(Number), m = mm - 1, me = d.months[k].people[d.me] || {};
-  const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate(), rows = Math.ceil((first + days) / 7);
-  const isThis = now.getFullYear() === y && now.getMonth() === m;
-  let total = 0; for (const s of Object.values(me)) total += sortS(s).length;
-
-  const head = w.addStack(); head.centerAlignContent(); head.setPadding(0, 6, 0, 6);
-  const L = head.addStack(); L.layoutVertically();
-  txt(L, `${MONTHS[m]} ${y + 543}`, F("Bold", 16), C(T.title));
-  txt(L, `เวรของ${d.me.replace(/^(นางสาว|นาง|นาย)/, "").split(" ")[0]}`, F("Text", 11), C(T.sub));
-  head.addSpacer();
-  const R = head.addStack(); R.layoutVertically();
-  const r1 = R.addStack(); r1.addSpacer(); txt(r1, String(total), F("Bold", 18), C(T.title));
-  const r2 = R.addStack(); r2.addSpacer(); txt(r2, "เวร", F("Text", 11), C(T.sub));
-  w.addSpacer(6);
-
-  const CW = 40, CH = rows === 6 ? 36 : 40;
-  const dr = w.addStack();
-  for (let i = 0; i < 7; i++) { const c = dr.addStack(); c.size = new Size(CW, 14); c.centerAlignContent(); txt(c, DOW[i], F("Medium", 10), C(i === 0 || i === 6 ? T.accent : T.sub)); }
-  w.addSpacer(2);
-  let day = 1 - first;
-  while (day <= days) {
-    const row = w.addStack();
-    for (let i = 0; i < 7; i++, day++) {
-      const cell = row.addStack(); cell.size = new Size(CW, CH); cell.layoutVertically();
-      if (day < 1 || day > days) continue;
-      const today = isThis && day === now.getDate();
-      const nr = cell.addStack(); nr.addSpacer();
-      const circ = nr.addStack(); circ.size = new Size(20, 18); circ.cornerRadius = 9; circ.centerAlignContent();
-      if (today) circ.backgroundColor = C(T.accent);
-      txt(circ, String(day), F(today ? "Bold" : "Text", 11), today ? C(T.onAccent) : C(i === 0 || i === 6 ? T.accent : T.text));
-      nr.addSpacer(); cell.addSpacer(2);
-      const s = sortS(me[day]), sr = cell.addStack(); sr.addSpacer(); sr.centerAlignContent();
-      if (!s.length) { const dot = sr.addStack(); dot.size = new Size(4, 4); dot.cornerRadius = 2; dot.backgroundColor = new Color(T.dot, 0.4); }
-      s.forEach((c, j) => { if (j) sr.addSpacer(2); badge(sr, c, T, 10); });
-      sr.addSpacer();
-    }
-  }
-  if (rows <= 5) {
-    w.addSpacer(6);
-    const lg = w.addStack(); lg.addSpacer(); lg.centerAlignContent();
-    [["ช", "เช้า"], ["บ", "บ่าย"], ["ด", "ดึก"]].forEach(([c, l], j) => { if (j) lg.addSpacer(10); badge(lg, c, T, 10); lg.addSpacer(3); txt(lg, l, F("Text", 11), C(T.text)); });
-    lg.addSpacer();
-  }
-  const next = new Date(now); next.setHours(24, 1, 0, 0); w.refreshAfterDate = next;
-  return w;
-}
+/*__WIDGETS__*/
 
 function widgetLock(d, now, family) {
   const w = new ListWidget();
@@ -410,17 +303,14 @@ function widgetLock(d, now, family) {
   return w;
 }
 
-function buildWidget(d, now, family) {
+async function buildWidget(d, now, family) {
   if (String(family).startsWith("accessory")) return widgetLock(d, now, family);
-  const T = theme(d);
-  if (family === "small") return widgetSmall(d, now, T);
-  if (family === "medium") return widgetMedium(d, now, T);
-  return widgetLarge(d, now, T);
+  return await drawnWidget(d, now, family === "small" || family === "medium" ? family : "large");
 }
 
 // ---------------- เริ่มทำงาน ----------------
 if (config.runsInWidget || config.runsInAccessoryWidget) {
-  Script.setWidget(buildWidget(loadData(), new Date(), config.widgetFamily));
+  Script.setWidget(await buildWidget(loadData(), new Date(), config.widgetFamily));
 } else {
   await runApp();
 }

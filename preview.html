@@ -54,6 +54,16 @@ button{font:inherit;cursor:pointer;color:inherit}
 .d .ps{display:flex;gap:2px}
 .d .p{font-size:11px;padding:0 4px;line-height:16px;border-radius:7px}
 .dot{width:5px;height:5px;border-radius:50%;background:var(--dot);margin-top:6px}
+.cute{display:inline-flex;flex:0 0 auto}.cute svg{width:100%;height:100%;display:block}
+.d .ics{display:flex;margin-top:1px}.d .ics .cute+.cute{margin-left:-4px}
+.d{position:relative}.d .pin{position:absolute;top:2px;right:2px;width:13px;height:13px}
+.d.past{opacity:.55}
+.notebox{width:100%;min-height:84px;border:2px solid var(--line);border-radius:16px;padding:10px 12px;font:inherit;font-size:15px;background:var(--nbBg);color:var(--text);resize:vertical;outline:none}
+.notebox:focus{border-color:var(--accent)}
+.qchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
+.qchip{border:0;border-radius:12px;padding:5px 11px;font-size:13px;font-weight:600;background:var(--tint);color:var(--title)}
+.notecard{display:flex;gap:10px;align-items:flex-start}
+.notecard .t{font-size:15px;white-space:pre-wrap;flex:1}
 .chips{display:flex;gap:4px;justify-content:space-between;margin-top:12px}
 .chip{display:inline-flex;align-items:center;gap:3px;border-radius:12px;padding:5px 7px;font-size:13px;font-weight:700;white-space:nowrap}
 /* sheet */
@@ -139,6 +149,7 @@ select{font:inherit;font-size:14px;border:1.5px solid var(--line);border-radius:
 <section class="page on" id="p-cal">
   <div style="margin-bottom:14px"><p class="hello" id="hello"></p><h1 class="big">ตารางเวรของฉัน</h1></div>
   <div class="card hero" id="hero"></div>
+  <div class="card" id="todayNote" style="display:none"></div>
   <div class="card" id="calCard">
     <div class="cal-h"><button class="nb" onclick="moveMonth(-1)" aria-label="เดือนก่อน"><i data-i="l"></i></button><span class="t" id="calTitle"></span><button class="nb" onclick="moveMonth(1)" aria-label="เดือนถัดไป"><i data-i="r"></i></button></div>
     <div class="dow"><div class="we">อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div class="we">ส</div></div>
@@ -221,6 +232,7 @@ const PALETTES = {
  peach:{name:"พีช",accent:"#E0612F",title:"#662812",sub:"#8C4A2B",text:"#3C281E",body:"#FFEFE4",tint:"#FFE6D6",blobs:["#FFC2A0","#FFD9A0","#FFB0C0","#FFE7B0"],dark:{body:"#24130C",card:"#3A2216",accent:"#FF9D70",title:"#FFF3EC",sub:"#F2CDB8",blobs:["#B04A1E","#A8306A","#B07A18","#8A3A2A"]}},
  mocha:{name:"ครีมมอคค่า",accent:"#9C6A45",title:"#47301F",sub:"#6E523E",text:"#352619",body:"#F5EDE4",tint:"#EFE3D6",blobs:["#E8D2BC","#F2DCC8","#DCC4B0","#EADBC8"],dark:{body:"#1C1511",card:"#2E241D",accent:"#D9A97F",title:"#FAF2EA",sub:"#DCC7B4",blobs:["#6E4A30","#5A3E2E","#7A5638","#4E3A2C"]}},
 };
+const CUTE = {"sun": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><g stroke=\"#FFB347\" stroke-width=\"5\" stroke-linecap=\"round\"><path d=\"M32 4v7M32 53v7M4 32h7M53 32h7M12 12l5 5M47 47l5 5M52 12l-5 5M17 47l-5 5\"/></g><circle cx=\"32\" cy=\"32\" r=\"17\" fill=\"#FFD166\"/><circle cx=\"32\" cy=\"32\" r=\"17\" fill=\"none\" stroke=\"#FFB347\" stroke-width=\"2\"/><circle cx=\"26\" cy=\"30\" r=\"2.3\" fill=\"#5A3A2E\"/><circle cx=\"38\" cy=\"30\" r=\"2.3\" fill=\"#5A3A2E\"/><ellipse cx=\"22\" cy=\"36\" rx=\"3.4\" ry=\"2.2\" fill=\"#FF8FA3\" opacity=\".8\"/><ellipse cx=\"42\" cy=\"36\" rx=\"3.4\" ry=\"2.2\" fill=\"#FF8FA3\" opacity=\".8\"/><path d=\"M28 36q4 4 8 0\" stroke=\"#5A3A2E\" stroke-width=\"2.2\" fill=\"none\" stroke-linecap=\"round\"/></svg>", "sunset": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><circle cx=\"38\" cy=\"26\" r=\"15\" fill=\"#FFB38A\"/><circle cx=\"38\" cy=\"26\" r=\"15\" fill=\"none\" stroke=\"#FF9466\" stroke-width=\"2\"/><path d=\"M33 24q2-2 4 0M41 24q2-2 4 0\" stroke=\"#6B3A2E\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M14 50a10 10 0 0 1 2-19.8A13 13 0 0 1 40 30a9 9 0 0 1 10 9.5A8 8 0 0 1 48 55H18a8 8 0 0 1-4-5z\" fill=\"#BFD7FF\"/><path d=\"M14 50a10 10 0 0 1 2-19.8A13 13 0 0 1 40 30a9 9 0 0 1 10 9.5A8 8 0 0 1 48 55H18a8 8 0 0 1-4-5z\" fill=\"none\" stroke=\"#8FB4F2\" stroke-width=\"2\"/><circle cx=\"25\" cy=\"44\" r=\"2\" fill=\"#3B4F7E\"/><circle cx=\"35\" cy=\"44\" r=\"2\" fill=\"#3B4F7E\"/><ellipse cx=\"21\" cy=\"48\" rx=\"2.8\" ry=\"1.8\" fill=\"#FF9FB5\" opacity=\".8\"/><ellipse cx=\"39\" cy=\"48\" rx=\"2.8\" ry=\"1.8\" fill=\"#FF9FB5\" opacity=\".8\"/><path d=\"M28 47q2 2.5 4 0\" stroke=\"#3B4F7E\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg>", "moon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M40 8a24 24 0 1 0 18 34A20 20 0 0 1 40 8z\" fill=\"#CDB8FF\" stroke=\"#A88BF0\" stroke-width=\"2\"/><path d=\"M20 34q3 3 6 0M31 34q3 3 6 0\" stroke=\"#4A2F8C\" stroke-width=\"2.2\" fill=\"none\" stroke-linecap=\"round\"/><ellipse cx=\"19\" cy=\"40\" rx=\"3\" ry=\"2\" fill=\"#FF9FC4\" opacity=\".85\"/><ellipse cx=\"38\" cy=\"40\" rx=\"3\" ry=\"2\" fill=\"#FF9FC4\" opacity=\".85\"/><path d=\"M26 42q2.5 2 5 0\" stroke=\"#4A2F8C\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M50 10l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z\" fill=\"#FFD166\"/><text x=\"46\" y=\"32\" font-size=\"9\" font-weight=\"700\" fill=\"#A88BF0\" font-family=\"sans-serif\">z</text><text x=\"52\" y=\"26\" font-size=\"7\" font-weight=\"700\" fill=\"#A88BF0\" font-family=\"sans-serif\">z</text></svg>", "off": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M32 56S8 42 8 24a12 12 0 0 1 24-4 12 12 0 0 1 24 4c0 18-24 32-24 32z\" fill=\"#FFB3CC\" stroke=\"#F48FB1\" stroke-width=\"2\"/><circle cx=\"25\" cy=\"30\" r=\"2.2\" fill=\"#7A2E4E\"/><circle cx=\"39\" cy=\"30\" r=\"2.2\" fill=\"#7A2E4E\"/><ellipse cx=\"21\" cy=\"35\" rx=\"3\" ry=\"2\" fill=\"#FF7FA6\" opacity=\".7\"/><ellipse cx=\"43\" cy=\"35\" rx=\"3\" ry=\"2\" fill=\"#FF7FA6\" opacity=\".7\"/><path d=\"M28 35q4 4 8 0\" stroke=\"#7A2E4E\" stroke-width=\"2.2\" fill=\"none\" stroke-linecap=\"round\"/><ellipse cx=\"20\" cy=\"20\" rx=\"4\" ry=\"2.5\" fill=\"#fff\" opacity=\".6\" transform=\"rotate(-30 20 20)\"/></svg>", "note": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><rect x=\"10\" y=\"10\" width=\"44\" height=\"46\" rx=\"10\" fill=\"#FFF3B0\" stroke=\"#F2C94C\" stroke-width=\"2\"/><rect x=\"22\" y=\"5\" width=\"20\" height=\"10\" rx=\"4\" fill=\"#F7A8C4\"/><path d=\"M19 30h26M19 39h18\" stroke=\"#D9A93A\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M44 44l6-6 4 4-6 6h-4z\" fill=\"#F48FB1\"/></svg>"};
 
 
 /* ===== ไอคอน ===== */
@@ -284,7 +296,11 @@ function setTheme(style, palette){
 }
 
 /* ===== ข้อมูลพื้นฐาน ===== */
-const SH = {"ด":{n:"เวรดึก",i:"moon",t:"00:00 – 08:00",s:0,c:"n"},"ช":{n:"เวรเช้า",i:"sun",t:"08:00 – 16:00",s:8,c:"m"},"บ":{n:"เวรบ่าย",i:"sunset",t:"16:00 – 24:00",s:16,c:"a"}};
+const SH = {"ด":{n:"เวรดึก",i:"moon",k:"moon",t:"00:00 – 08:00",s:0,c:"n"},"ช":{n:"เวรเช้า",i:"sun",k:"sun",t:"08:00 – 16:00",s:8,c:"m"},"บ":{n:"เวรบ่าย",i:"sunset",k:"sunset",t:"16:00 – 24:00",s:16,c:"a"}};
+const cute = (k, s) => `<span class="cute" style="width:${s}px;height:${s}px">${CUTE[k]}</span>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+const dk = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+const noteOf = dt => ((DATA.notes||{})[dk(dt)]||"").trim();
 const ORD = {"ด":0,"ช":1,"บ":2};
 const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const DOWF = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"], DOWS = ["อา","จ","อ","พ","พฤ","ศ","ส"];
@@ -333,12 +349,15 @@ function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math
 function renderHero(){
   const n = now(), list = allMyShifts(), cur = list.find(x=>x.st<=n && x.en>n), nxt = list.find(x=>x.st>n);
   let h;
-  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${SH[cur.c].n}</p><p class="time">${SH[cur.c].t}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div><div class="orb">${ic(SH[cur.c].i)}</div>`;
+  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${SH[cur.c].n}</p><p class="time">${SH[cur.c].t}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div><div class="orb">${cute(SH[cur.c].k,46)}</div>`;
   else if (nxt){
     const dd = dayDiff(n, nxt.st), when = dd===0?"วันนี้":dd===1?"พรุ่งนี้":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MONTHS[nxt.st.getMonth()].slice(0,3)}.`;
-    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${SH[nxt.c].n}</p><p class="time">${SH[nxt.c].t}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div><div class="orb">${ic(SH[nxt.c].i)}</div>`;
-  } else h = `<div><p class="when">ยังไม่มีเวรข้างหน้า</p><p class="what">พักผ่อนเยอะๆ นะ</p><p class="time">อัปรูปตารางเดือนใหม่ได้เลย</p></div><div class="orb">${ic("flower")}</div>`;
+    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${SH[nxt.c].n}</p><p class="time">${SH[nxt.c].t}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div><div class="orb">${cute(SH[nxt.c].k,46)}</div>`;
+  } else h = `<div><p class="when">ยังไม่มีเวรข้างหน้า</p><p class="what">พักผ่อนเยอะๆ นะ</p><p class="time">อัปรูปตารางเดือนใหม่ได้เลย</p></div><div class="orb">${cute("off",44)}</div>`;
   $("hero").innerHTML = h;
+  const t = noteOf(n), nb = $("todayNote");
+  nb.style.display = t ? "" : "none";
+  if (t) nb.innerHTML = `<div class="notecard">${cute("note",30)}<div><p class="h3" style="font-size:14px">โน้ตวันนี้</p><p class="t">${esc(t)}</p></div></div>`;
 }
 
 /* ===== ปฏิทิน ===== */
@@ -354,8 +373,10 @@ function renderCal(){
   let h = "<div></div>".repeat(f);
   for (let d=1; d<=days; d++){
     const s = sortS(me[d]), w = (f+d-1)%7, we = w===0||w===6;
-    const ps = s.length ? `<div class="ps">${s.map(pill).join("")}</div>` : (md ? '<div class="dot"></div>' : "");
-    h += `<div class="d ${s.length?"h":""} ${isToday(d)?"t":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}</div>`;
+    const n = now(), past = new Date(viewY, viewM, d) < new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    const ps = s.length ? `<div class="ics">${s.map(c=>cute(SH[c].k, s.length>1?19:24)).join("")}</div>` : (md ? `<div class="ics" style="opacity:.75">${cute("off",17)}</div>` : "");
+    const pin = noteOf(new Date(viewY, viewM, d)) ? `<span class="pin">${CUTE.note}</span>` : "";
+    h += `<div class="d ${s.length?"h":""} ${isToday(d)?"t":""} ${past&&!isToday(d)?"past":""} ${selDay===d?"sel":""}" onclick="openDay(${d})"><span class="nn ${we?"we":""}">${d}</span>${ps}${pin}</div>`;
   }
   $("days").innerHTML = h;
   $("chips").innerHTML = md ? chipsHTML(countMonth(me, days)) : `<p class="note" style="width:100%">ยังไม่มีตารางเดือนนี้ กด "อัปรูปเวร" ได้เลย</p>`;
@@ -373,17 +394,21 @@ function openDay(d){
   editSet = s.join("");
   let rows = s.map(c=>{
     const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||"").includes(c)).map(([n])=>first(n)) : [];
-    return `<div class="srow ${SH[c].c}">${ic(SH[c].i)}<div><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}</div></div>`;
+    return `<div class="srow ${SH[c].c}">${cute(SH[c].k,40)}<div><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}</div></div>`;
   }).join("");
-  if (!s.length) rows = `<div class="srow o">${ic("off")}<div><p class="nm">วันหยุด</p><p class="tm">พักผ่อนให้เต็มที่นะ</p></div></div>`;
+  if (!s.length) rows = `<div class="srow o">${cute("off",38)}<div><p class="nm">วันหยุด</p><p class="tm">พักผ่อนให้เต็มที่นะ</p></div></div>`;
   $("sheet").innerHTML = `<div class="grab"></div>
     <h2 class="big" style="font-size:22px">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>
     <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}
     <p class="h3" style="margin-top:16px">แก้เวร</p>
-    <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${ic(SH[c].i)} ${c}</button>`).join("")}</div>
-    <button class="btn main" style="width:100%" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
+    <div class="tog">${["ด","ช","บ"].map(c=>`<button class="c${SH[c].c} ${editSet.includes(c)?"on":""}" onclick="togEdit('${c}',this)">${cute(SH[c].k,24)} ${SH[c].n.replace("เวร","")}</button>`).join("")}</div>
+    <p class="h3" style="margin-top:6px;display:flex;align-items:center;gap:6px">${cute("note",24)}โน้ต</p>
+    <textarea class="notebox" id="noteText" placeholder="จดอะไรก็ได้ เช่น แลกเวร นัดหมอ ซื้อของ" style="margin-top:8px">${esc(noteOf(dt))}</textarea>
+    <div class="qchips">${["แลกเวร","OT","ลา","นัดหมอ","วันเกิด","ประชุม"].map(q=>`<button class="qchip" onclick="addQuick('${q}')">+ ${q}</button>`).join("")}</div>
+    <button class="btn main" style="width:100%;margin-top:8px" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
   openSheet();
 }
+function addQuick(q){ const t = $("noteText"); t.value = (t.value.trim() ? t.value.trim() + " · " : "") + q + " "; t.focus(); }
 function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,"") : editSet + c; el.classList.toggle("on"); }
 function saveDay(d){
   const k = key(viewY,viewM);
@@ -391,6 +416,9 @@ function saveDay(d){
   const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};
   const v = sortS(editSet).join(""); if (v) me[d] = v; else delete me[d];
   send("saveMonth", {key:k, month:DATA.months[k]});
+  const date = dk(new Date(viewY, viewM, d)), text = ($("noteText") ? $("noteText").value : "").trim();
+  DATA.notes = DATA.notes || {};
+  if (text !== ((DATA.notes[date]||"").trim())){ if (text) DATA.notes[date] = text; else delete DATA.notes[date]; send("saveNote", {date, text}); }
   closeSheet(); renderAll(); toast("บันทึกแล้ว");
 }
 function openSheet(){ $("mask").classList.add("on"); $("sheet").classList.add("on"); }
@@ -567,7 +595,7 @@ if (!DATA){
   const q = new URLSearchParams(location.search);
   DATA = {preview:true, today:"2026-12-03", time:"13:00", me, hasKey:{gemini:true, claude:false},
     settings:{notify:60, calendar:true, ai:"gemini", theme:{style:q.get("s")||"glass", palette:q.get("p")||"sakura"}},
-    months:{"2026-12":{people, totals:{[me]:30}}}};
+    months:{"2026-12":{people, totals:{[me]:30}}}, notes:{"2026-12-03":"ประชุมวอร์ด 13:00 (ตัวอย่าง)","2026-12-08":"แลกเวรกับเพื่อน เอ (ตัวอย่าง)"}};
 }
 initView(); renderAll();
 </script>

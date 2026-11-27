@@ -1,7 +1,7 @@
 import json, re
 pal = open('src/palettes.js').read()
-html = open('src/app.html').read().replace('/*__PALETTES__*/', pal)
-main = open('src/main.js').read().replace('/*__PALETTES__*/', pal)
+html = open('src/app.html').read().replace('/*__PALETTES__*/', pal + open('src/icons.js').read())
+main = open('src/main.js').read().replace('/*__PALETTES__*/', pal).replace('/*__WIDGETS__*/', open('src/widgets.js').read())
 lines = html.split('\n')
 arr = '[\n' + ',\n'.join(json.dumps(l, ensure_ascii=True) for l in lines) + '\n].join("\\n")'
 main = main.replace('/*__HTML__*/""', arr)
