@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 14";
+const APP_VERSION = "27 พ.ย. 69 · 15";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -393,6 +393,8 @@ async function runApp() {
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); }
       });
+    } else if (m.type === "saveTrades") {         // ซื้อ-ขายเวร
+      d.trades = m.payload || []; saveData(d);
     } else if (m.type === "shareText") {
       await ShareSheet.present([String(m.payload)]);
     } else if (m.type === "share") {
