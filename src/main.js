@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 37";
+const APP_VERSION = "28 พ.ย. 69 · 38";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -625,22 +625,40 @@ function widgetLock(d, now, family) {
   const w = new ListWidget();
   const { cur, nxt } = nextShift(d, now), x = cur || nxt;
   const dd = x ? Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5) : 0;
+  const nm = x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join("→") : SH[x.c].n) : "";   // เวรต่อกัน = ก้อนเดียว
   if (family === "accessoryInline") {
-    txt(w, x ? `${SH[x.c].n} ${dayLabel(dd, x.st)} ${hhmm(x.st)}` : "ยังไม่มีเวร", Font.systemFont(12), Color.white());
+    txt(w, !x ? "ยังไม่มีเวร" : cur ? `อยู่${nm.startsWith("เวร") ? nm : "เวร" + nm} เลิก ${bEnd(x)}` : `${nm} ${dayLabel(dd, x.st)} ${hhmm(x.st)}`, Font.systemFont(12), Color.white());
   } else if (family === "accessoryCircular") {
     w.addAccessoryWidgetBackground = true;
     const s = w.addStack(); s.layoutVertically(); s.centerAlignContent();
-    const a = s.addStack(); a.addSpacer(); txt(a, x ? x.c : "-", F("Bold", 20), Color.white()); a.addSpacer();
-    const b = s.addStack(); b.addSpacer(); txt(b, x ? (dd === 0 ? "วันนี้" : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`) : "", F("Medium", 10), Color.white()); b.addSpacer();
+    const a = s.addStack(); a.addSpacer(); txt(a, x ? x.cs.join("") : "-", F("Bold", x && x.cs.length > 1 ? 17 : 20), Color.white()); a.addSpacer();
+    const b = s.addStack(); b.addSpacer(); txt(b, !x ? "" : cur ? `ถึง ${bEnd(x).slice(0, 2)}` : dd === 0 ? hhmm(x.st) : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`, F("Medium", 10), Color.white()); b.addSpacer();
   } else {
     const r = w.addStack(); r.centerAlignContent();
     if (x) sym(r, SH[x.c].sym, 14, Color.white());
-    r.addSpacer(4); txt(r, cur ? "ตอนนี้" : "เวรถัดไป", F("Medium", 12), Color.white());
-    txt(w, x ? SH[x.c].n : "ยังไม่มีเวร", F("Bold", 16), Color.white());
-    if (x) txt(w, `${dayLabel(dd, x.st)} · ${hhmm(x.st)}`, F("Medium", 13), Color.white());
+    r.addSpacer(4); txt(r, !x ? "เวรถัดไป" : cur ? "ตอนนี้" : `เวรถัดไป · ${dayLabel(dd, x.st)}`, F("Medium", 12), Color.white(), { lines: 1 });
+    txt(w, x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join(" → ") : SH[x.c].n) : "ยังไม่มีเวร", F("Bold", 16), Color.white(), { lines: 1, min: 0.7 });
+    if (x) txt(w, cur ? `เลิก ${bEnd(x)} · ${untilText(x.en - now)}` : `${hhmm(x.st)}–${bEnd(x)} · ${untilText(x.st - now)}`, F("Medium", 13), Color.white(), { lines: 1, min: 0.7 });
   }
   w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);
   return w;
+}
+
+// ---------------- Siri / Shortcuts: "เวรถัดไป" ----------------
+function sayTime(dt) {                       // 16:00 → "4 โมงเย็น", 00:00 → "เที่ยงคืน"
+  const h = dt.getHours(), m = dt.getMinutes(), mm = m ? ` ${m} นาที` : "";
+  if (h === 0) return "เที่ยงคืน" + mm; if (h < 6) return `ตี ${h}` + mm; if (h < 12) return `${h} โมงเช้า` + mm;
+  if (h === 12) return "เที่ยง" + mm; if (h < 16) return `บ่าย ${h - 12} โมง` + mm; if (h < 18) return `${h - 12} โมงเย็น` + mm; return `${h - 18} ทุ่ม` + mm;
+}
+function siriAnswer(d, now) {
+  const { cur, nxt } = nextShift(d, now);
+  const nm = x => x.cs.map(c => SH_LABEL[c]).join("ต่อ");
+  const dd = x => Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+  const when = x => { const k = dd(x); return k === 0 ? "วันนี้" : k === 1 ? "พรุ่งนี้" : k === 2 ? "มะรืนนี้" : `วันที่ ${x.st.getDate()} ${MONTHS[x.st.getMonth()]}`; };
+  const parts = [];
+  if (cur) parts.push(`ตอนนี้อยู่เวร${nm(cur)} เลิก ${sayTime(cur.en)}`);
+  if (nxt) parts.push(`เวรถัดไป ${when(nxt)} เวร${nm(nxt)} ${sayTime(nxt.st)} ถึง ${sayTime(nxt.en)}`);
+  return parts.length ? parts.join(" ") : "ยังไม่มีเวรในตาราง";
 }
 
 async function buildWidget(d, now, family) {
@@ -651,6 +669,10 @@ async function buildWidget(d, now, family) {
 // ---------------- เริ่มทำงาน ----------------
 if (config.runsInWidget || config.runsInAccessoryWidget) {
   Script.setWidget(await buildWidget(loadData(), new Date(), config.widgetFamily));
+} else if (config.runsWithSiri || config.runsFromShortcut) {   // "หวัดดี Siri เวรถัดไป"
+  const ans = siriAnswer(loadData(), new Date());
+  if (config.runsWithSiri) Speech.speak(ans);
+  Script.setShortcutOutput(ans);
 } else {
   await runApp();
 }
