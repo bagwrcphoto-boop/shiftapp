@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 25";
+const APP_VERSION = "27 พ.ย. 69 · 26";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -240,6 +240,7 @@ async function readByTiles(b64, d, key, page) {
 `${tiles.length > 1 ? `รูปที่ 1 คือวันที่ 1-16 รูปที่ 2 คือวันที่ 17-${days}` : `รูปนี้คือวันที่ 1-${days}`} เป็นช่องตารางเวรของคนคนเดียว แยกวันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง
 แต่ละช่องมี 2 บรรทัด (บน กับ ล่าง) อ่านทีละบรรทัด
 ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, v, ลา, กิจ, EN, D, E, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
+ระวัง ช กับ บ: ตัว ช มีหยักเล็กๆ ที่ปลายหัวด้านบนซ้าย ส่วน บ หัวกลมเรียบ ไม่มีหยัก
 ข้อความที่มีคำว่า "ไม่" นำหน้า เช่น "ไม่ ด" "ไม่ ช" แปลว่าขอไม่ขึ้นเวรนั้น ไม่ใช่เวร และคำว่า "วันเกิด" ก็ไม่ใช่เวร
 ถ้าบรรทัดไหนมีตัว v ให้ใส่ v
 ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=บน/ล่าง คั่นด้วยเว้นวรรค ใช้ - ถ้าบรรทัดนั้นไม่มีเวร เช่น
@@ -692,7 +693,12 @@ const APP_HTML = [
 "  const xs = vx.slice(best.s, best.s + best.n + 1), cw = (xs[xs.length-1] - xs[0]) / best.n;",
 "  const row = new Array(H).fill(0), xa = Math.round(xs[0]), xb = Math.round(xs[xs.length-1]);",
 "  for (let y = 0; y < H; y++){ const r = y * W; for (let xx = xa; xx <= xb; xx++) if (m[r + xx]) row[y]++; }",
-"  const hy = gridLines(row, 0.45);",
+"  let hy = gridLines(row, 0.45);",
+"  // \u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e1a\u0e23\u0e23\u0e17\u0e31\u0e14\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07\u0e43\u0e19\u0e0a\u0e48\u0e2d\u0e07\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 \u0e44\u0e21\u0e48\u0e43\u0e0a\u0e48\u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e04\u0e19: \u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e04\u0e19\u0e08\u0e23\u0e34\u0e07\u0e15\u0e49\u0e2d\u0e07\u0e25\u0e32\u0e01\u0e1c\u0e48\u0e32\u0e19\u0e04\u0e2d\u0e25\u0e31\u0e21\u0e19\u0e4c\u0e0a\u0e37\u0e48\u0e2d\u0e14\u0e49\u0e27\u0e22",
+"  { const na = Math.max(0, Math.round(xs[0] - cw*8)), nb = Math.max(0, Math.round(xs[0] - cw)), nw = nb - na;",
+"    if (nw > cw*3){",
+"      const inName = y => { let best = 0; for (let yy = Math.max(0, Math.round(y) - 2); yy <= Math.min(H-1, Math.round(y) + 2); yy++){ let c = 0; const r = yy * W; for (let xx = na; xx < nb; xx++) if (m[r + xx]) c++; if (c > best) best = c; } return best >= nw * 0.4; };",
+"      const kept = hy.filter(inName); if (kept.length >= 3) hy = kept; } }",
 "  const bands = [];",
 "  for (let i = 0; i < hy.length - 1; i++){ const h = hy[i+1] - hy[i]; if (h >= cw * 1.45) bands.push([hy[i], hy[i+1]]); }",
 "  if (bands.length < 2) return { ok: false, why: \"\u0e2b\u0e32\u0e41\u0e16\u0e27\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\" };",
@@ -760,7 +766,31 @@ const APP_HTML = [
 "};",
 "",
 "// \u0e41\u0e1a\u0e1a\u0e43\u0e2b\u0e21\u0e48: \u0e0a\u0e48\u0e2d\u0e07\u0e43\u0e2b\u0e0d\u0e48\u0e02\u0e36\u0e49\u0e19 \u0e41\u0e1a\u0e48\u0e07 2 \u0e23\u0e39\u0e1b (\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 1-16 / 17-\u0e2a\u0e34\u0e49\u0e19\u0e40\u0e14\u0e37\u0e2d\u0e19) \u0e43\u0e2b\u0e49\u0e44\u0e21\u0e48\u0e40\u0e01\u0e34\u0e19\u0e02\u0e19\u0e32\u0e14\u0e17\u0e35\u0e48 AI \u0e22\u0e48\u0e2d\u0e23\u0e39\u0e1b \u0e41\u0e25\u0e30\u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07\u0e0a\u0e31\u0e14",
-"window.makeTiles2 = function(k, days){",
+"// \u0e17\u0e33\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23\u0e14\u0e33\u0e1a\u0e19\u0e1e\u0e37\u0e49\u0e19\u0e02\u0e32\u0e27 (\u0e15\u0e31\u0e14\u0e2a\u0e35\u0e1e\u0e37\u0e49\u0e19\u0e0a\u0e48\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e17\u0e33\u0e43\u0e2b\u0e49 AI \u0e2a\u0e31\u0e1a\u0e2a\u0e19 \u0e40\u0e0a\u0e48\u0e19 \u0e0a \u0e1a\u0e19\u0e1e\u0e37\u0e49\u0e19\u0e1f\u0e49\u0e32) + \u0e02\u0e35\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e1a\u0e23\u0e23\u0e17\u0e31\u0e14\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07\u0e43\u0e2b\u0e49\u0e0a\u0e31\u0e14",
+"function inkTile(c){",
+"  const x = c.getContext(\"2d\"), W = c.width, H = c.height, im = x.getImageData(0, 0, W, H), p = im.data;",
+"  const rowLine = new Float64Array(H);",
+"  for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++){ const i = (y*W + xx)*4, r = p[i], g = p[i+1], b = p[i+2], mx = Math.max(r,g,b), mn = Math.min(r,g,b), L = 0.3*r + 0.59*g + 0.11*b;",
+"    if (mx - mn < 40 && L > 140 && L < 225) rowLine[y]++; }     // \u0e40\u0e2a\u0e49\u0e19\u0e41\u0e1a\u0e48\u0e07\u0e1a\u0e32\u0e07 \u0e2a\u0e35\u0e40\u0e17\u0e32",
+"  let by = Math.round(H/2), best = 0;",
+"  for (let y = Math.round(H*0.3); y < H*0.7; y++){ if (rowLine[y] > best){ best = rowLine[y]; by = y; } }",
+"  // \u0e16\u0e49\u0e32\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e2a\u0e49\u0e19\u0e40\u0e17\u0e32 \u0e43\u0e0a\u0e49\u0e23\u0e2d\u0e22\u0e15\u0e48\u0e2d\u0e2a\u0e35\u0e1e\u0e37\u0e49\u0e19 (\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07\u0e04\u0e19\u0e25\u0e30\u0e2a\u0e35)",
+"  if (best < W*0.5){ let bd = 0; for (let y = Math.round(H*0.3); y < H*0.7; y++){ let d = 0; for (let xx = 0; xx < W; xx += 3){ const i = (y*W + xx)*4, j = ((y-2)*W + xx)*4; d += Math.abs(p[i]-p[j]) + Math.abs(p[i+1]-p[j+1]) + Math.abs(p[i+2]-p[j+2]); } if (d > bd){ bd = d; by = y; } } }",
+"  // \u0e41\u0e22\u0e01\u0e17\u0e33\u0e17\u0e35\u0e25\u0e30\u0e04\u0e23\u0e36\u0e48\u0e07 (\u0e1a\u0e19/\u0e25\u0e48\u0e32\u0e07): \u0e2b\u0e32\u0e2a\u0e35\u0e1e\u0e37\u0e49\u0e19\u0e02\u0e2d\u0e07\u0e04\u0e23\u0e36\u0e48\u0e07\u0e19\u0e31\u0e49\u0e19 \u0e41\u0e25\u0e49\u0e27\u0e22\u0e37\u0e14\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23\u0e40\u0e02\u0e49\u0e21 \u0e1e\u0e37\u0e49\u0e19\u0e02\u0e32\u0e27",
+"  const V = new Float32Array(W*H); for (let j = 0; j < V.length; j++){ const i = j*4; V[j] = Math.max(p[i], p[i+1], p[i+2]); }",
+"  for (const [ya, yb] of [[0, by], [by, H]]){",
+"    const vals = []; for (let y = ya; y < yb; y++) for (let xx = 0; xx < W; xx += 2) vals.push(V[y*W + xx]);",
+"    if (!vals.length) continue; vals.sort((a2, b2) => a2 - b2);",
+"    const bg = vals[Math.floor(vals.length*0.6)], ink = vals[Math.floor(vals.length*0.01)], span = bg - ink;",
+"    if (span < 55){ for (let y = ya; y < yb; y++) for (let xx = 0; xx < W; xx++){ const i = (y*W + xx)*4; p[i] = p[i+1] = p[i+2] = 255; } continue; }   // \u0e04\u0e23\u0e36\u0e48\u0e07\u0e19\u0e35\u0e49\u0e27\u0e48\u0e32\u0e07",
+"    for (let y = ya; y < yb; y++) for (let xx = 0; xx < W; xx++){ const j = y*W + xx, i = j*4, d = Math.max(0, Math.min(1, (bg - V[j] - span*0.2) / (span*0.8)));",
+"      const o = 255 - Math.min(255, d * 1.5 * 255); p[i] = p[i+1] = p[i+2] = o; } }",
+"  x.putImageData(im, 0, 0);",
+"  x.fillStyle = \"#e0457c\"; x.fillRect(0, by - 1, W, 3);",
+"  x.fillStyle = \"#e0457c\"; x.font = \"600 15px sans-serif\"; x.textAlign = \"left\"; x.textBaseline = \"top\"; x.fillText(\"\u0e1a\u0e19\", 4, 3); x.textBaseline = \"top\"; x.fillText(\"\u0e25\u0e48\u0e32\u0e07\", 4, by + 4);",
+"  return c;",
+"}",
+"window.makeTiles2 = function(k, days, mode){",
 "  const g = GRID.g, [y0, y1] = g.bands[k-1], n = Math.min(days || 31, g.xs.length - 1);",
 "  const tw = 200, cwAvg = (g.xs[n] - g.xs[0]) / n, th = Math.round(tw * (y1 - y0) / cwAvg), lab = 52, per = 7, gap = 14;",
 "  const parts = [[1, Math.min(16, n)], [17, n]].filter(([a, b]) => a <= b);",
@@ -772,7 +802,8 @@ const APP_HTML = [
 "      const i = d - a, cx = gap + (i % per) * (tw + gap), cy = gap + Math.floor(i / per) * (th + lab + gap), xi = d - 1;",
 "      x.fillStyle = \"#c2185b\"; x.font = \"700 44px sans-serif\"; x.textAlign = \"center\"; x.textBaseline = \"top\"; x.fillText(String(d), cx + tw/2, cy + 2);",
 "      const pad = (g.xs[xi+1] - g.xs[xi]) * 0.06;",
-"      x.drawImage(gridCrop(g.xs[xi] + pad, y0 + pad, g.xs[xi+1] - g.xs[xi] - pad*2, y1 - y0 - pad*2, tw, th), cx, cy + lab);",
+"      const cell = gridCrop(g.xs[xi] + pad, y0 + pad, g.xs[xi+1] - g.xs[xi] - pad*2, y1 - y0 - pad*2, tw, th);",
+"      x.drawImage(mode === \"ink\" ? inkTile(cell) : cell, cx, cy + lab);",
 "      x.strokeStyle = \"#999\"; x.lineWidth = 2; x.strokeRect(cx, cy + lab, tw, th);",
 "    }",
 "    return c.toDataURL(\"image/jpeg\", .92).split(\",\")[1];",
