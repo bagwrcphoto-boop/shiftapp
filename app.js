@@ -134,18 +134,20 @@ async function askGemini(b64, apiKey) {
   }
   throw new Error(last);
 }
-async function askClaude(b64, apiKey) {
+async function askClaude(b64, apiKey) { return claudeCall(CLAUDE_MODEL, b64, PROMPT, apiKey, 8000); }
+async function claudeCall(model, b64, text, apiKey, maxTokens) {
   const req = new Request("https://api.anthropic.com/v1/messages");
-  req.method = "POST"; req.timeoutInterval = 120;
+  req.method = "POST"; req.timeoutInterval = 150;
   req.headers = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
-  req.body = JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8000, messages: [{ role: "user", content: [
-    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: PROMPT }] }] });
+  req.body = JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content: [
+    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text }] }] });
   const res = await req.loadJSON();
   if (res.error) throw new Error(res.error.message || JSON.stringify(res.error));
   return res.content.map(c => c.text || "").join("");
 }
+const jsonOf = t => JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
 function parseRoster(text, me) {
-  const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  const j = jsonOf(text);
   const people = {}, totals = {};
   for (const p of j.people || []) {
     if (!p.name) continue;
@@ -160,12 +162,73 @@ function parseRoster(text, me) {
   if (!(month >= 1 && month <= 12) || !year) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้");
   return { year, month, people, totals };
 }
+
+// ---- อ่านแบบแม่นยำ: หาแถว → ตัดเฉพาะหัวตาราง + แถวของเรา → อ่านทีละวัน → เทียบช่อง "ทำงานจริง" ----
+const CLAUDE_STRONG = "claude-opus-5-5";
+async function locateRow(b64, me, key) {
+  const t = await claudeCall(CLAUDE_MODEL, b64,
+`รูปนี้คือตารางเวรพยาบาลรายเดือน หาตำแหน่งแนวตั้งของ 2 อย่าง แล้วตอบเป็นสัดส่วน 0-1 ของความสูงรูป (0 = ขอบบน, 1 = ขอบล่าง)
+1) แถวหัวตารางที่มีตัวเลขวันที่ 1-31
+2) แถวของ "${me}" (คนละคนกับแถวอื่น ครอบทั้งบรรทัดบนและบรรทัดล่างของคนนี้)
+ตอบ JSON อย่างเดียว: {"year_be":2569,"month":11,"header_top":0.03,"header_bottom":0.07,"row_top":0.55,"row_bottom":0.61,"name_in_table":"ชื่อที่เห็นในตาราง"}`, key, 400);
+  const j = jsonOf(t), ok = v => typeof v === "number" && v >= 0 && v <= 1;
+  if (![j.header_top, j.header_bottom, j.row_top, j.row_bottom].every(ok) || j.row_bottom <= j.row_top || j.header_bottom <= j.header_top) throw new Error("หาแถวไม่เจอ");
+  return j;
+}
+function cropBands(img, loc) {
+  const W = img.size.width, H = img.size.height, pad = 0.006;
+  const band = (a, b) => { const y0 = Math.max(0, Math.floor((a - pad) * H)), y1 = Math.min(H, Math.ceil((b + pad) * H)); return [y0, Math.max(y1, y0 + 4)]; };
+  const parts = [band(loc.header_top, loc.header_bottom), band(loc.row_top, loc.row_bottom)];
+  const sc = Math.min(3, 2400 / W);
+  const one = ([y0, y1]) => { const c = new DrawContext(); c.respectScreenScale = false; c.opaque = true; c.size = new Size(Math.round(W * sc), Math.round((y1 - y0) * sc));
+    c.drawImageInRect(img, new Rect(0, -y0 * sc, W * sc, H * sc)); return c.getImage(); };
+  const a = one(parts[0]), b = one(parts[1]);
+  const c = new DrawContext(); c.respectScreenScale = false; c.opaque = true;
+  c.size = new Size(a.size.width, a.size.height + b.size.height + 6);
+  c.setFillColor(Color.white()); c.fillRect(new Rect(0, 0, c.size.width, c.size.height));
+  c.drawImageAtPoint(a, new Point(0, 0)); c.drawImageAtPoint(b, new Point(0, a.size.height + 6));
+  return Data.fromJPEG(c.getImage()).toBase64String();
+}
+async function readMyRow(b64, me, key, hint) {
+  const t = await claudeCall(CLAUDE_STRONG, b64,
+`รูปนี้ตัดมาจากตารางเวรพยาบาล ส่วนบนคือหัวตาราง (ตัวเลขวันที่ 1-31 แต่ละช่องคือ 1 คอลัมน์) ส่วนล่างคือแถวของ "${me}" ซึ่งมีบรรทัดบนกับบรรทัดล่าง
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
+ไล่ทีละคอลัมน์จากซ้ายไปขวา ให้ช่องในแถวตรงกับเลขวันที่ที่อยู่ "ตรงหัวคอลัมน์เดียวกัน" พอดี ระวังอย่าเลื่อนคอลัมน์
+แล้วอ่านเลขในคอลัมน์ "ทำงานจริง" ของแถวนี้ด้วย
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ใส่ครบทุกวันที่มีในหัวตาราง:
+{"days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}},"total":28}`, key, 3000);
+  const j = jsonOf(t), days = {};
+  for (const [d, v] of Object.entries(j.days || {})) { const s = sortS(String((v && v.top) || "") + String((v && v.bottom) || "")).join(""); if (s && +d >= 1 && +d <= 31) days[+d] = s; }
+  const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
+  return { days, total, count: Object.values(days).join("").length };
+}
+async function readRosterClaude(b64, d, key) {
+  const img = Image.fromData(Data.fromBase64String(b64));
+  const [loc, all] = await Promise.all([
+    locateRow(b64, d.me, key).catch(e => null),
+    askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }))
+  ]);
+  if (!loc && all.err) throw all.err;
+  let my = null;
+  if (loc) {
+    const crop = cropBands(img, loc);
+    my = await readMyRow(crop, d.me, key);
+    for (let i = 0; i < 2 && my.total != null && my.count !== my.total; i++)
+      my = await readMyRow(crop, d.me, key, `ครั้งก่อนนับได้ ${my.count} เวร แต่ช่องทำงานจริงเขียนว่า ${my.total} แปลว่ามีบางวันอ่านผิด ตรวจใหม่ทีละคอลัมน์`);
+  }
+  const people = all.err ? {} : all.people, totals = all.err ? {} : all.totals;
+  if (my) { people[d.me] = my.days; if (my.total != null) totals[d.me] = my.total; }
+  const year = loc ? (+loc.year_be > 2400 ? +loc.year_be - 543 : +loc.year_be) : all.year;
+  const month = loc ? +loc.month : all.month;
+  if (!(month >= 1 && month <= 12) || !year) { if (all.err) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้"); return all; }
+  return { year, month, people, totals, careful: !!my };
+}
 async function readRoster(b64, d) {
   const ai = GEMINI_OFF ? "claude" : (d.settings.ai === "claude" ? "claude" : "gemini");
   const k = getKey(ai);
-  if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (วางไว้บนสุดของสคริปต์ หรือใส่ในหน้าตั้งค่า)`);
-  const text = ai === "claude" ? await askClaude(b64, k) : await askGemini(b64, k);
-  return parseRoster(text, d.me);
+  if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (ใส่ใน claudeKey ของตัวโหลด หรือในหน้าตั้งค่า)`);
+  if (ai === "claude") return readRosterClaude(b64, d, k);
+  return parseRoster(await askGemini(b64, k), d.me);
 }
 
 // ---------------- ปฏิทิน iPhone + แจ้งเตือน ----------------
@@ -415,6 +478,7 @@ const APP_HTML = [
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"key\"></i>Claude key</span><span class=\"r\" id=\"setKeyC\"></span></div>",
 "  </div>",
 "  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"send('editSettings')\"><i data-i=\"edit\"></i>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d / API key</button>",
+"  <button class=\"btn\" style=\"width:100%;margin-bottom:14px\" onclick=\"openPaste()\"><i data-i=\"list\"></i>\u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23</button>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"sun\"></i>\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32</span><span class=\"r\">08:00 \u2013 16:00</span></div>",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"sunset\"></i>\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22</span><span class=\"r\">16:00 \u2013 24:00</span></div>",
@@ -737,6 +801,38 @@ const APP_HTML = [
 "    <div class=\"grid2\"><button class=\"btn\" onclick=\"closeSheet()\">\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01</button><button class=\"btn main\" onclick=\"confirmParsed()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button></div>`;",
 "  openSheet();",
 "};",
+"/* ===== \u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23: \"\u0e40\u0e27\u0e23 2569-11 | 1\u0e14\u0e0a 2\u0e1a 6\u0e0a ...\" ===== */",
+"function openPaste(){",
+"  $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e27\u0e32\u0e07\u0e23\u0e2b\u0e31\u0e2a\u0e40\u0e27\u0e23</p>",
+"    <p class=\"hello\" style=\"font-size:14px;margin:4px 0 10px\">\u0e01\u0e4a\u0e2d\u0e1b\u0e23\u0e2b\u0e31\u0e2a\u0e17\u0e35\u0e48\u0e44\u0e14\u0e49\u0e21\u0e32\u0e27\u0e32\u0e07\u0e15\u0e23\u0e07\u0e19\u0e35\u0e49 \u0e40\u0e0a\u0e48\u0e19 <b>\u0e40\u0e27\u0e23 2569-11 | 1\u0e14\u0e0a 2\u0e1a 6\u0e0a</b></p>",
+"    <textarea class=\"notebox\" id=\"pasteText\" placeholder=\"\u0e40\u0e27\u0e23 2569-11 | 1\u0e14\u0e0a 2\u0e1a ...\"></textarea>",
+"    <div id=\"pasteOut\"></div>",
+"    <button class=\"btn main\" style=\"width:100%;margin-top:10px\" onclick=\"checkPaste()\">${ic(\"check\")}\u0e15\u0e23\u0e27\u0e08\u0e23\u0e2b\u0e31\u0e2a</button>`;",
+"  openSheet();",
+"}",
+"function parseCode(t){",
+"  const m = t.match(/(\\d{4})\\s*[-/.]\\s*(\\d{1,2})/); if (!m) return null;",
+"  let y = +m[1]; if (y > 2400) y -= 543; const mo = +m[2]; if (!(mo>=1 && mo<=12)) return null;",
+"  const body = t.slice(t.indexOf(m[0]) + m[0].length), days = {};",
+"  for (const x of body.matchAll(/(\\d{1,2})\\s*[:=]?\\s*([\u0e0a\u0e1a\u0e14]+)/g)){ const d = +x[1], s = sortS(x[2]).join(\"\"); if (d>=1 && d<=31 && s) days[d] = s; }",
+"  return {year:y, month:mo, days};",
+"}",
+"function checkPaste(){",
+"  const r = parseCode($(\"pasteText\").value);",
+"  if (!r || !Object.keys(r.days).length){ $(\"pasteOut\").innerHTML = `<div class=\"msg o\">${ic(\"warn\")}<span>\u0e2d\u0e48\u0e32\u0e19\u0e23\u0e2b\u0e31\u0e2a\u0e44\u0e21\u0e48\u0e2d\u0e2d\u0e01 \u0e15\u0e49\u0e2d\u0e07\u0e21\u0e35 \u0e1b\u0e35-\u0e40\u0e14\u0e37\u0e2d\u0e19 \u0e41\u0e25\u0e30 \u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e15\u0e32\u0e21\u0e14\u0e49\u0e27\u0e22 \u0e0a/\u0e1a/\u0e14</span></div>`; return; }",
+"  const cnt = Object.values(r.days).join(\"\").length;",
+"  const list = Object.keys(r.days).map(Number).sort((a,b)=>a-b).map(d=>`<span style=\"display:inline-flex;gap:3px;align-items:center;margin:0 12px 8px 0;font-weight:600\">${d} ${sortS(r.days[d]).map(pill).join(\"\")}</span>`).join(\"\");",
+"  window.__paste = r;",
+"  $(\"pasteOut\").innerHTML = `<p class=\"h3\" style=\"margin:12px 0 6px\">${MONTHS[r.month-1]} ${r.year+543} \u00b7 ${cnt} \u0e40\u0e27\u0e23</p><div>${list}</div>",
+"    <button class=\"btn main\" style=\"width:100%;margin-top:6px\" onclick=\"savePaste()\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e17\u0e19\u0e40\u0e27\u0e23\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49</button>`;",
+"}",
+"function savePaste(){",
+"  const r = window.__paste, k = `${r.year}-${String(r.month).padStart(2,\"0\")}`;",
+"  if (!DATA.months[k]) DATA.months[k] = {people:{}, totals:{}};",
+"  DATA.months[k].people[DATA.me] = r.days;",
+"  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
+"  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll(); toast(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e40\u0e27\u0e23\u0e41\u0e25\u0e49\u0e27\");",
+"}",
 "function confirmParsed(){",
 "  const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,\"0\")}`;",
 "  DATA.months[k] = {people:r.people, totals:r.totals||{}};",
@@ -745,32 +841,52 @@ const APP_HTML = [
 "}",
 "",
 "/* ===== \u0e41\u0e0a\u0e23\u0e4c\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b ===== */",
+"const mixHex = (a, b, t) => { const p = s => [1,3,5].map(i=>parseInt(s.substr(i,2),16)); const x = p(a), y = p(b); return \"#\" + x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,\"0\")).join(\"\"); };",
+"const svgImg = k => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = \"data:image/svg+xml;charset=utf-8,\" + encodeURIComponent(CUTE[k].replace(\"<svg \", '<svg width=\"256\" height=\"256\" ')); });",
 "async function shareMonth(){",
-"  try { await Promise.all([\"400\",\"500\",\"700\"].map(w=>document.fonts.load(`${w} 30px Mali`, \"\u0e01\u0e020123\"))); } catch(e){}",
+"  try { await Promise.all([\"400\",\"500\",\"600\",\"700\"].map(w=>document.fonts.load(`${w} 30px Mali`, \"\u0e01\u0e020123\"))); } catch(e){}",
+"  const IM = {}; for (const k of [\"sun\",\"sunset\",\"moon\",\"off\",\"note\"]) IM[k] = await svgImg(k);",
 "  const t = DATA.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;",
-"  const me = mine(), days = daysIn(), f = firstDow();",
-"  const W = 1080, cell = 140, top = 300, rows = Math.ceil((f+days)/7), H = top + rows*cell + 200;",
+"  const me = mine(), days = daysIn(), f = firstDow(), rows = Math.ceil((f+days)/7);",
+"  const W = 1080, pad = 54, gap = 16, cell = (W - pad*2 - gap*6)/7, top = 330, H = top + rows*(cell+gap) - gap + 250;",
 "  const cv = document.createElement(\"canvas\"); cv.width = W; cv.height = H; const x = cv.getContext(\"2d\");",
 "  const font = (s,w=600) => `${w} ${s}px Mali, \"Sukhumvit Set\", sans-serif`;",
-"  const col = {\"\u0e0a\":[\"#CDEFD9\",\"#1F5A3B\"],\"\u0e1a\":[\"#D3E3FF\",\"#24427E\"],\"\u0e14\":[\"#E2D8FF\",\"#4A2F8C\"]};",
-"  x.fillStyle = p.body; x.fillRect(0,0,W,H);",
-"  x.textAlign = \"center\";",
-"  x.fillStyle = p.title; x.font = font(64,700); x.fillText(`\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}`, W/2, 120);",
-"  x.fillStyle = p.sub; x.font = font(44,500); x.fillText(`${MONTHS[viewM]} ${viewY+543}`, W/2, 190);",
-"  const ox = (W - cell*7)/2;",
-"  x.font = font(34); DOWS.forEach((d,i)=>{ x.fillStyle = (i===0||i===6)?p.accent:p.sub; x.fillText(d, ox+cell*i+cell/2, top-30); });",
+"  const tint = {\"\u0e0a\":\"#D9F4E3\",\"\u0e1a\":\"#DFEAFF\",\"\u0e14\":\"#ECE4FF\"}, ink = {\"\u0e0a\":\"#1F5A3B\",\"\u0e1a\":\"#24427E\",\"\u0e14\":\"#4A2F8C\"};",
+"  // \u0e1e\u0e37\u0e49\u0e19\u0e2b\u0e25\u0e31\u0e07\u0e44\u0e25\u0e48\u0e2a\u0e35 + \u0e2b\u0e22\u0e14\u0e2a\u0e35",
+"  const g = x.createLinearGradient(0, 0, W*0.6, H); g.addColorStop(0, mixHex(p.body, \"#FFD6E6\", .35)); g.addColorStop(1, mixHex(p.blobs[1], \"#FFFFFF\", .72));",
+"  x.fillStyle = g; x.fillRect(0, 0, W, H);",
+"  const blob = (cx, cy, r, c, a) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, al(c, a)); rg.addColorStop(1, al(c, 0)); x.fillStyle = rg; x.fillRect(cx-r, cy-r, r*2, r*2); };",
+"  blob(W*0.95, 40, 460, p.blobs[0], .55); blob(40, H-40, 460, p.blobs[1], .5); blob(W*0.5, H*0.45, 380, p.blobs[2] || p.blobs[0], .18);",
+"  // \u0e2b\u0e31\u0e27",
+"  const draw = (k, cx, cy, s) => { if (IM[k]) x.drawImage(IM[k], cx - s/2, cy - s/2, s, s); };",
+"  x.textAlign = \"center\"; x.textBaseline = \"alphabetic\";",
+"  draw(\"sun\", 150, 120, 110); draw(\"moon\", W-150, 128, 104);",
+"  x.fillStyle = p.title; x.font = font(68,700); x.fillText(`\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07${first(DATA.me)}`, W/2, 135);",
+"  x.fillStyle = p.sub; x.font = font(42,500); x.fillText(`${MONTHS[viewM]} ${viewY+543}`, W/2, 200);",
+"  DOWS.forEach((d,i)=>{ x.fillStyle = (i===0||i===6)?p.accent:p.sub; x.font = font(32,700); x.fillText(d, pad + i*(cell+gap) + cell/2, top - 26); });",
+"  // \u0e15\u0e32\u0e23\u0e32\u0e07",
 "  for (let d=1; d<=days; d++){",
-"    const i = f+d-1, cx = ox + (i%7)*cell, cy = top + Math.floor(i/7)*cell;",
-"    x.fillStyle = \"#FFFFFF\"; rr(x, cx+6, cy+6, cell-12, cell-12, 26); x.fill();",
-"    x.fillStyle = (i%7===0||i%7===6)?p.accent:p.text; x.font = font(36,500); x.fillText(d, cx+cell/2, cy+52);",
-"    const s = sortS(me[d]);",
-"    if (!s.length){ x.fillStyle = al(p.accent,.35); x.beginPath(); x.arc(cx+cell/2, cy+94, 7, 0, 7); x.fill(); }",
-"    const pw = 46, gap = 6, sx = cx + cell/2 - (s.length*pw + (s.length-1)*gap)/2;",
-"    s.forEach((c,j)=>{ x.fillStyle = col[c][0]; rr(x, sx+j*(pw+gap), cy+72, pw, 44, 14); x.fill(); x.fillStyle = col[c][1]; x.font = font(30,700); x.fillText(c, sx+j*(pw+gap)+pw/2, cy+104); });",
+"    const i = f+d-1, cx = pad + (i%7)*(cell+gap), cy = top + Math.floor(i/7)*(cell+gap), s = sortS(me[d]);",
+"    x.save(); x.shadowColor = al(p.accent,.14); x.shadowBlur = 18; x.shadowOffsetY = 6;",
+"    x.fillStyle = s.length ? tint[s[0]] : \"rgba(255,255,255,.72)\"; rr(x, cx, cy, cell, cell, 30); x.fill(); x.restore();",
+"    if (s.length > 1){ x.save(); rr(x, cx, cy, cell, cell, 30); x.clip(); x.fillStyle = tint[s[1]]; x.beginPath(); x.moveTo(cx+cell, cy); x.lineTo(cx+cell, cy+cell); x.lineTo(cx, cy+cell); x.closePath(); x.fill(); x.restore(); }",
+"    x.textAlign = \"left\"; x.fillStyle = (i%7===0||i%7===6) ? p.accent : (s.length ? ink[s[0]] : p.text); x.font = font(30,700); x.fillText(d, cx+14, cy+40);",
+"    if (!s.length) draw(\"off\", cx+cell/2, cy+cell*0.6, cell*0.42);",
+"    else if (s.length === 1) draw(SH[s[0]].k, cx+cell/2, cy+cell*0.6, cell*0.56);",
+"    else { draw(SH[s[0]].k, cx+cell*0.33, cy+cell*0.62, cell*0.44); draw(SH[s[1]].k, cx+cell*0.67, cy+cell*0.62, cell*0.44); }",
+"    if (noteOf(new Date(viewY, viewM, d))) draw(\"note\", cx+cell-26, cy+26, 34);",
 "  }",
-"  const k = countMonth(me, days);",
-"  x.fillStyle = p.title; x.font = font(38,500);",
-"  x.fillText(`\u0e40\u0e0a\u0e49\u0e32 ${k.c[\"\u0e0a\"]}   \u00b7   \u0e1a\u0e48\u0e32\u0e22 ${k.c[\"\u0e1a\"]}   \u00b7   \u0e14\u0e36\u0e01 ${k.c[\"\u0e14\"]}   \u00b7   \u0e2b\u0e22\u0e38\u0e14 ${k.off}`, W/2, H-90);",
+"  // \u0e2a\u0e23\u0e38\u0e1b\u0e14\u0e49\u0e32\u0e19\u0e25\u0e48\u0e32\u0e07",
+"  const k = countMonth(me, days), items = [[\"sun\", \"\u0e40\u0e0a\u0e49\u0e32\", k.c[\"\u0e0a\"], ink[\"\u0e0a\"]], [\"sunset\", \"\u0e1a\u0e48\u0e32\u0e22\", k.c[\"\u0e1a\"], ink[\"\u0e1a\"]], [\"moon\", \"\u0e14\u0e36\u0e01\", k.c[\"\u0e14\"], ink[\"\u0e14\"]], [\"off\", \"\u0e2b\u0e22\u0e38\u0e14\", k.off, p.accent]];",
+"  const cw = 218, cg = 18, sx = (W - (cw*4 + cg*3))/2, sy = H - 200;",
+"  items.forEach(([ic2, lb, n, col], j) => {",
+"    const bx = sx + j*(cw+cg);",
+"    x.save(); x.shadowColor = al(p.accent,.12); x.shadowBlur = 16; x.shadowOffsetY = 5; x.fillStyle = \"rgba(255,255,255,.82)\"; rr(x, bx, sy, cw, 96, 30); x.fill(); x.restore();",
+"    draw(ic2, bx+52, sy+48, 62);",
+"    x.textAlign = \"left\"; x.fillStyle = col; x.font = font(40,700); x.fillText(n, bx+96, sy+52);",
+"    x.fillStyle = p.sub; x.font = font(24,500); x.fillText(lb, bx+96, sy+82);",
+"  });",
+"  x.textAlign = \"center\"; x.fillStyle = al(p.title,.55); x.font = font(24,500); x.fillText(`${k.total} \u0e40\u0e27\u0e23 \u00b7 ${k.total*8} \u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07`, W/2, H - 50);",
 "  send(\"share\", cv.toDataURL(\"image/png\").split(\",\")[1]);",
 "}",
 "function rr(x, a, b, w, h, r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }",

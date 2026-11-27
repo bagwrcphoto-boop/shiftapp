@@ -126,18 +126,20 @@ async function askGemini(b64, apiKey) {
   }
   throw new Error(last);
 }
-async function askClaude(b64, apiKey) {
+async function askClaude(b64, apiKey) { return claudeCall(CLAUDE_MODEL, b64, PROMPT, apiKey, 8000); }
+async function claudeCall(model, b64, text, apiKey, maxTokens) {
   const req = new Request("https://api.anthropic.com/v1/messages");
-  req.method = "POST"; req.timeoutInterval = 120;
+  req.method = "POST"; req.timeoutInterval = 150;
   req.headers = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
-  req.body = JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8000, messages: [{ role: "user", content: [
-    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: PROMPT }] }] });
+  req.body = JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content: [
+    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text }] }] });
   const res = await req.loadJSON();
   if (res.error) throw new Error(res.error.message || JSON.stringify(res.error));
   return res.content.map(c => c.text || "").join("");
 }
+const jsonOf = t => JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
 function parseRoster(text, me) {
-  const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  const j = jsonOf(text);
   const people = {}, totals = {};
   for (const p of j.people || []) {
     if (!p.name) continue;
@@ -152,12 +154,73 @@ function parseRoster(text, me) {
   if (!(month >= 1 && month <= 12) || !year) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้");
   return { year, month, people, totals };
 }
+
+// ---- อ่านแบบแม่นยำ: หาแถว → ตัดเฉพาะหัวตาราง + แถวของเรา → อ่านทีละวัน → เทียบช่อง "ทำงานจริง" ----
+const CLAUDE_STRONG = "claude-opus-5-5";
+async function locateRow(b64, me, key) {
+  const t = await claudeCall(CLAUDE_MODEL, b64,
+`รูปนี้คือตารางเวรพยาบาลรายเดือน หาตำแหน่งแนวตั้งของ 2 อย่าง แล้วตอบเป็นสัดส่วน 0-1 ของความสูงรูป (0 = ขอบบน, 1 = ขอบล่าง)
+1) แถวหัวตารางที่มีตัวเลขวันที่ 1-31
+2) แถวของ "${me}" (คนละคนกับแถวอื่น ครอบทั้งบรรทัดบนและบรรทัดล่างของคนนี้)
+ตอบ JSON อย่างเดียว: {"year_be":2569,"month":11,"header_top":0.03,"header_bottom":0.07,"row_top":0.55,"row_bottom":0.61,"name_in_table":"ชื่อที่เห็นในตาราง"}`, key, 400);
+  const j = jsonOf(t), ok = v => typeof v === "number" && v >= 0 && v <= 1;
+  if (![j.header_top, j.header_bottom, j.row_top, j.row_bottom].every(ok) || j.row_bottom <= j.row_top || j.header_bottom <= j.header_top) throw new Error("หาแถวไม่เจอ");
+  return j;
+}
+function cropBands(img, loc) {
+  const W = img.size.width, H = img.size.height, pad = 0.006;
+  const band = (a, b) => { const y0 = Math.max(0, Math.floor((a - pad) * H)), y1 = Math.min(H, Math.ceil((b + pad) * H)); return [y0, Math.max(y1, y0 + 4)]; };
+  const parts = [band(loc.header_top, loc.header_bottom), band(loc.row_top, loc.row_bottom)];
+  const sc = Math.min(3, 2400 / W);
+  const one = ([y0, y1]) => { const c = new DrawContext(); c.respectScreenScale = false; c.opaque = true; c.size = new Size(Math.round(W * sc), Math.round((y1 - y0) * sc));
+    c.drawImageInRect(img, new Rect(0, -y0 * sc, W * sc, H * sc)); return c.getImage(); };
+  const a = one(parts[0]), b = one(parts[1]);
+  const c = new DrawContext(); c.respectScreenScale = false; c.opaque = true;
+  c.size = new Size(a.size.width, a.size.height + b.size.height + 6);
+  c.setFillColor(Color.white()); c.fillRect(new Rect(0, 0, c.size.width, c.size.height));
+  c.drawImageAtPoint(a, new Point(0, 0)); c.drawImageAtPoint(b, new Point(0, a.size.height + 6));
+  return Data.fromJPEG(c.getImage()).toBase64String();
+}
+async function readMyRow(b64, me, key, hint) {
+  const t = await claudeCall(CLAUDE_STRONG, b64,
+`รูปนี้ตัดมาจากตารางเวรพยาบาล ส่วนบนคือหัวตาราง (ตัวเลขวันที่ 1-31 แต่ละช่องคือ 1 คอลัมน์) ส่วนล่างคือแถวของ "${me}" ซึ่งมีบรรทัดบนกับบรรทัดล่าง
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, ลา, กิจ, EN, D, E, ไม่ต, ตัวเลข หรือช่องว่าง ไม่ใช่เวร
+ไล่ทีละคอลัมน์จากซ้ายไปขวา ให้ช่องในแถวตรงกับเลขวันที่ที่อยู่ "ตรงหัวคอลัมน์เดียวกัน" พอดี ระวังอย่าเลื่อนคอลัมน์
+แล้วอ่านเลขในคอลัมน์ "ทำงานจริง" ของแถวนี้ด้วย
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย่างเดียว ใส่ครบทุกวันที่มีในหัวตาราง:
+{"days":{"1":{"top":"ด","bottom":"ช"},"2":{"top":"","bottom":"x"}},"total":28}`, key, 3000);
+  const j = jsonOf(t), days = {};
+  for (const [d, v] of Object.entries(j.days || {})) { const s = sortS(String((v && v.top) || "") + String((v && v.bottom) || "")).join(""); if (s && +d >= 1 && +d <= 31) days[+d] = s; }
+  const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
+  return { days, total, count: Object.values(days).join("").length };
+}
+async function readRosterClaude(b64, d, key) {
+  const img = Image.fromData(Data.fromBase64String(b64));
+  const [loc, all] = await Promise.all([
+    locateRow(b64, d.me, key).catch(e => null),
+    askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }))
+  ]);
+  if (!loc && all.err) throw all.err;
+  let my = null;
+  if (loc) {
+    const crop = cropBands(img, loc);
+    my = await readMyRow(crop, d.me, key);
+    for (let i = 0; i < 2 && my.total != null && my.count !== my.total; i++)
+      my = await readMyRow(crop, d.me, key, `ครั้งก่อนนับได้ ${my.count} เวร แต่ช่องทำงานจริงเขียนว่า ${my.total} แปลว่ามีบางวันอ่านผิด ตรวจใหม่ทีละคอลัมน์`);
+  }
+  const people = all.err ? {} : all.people, totals = all.err ? {} : all.totals;
+  if (my) { people[d.me] = my.days; if (my.total != null) totals[d.me] = my.total; }
+  const year = loc ? (+loc.year_be > 2400 ? +loc.year_be - 543 : +loc.year_be) : all.year;
+  const month = loc ? +loc.month : all.month;
+  if (!(month >= 1 && month <= 12) || !year) { if (all.err) throw new Error("อ่านเดือน/ปีจากหัวตารางไม่ได้"); return all; }
+  return { year, month, people, totals, careful: !!my };
+}
 async function readRoster(b64, d) {
   const ai = GEMINI_OFF ? "claude" : (d.settings.ai === "claude" ? "claude" : "gemini");
   const k = getKey(ai);
-  if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (วางไว้บนสุดของสคริปต์ หรือใส่ในหน้าตั้งค่า)`);
-  const text = ai === "claude" ? await askClaude(b64, k) : await askGemini(b64, k);
-  return parseRoster(text, d.me);
+  if (!k) throw new Error(`ยังไม่ได้ใส่ ${ai === "claude" ? "Claude" : "Gemini"} key (ใส่ใน claudeKey ของตัวโหลด หรือในหน้าตั้งค่า)`);
+  if (ai === "claude") return readRosterClaude(b64, d, k);
+  return parseRoster(await askGemini(b64, k), d.me);
 }
 
 // ---------------- ปฏิทิน iPhone + แจ้งเตือน ----------------
