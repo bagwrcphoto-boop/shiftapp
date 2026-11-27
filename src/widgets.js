@@ -37,28 +37,34 @@ const CA = (h, a = 1) => new Color(h, a);
 
 function wTheme(d) {
   const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
-  const L = { "ช": ["#D9F4E3", "#1F5A3B"], "บ": ["#DFEAFF", "#24427E"], "ด": ["#ECE4FF", "#4A2F8C"] };
-  if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.45, pastA: 0.45, past: "#FFFFFF", shift: L };
-  if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.42, pastA: 0.45, past: "#FFFFFF", shift: L };
-  if (t.style === "luxe") return { dark: false, g1: "#FFFFFF", g2: "#F8F4F2", b1: "#F6F0ED", b2: "#FFFFFF", title: "#2E2A2C", sub: "#A3989C", text: "#3A3436", accent: "#2E2A2C", onAccent: "#FFFFFF", card: "#F6F1EE", cardA: 0.9, offA: 0.6, pastA: 0.45, past: "#FFFFFF", shift: L };
-  if (t.style === "satin") return { dark: true, g1: "#221B3C", g2: "#3A2148", b1: "#4A2F6E", b2: "#5A2C55", title: "#F7E3C0", sub: "#B7A3D2", text: "#EADFF2", accent: "#F3B6CF", onAccent: "#2A1E3E", card: "#FFFFFF", cardA: 0.1, offA: 0.06, pastA: 0.55, past: "#221B3C",
+  const L = { "ช": ["#C6EFD6", "#1F5A3B"], "บ": ["#D2E2FF", "#24427E"], "ด": ["#E3D7FF", "#4A2F8C"] };
+  if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
+  if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
+  if (t.style === "luxe") return { dark: false, g1: "#FFFFFF", g2: "#F8F4F2", b1: "#F6F0ED", b2: "#FFFFFF", title: "#2E2A2C", sub: "#A3989C", text: "#3A3436", accent: "#2E2A2C", onAccent: "#FFFFFF", card: "#F6F1EE", cardA: 0.9, offA: 0.95, pastA: 0.32, past: "#FFFFFF", shift: L };
+  if (t.style === "satin") return { dark: true, g1: "#221B3C", g2: "#3A2148", b1: "#4A2F6E", b2: "#5A2C55", title: "#F7E3C0", sub: "#B7A3D2", text: "#EADFF2", accent: "#F3B6CF", onAccent: "#2A1E3E", card: "#FFFFFF", cardA: 0.1, offA: 0.1, pastA: 0.4, past: "#221B3C",
     shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] } };
   if (t.style === "dark") {
     const q = p.dark;
     return { dark: true, g1: q.body, g2: q.card, b1: q.blobs[0], b2: q.blobs[1], title: q.title, sub: q.sub, text: q.title, accent: q.accent, onAccent: q.body,
-      card: "#FFFFFF", cardA: 0.1, offA: 0.06, pastA: 0.55, past: q.body,
+      card: "#FFFFFF", cardA: 0.1, offA: 0.1, pastA: 0.4, past: q.body,
       shift: { "ช": ["#1E4A36", "#A6F2CC"], "บ": ["#22355E", "#C0D6FF"], "ด": ["#35285E", "#DED0FF"] } };
   }
   return { dark: false, g1: mixHex(p.body, "#FFD6E6", t.palette === "sakura" ? 0.35 : 0.1), g2: mixHex(p.blobs[1], "#FFFFFF", 0.72), b1: p.blobs[0], b2: p.blobs[1],
     title: p.title, sub: p.sub, text: p.text, accent: p.accent, onAccent: "#FFFFFF",
-    card: "#FFFFFF", cardA: 0.62, offA: 0.42, pastA: 0.45, past: "#FFFFFF",
-    shift: { "ช": ["#D9F4E3", "#1F5A3B"], "บ": ["#DFEAFF", "#24427E"], "ด": ["#ECE4FF", "#4A2F8C"] } };
+    card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF",
+    shift: { "ช": ["#C6EFD6", "#1F5A3B"], "บ": ["#D2E2FF", "#24427E"], "ด": ["#E3D7FF", "#4A2F8C"] } };
 }
 
 // ----- เครื่องมือวาด -----
 function newCtx(sz) { const c = new DrawContext(); c.size = sz; c.respectScreenScale = true; c.opaque = false; return c; }
 function rr(c, x, y, w, h, r, color) { const p = new Path(); p.addRoundedRect(new Rect(x, y, w, h), r, r); c.addPath(p); c.setFillColor(color); c.fillPath(); }
 function rrStroke(c, x, y, w, h, r, color, lw) { const p = new Path(); p.addRoundedRect(new Rect(x, y, w, h), r, r); c.addPath(p); c.setStrokeColor(color); c.setLineWidth(lw); c.strokePath(); }
+function cell(c, T, x, y, w, h, r, color) {     // ช่องการ์ด: เงานุ่ม + ขอบขาว ให้แยกจากพื้นหลังชัด
+  rr(c, x, y + 1.5, w, h, r, T.dark ? CA("#000000", 0.28) : CA(T.accent, 0.16));
+  rr(c, x, y, w, h, r, color);
+  rrStroke(c, x + 0.5, y + 0.5, w - 1, h - 1, r, T.dark ? CA("#FFFFFF", 0.14) : CA("#FFFFFF", 0.95), 1.2);
+}
+const shiftBg = (T, s) => s && s.length ? CA(T.shift[s[0]][0], T.dark ? 0.9 : 1) : CA(T.card, T.offA);
 function tx(c, s, x, y, w, h, font, color, align) {
   c.setFont(font); c.setTextColor(color);
   if (align === "center") c.setTextAlignedCenter(); else if (align === "right") c.setTextAlignedRight(); else c.setTextAlignedLeft();
@@ -81,7 +87,8 @@ const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พ
 function untilText(ms) { const m = Math.max(0, Math.round(ms / 6e4)), dd = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
   return dd >= 2 ? `อีก ${dd} วัน` : dd === 1 ? `อีก 1 วัน ${h} ชม.` : h ? `อีก ${h} ชม. ${mm} น.` : `อีก ${mm} นาที`; }
 function greet(now) { const h = now.getHours(); return h < 5 ? "ราตรีสวัสดิ์" : h < 12 ? "อรุณสวัสดิ์" : h < 17 ? "สวัสดีตอนบ่าย" : h < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ"; }
-const ROLE_C = { ic: "#2F7BE0", mb: "#E8742A", md: "#23A05A" };   // ฟ้า In charge / ส้ม member / เขียว med
+const ROLE_L = { ic: "#2F7BE0", mb: "#E8742A", md: "#23A05A" }, ROLE_D = { ic: "#7DB2FF", mb: "#FFA463", md: "#67D995" };
+let ROLE_C = ROLE_L;   // ธีมมืดใช้สีสว่างกว่า ให้อ่านชัดบนพื้นเข้ม   // ฟ้า In charge / ส้ม member / เขียว med
 function txSlots(c, words, sep, sepCol, x, y, w, h, size) {   // คำหลายสี: แบ่งช่องเท่ากัน คำอยู่กลางช่อง ตัวคั่นอยู่รอยต่อ (DrawContext วัดความกว้างไม่ได้)
   const sw = w / words.length;
   words.forEach(([t, col], j) => { tx(c, t, x + j * sw, y, sw, h, F("Bold", size), col, "center"); if (j) tx(c, sep, x + j * sw - 6, y + size * 0.1, 12, h, F("Bold", size * 0.8), sepCol, "center"); });
@@ -112,7 +119,7 @@ function shiftIcons(c, I, s, cx, cy, size) {          // วาดไอคอ�
 }
 function nextCapsule(c, I, T, d, now, x, y, w, h, compact) {
   const { cur, nxt } = nextShift(d, now), it = cur || nxt;
-  rr(c, x, y, w, h, h * 0.38, CA(T.card, T.dark ? 0.14 : 0.82));
+  cell(c, T, x, y, w, h, h * 0.38, CA(T.card, T.dark ? 0.14 : 0.92));
   if (!it) { tx(c, "ยังไม่มีเวร", x + 8, y + h / 2 - 8, w - 16, 16, F("Bold", 11.5), CA(T.title), "center"); return; }
   const is = h - 8; if (it.cs.length > 1) shiftIcons(c, I, it.cs, x + 4 + is / 2, y + 4 + is / 2, is * 0.68); else img(c, I, SH_ICON[it.c], x + 4, y + 4, is);
   const tx0 = x + 8 + is, tw = w - is - 14;
@@ -147,11 +154,12 @@ function drawLarge(d, now, I, T, sz) {
   for (let day = 1; day <= days; day++) {
     const i = first + day - 1, x = P + (i % 7) * (cw + gap), yy = gTop + Math.floor(i / 7) * (ch + gap);
     const s = sortS(me[day]), dt = new Date(y, m, day), past = dt < new Date(now.getFullYear(), now.getMonth(), now.getDate()), today = isThis && day === now.getDate();
-    rr(c, x, yy, cw, ch, 9, s.length ? CA(T.shift[s[0]][0], T.dark ? 0.9 : 1) : CA(T.card, T.offA));
+    cell(c, T, x, yy, cw, ch, 9, shiftBg(T, s));
     const isz = Math.min(cw * 0.52, ch * 0.46, 24);
     shiftIcons(c, I, s, x + cw / 2, yy + ch * (s.length ? 0.5 : 0.58), s.length ? isz : isz * 0.72);
-    if (s.length) { const rl = ((d.months[k].roles || {})[d.me] || {})[day] || [], lw = 6, x0 = x + (cw - s.length * lw) / 2;   // ตัวย่อ เช่น ชด บด สีตามหน้าที่
-      s.forEach((z, j) => tx(c, z, x0 + j * lw - 2, yy + ch - 12, lw + 4, 11, F("Bold", 8.5), ROLE_C[rl[j]] ? new Color(ROLE_C[rl[j]]) : CA(T.title), "center")); }
+    if (s.length) { const rl = ((d.months[k].roles || {})[d.me] || {})[day] || [], lw = 6, x0 = x + (cw - s.length * lw) / 2;   // ตัวย่อ เช่น ชด บด สีตามหน้าที่ บนป้ายขาว (อ่านชัดทุกสีพื้น)
+      rr(c, x0 - 4, yy + ch - 12, s.length * lw + 8, 11, 5.5, T.dark ? CA("#000000", 0.35) : CA("#FFFFFF", 0.92));
+      s.forEach((z, j) => tx(c, z, x0 + j * lw - 2, yy + ch - 12.5, lw + 4, 12, F("Bold", 9), ROLE_C[rl[j]] ? new Color(ROLE_C[rl[j]]) : CA(T.title), "center")); }
     tx(c, day, x + 4, yy + 1, cw - 6, 12, F(today ? "Bold" : "SemiBold", 9.5), CA(today ? T.accent : T.text, 0.85));
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, yy + 2, 11);
     if (past && !today) rr(c, x, yy, cw, ch, 9, CA(T.past, T.pastA));
@@ -161,7 +169,7 @@ function drawLarge(d, now, I, T, sz) {
   const fy = H - P - footH;
   if (hasR) { const L = [["ic", "In charge"], ["mb", "member"], ["md", "med"]], lw = (W - 2 * P) / 3;
     L.forEach(([r, t], j) => { const lx = P + j * lw; c.setFillColor(new Color(ROLE_C[r])); c.fillEllipse(new Rect(lx + lw / 2 - 30, fy - legH, 7, 7)); tx(c, t, lx + lw / 2 - 20, fy - legH - 3, lw / 2 + 20, 12, F("Bold", 8.5), new Color(ROLE_C[r])); }); }
-  rr(c, P, fy, W - 2 * P, footH, 11, CA(T.card, T.dark ? 0.12 : 0.8));
+  cell(c, T, P, fy, W - 2 * P, footH, 11, CA(T.card, T.dark ? 0.12 : 0.92));
   if (note) {
     img(c, I, "note", P + 4, fy + 3, 18);
     const when = note.i === 0 ? "วันนี้" : note.i === 1 ? "พรุ่งนี้" : `${note.dt.getDate()} ${TH_MON[note.dt.getMonth()]}`;
@@ -188,7 +196,7 @@ function drawMedium(d, now, I, T, sz) {
   const top = P + 34, gap = 5, cw = (W - 2 * P - 6 * gap) / 7, chh = H - top - P;
   for (let i = 0; i < 7; i++) {
     const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + i * (cw + gap), today = i === 0;
-    rr(c, x, top, cw, chh, 12, today ? CA(T.dark ? mixHex(T.accent, T.g1, 0.6) : mixHex(T.accent, "#FFFFFF", 0.62)) : CA(T.card, T.cardA));
+    cell(c, T, x, top, cw, chh, 12, shiftBg(T, s));
     if (today) rrStroke(c, x + 1, top + 1, cw - 2, chh - 2, 11, CA(T.accent), 2);
     const we = dt.getDay() === 0 || dt.getDay() === 6;
     tx(c, DOW[dt.getDay()], x, top + 5, cw, 12, F("Bold", 9.5), CA(we ? T.accent : T.sub), "center");
@@ -198,6 +206,7 @@ function drawMedium(d, now, I, T, sz) {
     else shiftIcons(c, I, s, x + cw / 2, top + chh * 0.62, isz);
     if (s && s.length && roleOn(d, dt).some(Boolean)) {      // มีสีหน้าที่ → ระบายสีทีละคำ
       const rl = roleOn(d, dt), st = shiftStarts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), s.join("")), sep = dayLabelS(dt, s).includes("→") ? "→" : "+", sz = s.length > 1 ? 8 : 9.5;
+      rr(c, x + 2, top + chh - 18, cw - 4, 15, 7, T.dark ? CA("#000000", 0.35) : CA("#FFFFFF", 0.92));
       txSlots(c, st.map(z => [SH_LABEL[z.c], roleCol(rl[s.indexOf(z.c)], CA(T.text))]), sep, CA(T.text), x - 2, top + chh - 17, cw + 4, 13, sz);
     } else if (s) tx(c, s.length ? dayLabelS(dt, s) : "หยุด", x - 2, top + chh - 17, cw + 4, 13, F("Bold", s.length > 1 ? 8 : 9.5), CA(T.text), "center");
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, top + 3, 11);
@@ -225,7 +234,7 @@ function drawSmall(d, now, I, T, sz) {
   const gy = P + 16 + isz, sh = 18, sy = gy + Math.max(0, (py - gy - sh) / 2), cw4 = (W - 2 * P) / 4;
   for (let i = 1; i <= 4; i++) {
     const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), s = shiftsOn(d, dt), x = P + (i - 1) * cw4;
-    rr(c, x + 1, sy, cw4 - 2, sh, 8, CA(T.card, T.dark ? 0.12 : 0.7));
+    cell(c, T, x + 1, sy, cw4 - 2, sh, 8, shiftBg(T, s));
     tx(c, dt.getDate(), x + 3, sy + 2, 15, 14, F("Bold", 9.5), CA(dt.getDay() % 6 === 0 ? T.accent : T.title), "center");
     if (s === null) tx(c, "–", x + 17, sy + 2, cw4 - 20, 14, F("Bold", 9.5), CA(T.sub), "center");
     else if (!s.length) img(c, I, "off", x + 19, sy + 2, 14);
@@ -233,12 +242,12 @@ function drawSmall(d, now, I, T, sz) {
   }
   const pw = Math.min(W - 2 * P, label.length * 6.4 + 18);
   rr(c, P, py, pw, 22, 11, CA(T.accent)); tx(c, label, P, py + 3, pw, 16, F("Bold", 11.5), CA(T.onAccent), "center");
-  if (note) { const ny = H - P - nh; rr(c, P, ny, W - 2 * P, nh, 9, CA(T.card, T.dark ? 0.12 : 0.8)); img(c, I, "note", P + 3, ny + 2, 16); tx(c, clip(note.t, 18), P + 22, ny + 3, W - 2 * P - 26, 14, F("SemiBold", 9.5), CA(T.title)); }
+  if (note) { const ny = H - P - nh; cell(c, T, P, ny, W - 2 * P, nh, 9, CA(T.card, T.dark ? 0.12 : 0.92)); img(c, I, "note", P + 3, ny + 2, 16); tx(c, clip(note.t, 18), P + 22, ny + 3, W - 2 * P - 26, 14, F("SemiBold", 9.5), CA(T.title)); }
   return c.getImage();
 }
 
 async function drawnWidget(d, now, family) {
-  const I = await loadIcons(), T = wTheme(d), sz = widgetSize(family);
+  const I = await loadIcons(), T = wTheme(d), sz = widgetSize(family); ROLE_C = T.dark ? ROLE_D : ROLE_L;
   const w = new ListWidget(); w.setPadding(0, 0, 0, 0);
   w.backgroundImage = family === "small" ? drawSmall(d, now, I, T, sz) : family === "medium" ? drawMedium(d, now, I, T, sz) : drawLarge(d, now, I, T, sz);
   const next = new Date(now.getTime() + 15 * 6e4); w.refreshAfterDate = next;
