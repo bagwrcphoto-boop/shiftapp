@@ -81,6 +81,7 @@ const dayLabel = (dd, date) => dd === 0 ? "วันนี้" : dd === 1 ? "พ
 function untilText(ms) { const m = Math.max(0, Math.round(ms / 6e4)), dd = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
   return dd >= 2 ? `อีก ${dd} วัน` : dd === 1 ? `อีก 1 วัน ${h} ชม.` : h ? `อีก ${h} ชม. ${mm} น.` : `อีก ${mm} นาที`; }
 function greet(now) { const h = now.getHours(); return h < 5 ? "ราตรีสวัสดิ์" : h < 12 ? "อรุณสวัสดิ์" : h < 17 ? "สวัสดีตอนบ่าย" : h < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ"; }
+const ROLE_C = { ic: "#2F7BE0", mb: "#E8742A", md: "#23A05A" };   // ฟ้า In charge / ส้ม member / เขียว med
 const bLabel = it => it.cs.map(c => SH_LABEL[c]).join(" → ");              // เวรต่อกัน = ก้อนเดียว เช่น "บ่าย → ดึก"
 function dayLabelS(dt, s) {                       // ป้ายของวัน: ต่อกัน "บ่าย→ดึก" / ไม่ต่อ "ดึก+บ่าย" (เรียงตามเวลา)
   const st = shiftStarts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), s.join(""));
@@ -142,7 +143,8 @@ function drawLarge(d, now, I, T, sz) {
     rr(c, x, yy, cw, ch, 9, s.length ? CA(T.shift[s[0]][0], T.dark ? 0.9 : 1) : CA(T.card, T.offA));
     const isz = Math.min(cw * 0.52, ch * 0.46, 24);
     shiftIcons(c, I, s, x + cw / 2, yy + ch * (s.length ? 0.5 : 0.58), s.length ? isz : isz * 0.72);
-    if (s.length) tx(c, s.join(""), x, yy + ch - 12, cw, 11, F("Bold", 8.5), CA(T.title), "center");   // ตัวย่อ เช่น ชด บด
+    if (s.length) { const rl = ((d.months[k].roles || {})[d.me] || {})[day] || [], lw = 6, x0 = x + (cw - s.length * lw) / 2;   // ตัวย่อ เช่น ชด บด สีตามหน้าที่
+      s.forEach((z, j) => tx(c, z, x0 + j * lw - 2, yy + ch - 12, lw + 4, 11, F("Bold", 8.5), ROLE_C[rl[j]] ? new Color(ROLE_C[rl[j]]) : CA(T.title), "center")); }
     tx(c, day, x + 4, yy + 1, cw - 6, 12, F(today ? "Bold" : "SemiBold", 9.5), CA(today ? T.accent : T.text, 0.85));
     if (noteOn(d, dt)) img(c, I, "note", x + cw - 13, yy + 2, 11);
     if (past && !today) rr(c, x, yy, cw, ch, 9, CA(T.past, T.pastA));
