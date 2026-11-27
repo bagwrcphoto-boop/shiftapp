@@ -1095,7 +1095,7 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
 function renderAll(){
   applyTheme();
   const h = now().getHours();
-  $("hello").textContent = `${h<12?"อรุณสวัสดิ์":h<17?"สวัสดีตอนบ่าย":"สวัสดีตอนเย็น"} ${first(DATA.me)}`;
+  $("hello").textContent = `${h<5?"ราตรีสวัสดิ์":h<12?"อรุณสวัสดิ์":h<17?"สวัสดีตอนบ่าย":"สวัสดีตอนเย็น"} ${first(DATA.me)}`;
   renderHero(); renderCare(); renderCal(); renderSum(); renderFr(); renderSet();
 }
 window.setData = function(d){ DATA = d; renderAll(); };
