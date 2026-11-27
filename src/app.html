@@ -135,7 +135,9 @@ body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;poin
 .tab i{font-size:24px}
 .tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}
-.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
+.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.restw{display:flex;gap:8px;align-items:flex-start;background:#FDEBD8;color:#7A3E12;border-radius:16px;padding:10px 12px;margin-top:8px;font-size:13.5px;font-weight:600}.restw span{font-weight:500;opacity:.85}
+.swaprow{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.swaprow>.p{flex:none;width:auto;padding:0 10px;border-radius:12px;height:30px;line-height:30px;font-size:13px}
+.toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}
 .loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}
 .spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -338,6 +340,27 @@ function allMyShifts(){
   }
   return list.sort((a,b)=>a.st-b.st);
 }
+/* ===== เตือนพักผ่อน: ควบ 16 ชม.+ / พักไม่ถึง 8 ชม. / ทำติดกัน 6 วัน+ ===== */
+function restIssues(){
+  const L = allMyShifts(), out = [], fd = d => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}.`;
+  const blocks = [];
+  for (const x of L){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }
+  blocks.forEach((b,i) => {
+    const h = (b.en - b.st)/36e5;
+    if (h >= 16) out.push({d:b.st, kind:"long", t:`${fd(b.st)} ทำต่อเนื่อง ${h} ชม. (${b.cs.map(c=>SH[c].n.replace("เวร","")).join("→")})`});
+    const nx = blocks[i+1];
+    if (nx){ const g = (nx.st - b.en)/36e5; if (g > 0 && g < 8) out.push({d:nx.st, kind:"rest", t:`${fd(nx.st)} พักแค่ ${g} ชม. ก่อน${SH[nx.cs[0]].n}`}); }
+  });
+  const days = [...new Set(L.map(x=>new Date(x.st.getFullYear(),x.st.getMonth(),x.st.getDate()).getTime()))].sort((a,b)=>a-b);
+  let s0 = 0;
+  for (let i=1; i<=days.length; i++){
+    if (i < days.length && days[i]-days[i-1] === 864e5) continue;
+    const n = i - s0; if (n >= 6) out.push({d:new Date(days[s0]), kind:"run", t:`${fd(new Date(days[s0]))}–${fd(new Date(days[i-1]))} ทำติดกัน ${n} วันไม่มีหยุด`});
+    s0 = i;
+  }
+  return out.sort((a,b)=>a.d-b.d);
+}
+const sameDay = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 const dayDiff = (a,b) => Math.round((new Date(b.getFullYear(),b.getMonth(),b.getDate()) - new Date(a.getFullYear(),a.getMonth(),a.getDate()))/864e5);
 function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math.floor(m%1440/60), mm = m%60;
   return d ? `${d} วัน ${h} ชม.` : h ? `${h} ชม. ${mm} นาที` : `${mm} นาที`; }
@@ -392,6 +415,13 @@ function openDay(d){
     return `<div class="srow ${SH[c].c}">${cute(SH[c].k,40)}<div><p class="nm">${SH[c].n}</p><p class="tm">${SH[c].t}</p>${mates.length?`<p class="mates">อยู่ด้วยกัน: ${mates.join(", ")}</p>`:""}</div></div>`;
   }).join("");
   if (!s.length) rows = `<div class="srow o">${cute("off",38)}<div><p class="nm">วันหยุด</p><p class="tm">พักผ่อนให้เต็มที่นะ</p></div></div>`;
+  const warn = restIssues().filter(w => w.kind !== "run" && sameDay(w.d, dt));
+  if (warn.length) rows += `<div class="restw">${ic("warn")}<div>${warn.map(w=>esc(w.t)).join("<br>")}<br><span>พักผ่อนให้พอ ดื่มน้ำเยอะๆ นะ</span></div></div>`;
+  const offN = md && s.length ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && !sortS(v[d]).length && Object.values(v).some(x=>sortS(x).length)).map(([n])=>n) : [];
+  window.__swap = {d, offN};
+  if (s.length && md && Object.keys(md.people).length > 1) rows += `<p class="h3" style="margin-top:14px">ขอแลกเวร</p>
+    <p class="hello" style="margin:2px 0 8px">คนที่หยุดวันนี้ แตะชื่อเพื่อส่งข้อความขอแลก</p>
+    ${s.map(c=>`<div class="swaprow"><span class="p ${SH[c].c}">${SH[c].n}</span><div class="fchips" style="flex-wrap:wrap">${offN.map((n,i)=>`<button class="fchip" onclick="askSwap('${c}',${i})">${esc(first(n))}</button>`).join("") || `<span class="note">ไม่มีใครหยุดวันนี้</span>`}</div></div>`).join("")}`;
   $("sheet").innerHTML = `<div class="grab"></div>
     <h2 class="big" style="font-size:22px">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>
     <p class="hello" style="margin-bottom:12px">${isToday(d)?"วันนี้":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}
@@ -402,6 +432,10 @@ function openDay(d){
     <div class="qchips">${["แลกเวร","OT","ลา","นัดหมอ","วันเกิด","ประชุม"].map(q=>`<button class="qchip" onclick="addQuick('${q}')">+ ${q}</button>`).join("")}</div>
     <button class="btn main" style="width:100%;margin-top:8px" onclick="saveDay(${d})">${ic("check")}บันทึก</button>`;
   openSheet();
+}
+function askSwap(c, i){
+  const {d, offN} = window.__swap, n = offN[i];
+  send("shareText", `สวัสดีค่ะ ${first(n)} วันที่ ${d} ${MONTHS[viewM]} ว่างไหมคะ ขอแลก${SH[c].n} (${SH[c].t}) หน่อยได้ไหมคะ`);
 }
 function addQuick(q){ const t = $("noteText"); t.value = (t.value.trim() ? t.value.trim() + " · " : "") + q + " "; t.focus(); }
 function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,"") : editSet + c; el.classList.toggle("on"); }
@@ -435,12 +469,16 @@ function renderSum(){
   $("sumLegend").innerHTML = ["ช","บ","ด"].map(c=>`<span class="chip ${SH[c].c}">${ic(SH[c].i)}${SH[c].n.replace("เวร","")} ${k.c[c]} · ${Math.round(pct(c))}%</span>`).join("");
   let run=0, best=0, weOff=0;
   for (let d=1; d<=days; d++){ const off = !sortS(me[d]).length; run = off ? run+1 : 0; best = Math.max(best, run); const w=(f+d-1)%7; if (off && (w===0||w===6)) weOff++; }
-  const tot = md.totals ? md.totals[DATA.me] : null;
+  const tot = md.totals ? md.totals[DATA.me] : null, work = md.work ? md.work[DATA.me] : null, over = work != null ? k.total - work : null;
+  const rest = restIssues().filter(w => w.d.getFullYear()===viewY && w.d.getMonth()===viewM);
   $("sumList").innerHTML = `<p class="h3" style="margin-bottom:4px">เกร็ดน่ารู้</p>
     <div class="li"><span>${ic("beach")}หยุดติดกันนานสุด</span><b>${best} วัน</b></div>
     <div class="li"><span>${ic("party")}เสาร์-อาทิตย์ที่ได้หยุด</span><b>${weOff} วัน</b></div>
     <div class="li"><span>${ic("moon")}เวรดึกทั้งเดือน</span><b>${k.c["ด"]} คืน</b></div>
-    ${tot!=null?`<div class="li"><span>${ic("list")}ช่อง "ทำงานจริง" ในตาราง</span><b>${tot} ${tot===k.total?"ตรง":"ไม่ตรง"}</b></div>`:""}`;
+    ${tot!=null?`<div class="li"><span>${ic("list")}ช่อง "ทำงานจริง" ในตาราง</span><b>${tot} ${tot===k.total?"ตรง":"ไม่ตรง"}</b></div>`:""}
+    ${work!=null?`<div class="li"><span>${ic("work")}วันทำงานตามตาราง</span><b>${work} วัน</b></div>
+    <div class="li"><span>${ic("timer")}เวรเกิน (OT)</span><b>${over>0?`${over} เวร · ${over*8} ชม.`:"ไม่มี"}</b></div>`:""}
+    ${rest.length?`<p class="h3" style="margin:14px 0 4px">ควรพักผ่อน</p>${rest.map(w=>`<div class="li"><span>${ic("warn")}${esc(w.t)}</span></div>`).join("")}`:""}`;
 }
 
 /* ===== เพื่อน ===== */
@@ -564,7 +602,7 @@ function savePaste(){
 function confirmParsed(){
   const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,"0")}`;
   const prev = DATA.months[k] ? JSON.parse(JSON.stringify(DATA.months[k])) : null;
-  DATA.months[k] = {people:r.people, totals:r.totals||{}};
+  DATA.months[k] = {people:r.people, totals:r.totals||{}, work:r.work||{}};
   send("saveMonth", {key:k, month:DATA.months[k]});
   viewY = r.year; viewM = r.month-1; closeSheet(); renderAll();
   if (prev) toastUndo("บันทึกทับเดือนเดิมแล้ว", () => { DATA.months[k] = prev; send("restoreMonth", {key:k, month:prev}); renderAll(); toast("คืนค่าเดิมแล้ว"); });
@@ -654,7 +692,7 @@ if (!DATA){
   const q = new URLSearchParams(location.search);
   DATA = {preview:true, today:"2026-12-03", time:"13:00", me, hasKey:{gemini:true, claude:false},
     settings:{notify:60, calendar:true, ai:"gemini", theme:{style:q.get("s")||"glass", palette:q.get("p")||"sakura"}},
-    months:{"2026-12":{people, totals:{[me]:30}}}, notes:{"2026-12-03":"ประชุมวอร์ด 13:00 (ตัวอย่าง)","2026-12-08":"แลกเวรกับเพื่อน เอ (ตัวอย่าง)"}};
+    months:{"2026-12":{people, totals:{[me]:30}, work:{[me]:19}}}, notes:{"2026-12-03":"ประชุมวอร์ด 13:00 (ตัวอย่าง)","2026-12-08":"แลกเวรกับเพื่อน เอ (ตัวอย่าง)"}};
 }
 initView(); renderAll();
 </script>

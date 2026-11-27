@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 11";
+const APP_VERSION = "27 พ.ย. 69 · 12";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -210,7 +210,8 @@ async function readByTiles(b64, d, key, page) {
 1) ชื่อ "${d.me}" อยู่แถวเลขอะไรในรูปที่ 2
 2) จากหัวตารางในรูปที่ 1 เป็นเดือนอะไร ปี พ.ศ. อะไร
 3) ในรูปที่ 1 แถวของคนนี้ ช่อง "ทำงานจริง" เขียนเลขอะไร
-ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28}`, key, 1000);
+4) ในรูปที่ 1 แถวของคนนี้ ช่อง "วันทำงาน" เขียนเลขอะไร (เอาเลขตัวหลัก ไม่เอาเลขในวงเล็บ ถ้าไม่มีช่องนี้ใส่ null)
+ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28,"workdays":19}`, key, 1000);
   const j = jsonOf(t);
   if (!(+j.label >= 1) || !findMe({ [String(j.name_seen || "")]: 1 }, d.me)) throw new Error("หาแถวชื่อไม่เจอ");
   const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
@@ -218,6 +219,7 @@ async function readByTiles(b64, d, key, page) {
   const days = new Date(year, month, 0).getDate();
   const tiles = await page(`makeTiles(${+j.label}, ${days})`);
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
+  const workdays = j.workdays != null && +j.workdays > 0 && +j.workdays <= 31 ? +j.workdays : null;
   const ask = async (hint, model) => {
     const t = await claudeCall(model || CLAUDE_MODEL, tiles,
 `รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
@@ -251,7 +253,7 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
     }
   }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, total, workdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -260,9 +262,10 @@ async function readRosterClaude(b64, d, key, grid, page) {
     const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
       const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
+      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {};
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);
@@ -390,6 +393,8 @@ async function runApp() {
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); }
       });
+    } else if (m.type === "shareText") {
+      await ShareSheet.present([String(m.payload)]);
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));
       await ShareSheet.present([img]);

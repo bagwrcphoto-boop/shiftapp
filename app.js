@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "27 พ.ย. 69 · 11";
+const APP_VERSION = "27 พ.ย. 69 · 12";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -218,7 +218,8 @@ async function readByTiles(b64, d, key, page) {
 1) ชื่อ "${d.me}" อยู่แถวเลขอะไรในรูปที่ 2
 2) จากหัวตารางในรูปที่ 1 เป็นเดือนอะไร ปี พ.ศ. อะไร
 3) ในรูปที่ 1 แถวของคนนี้ ช่อง "ทำงานจริง" เขียนเลขอะไร
-ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28}`, key, 1000);
+4) ในรูปที่ 1 แถวของคนนี้ ช่อง "วันทำงาน" เขียนเลขอะไร (เอาเลขตัวหลัก ไม่เอาเลขในวงเล็บ ถ้าไม่มีช่องนี้ใส่ null)
+ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28,"workdays":19}`, key, 1000);
   const j = jsonOf(t);
   if (!(+j.label >= 1) || !findMe({ [String(j.name_seen || "")]: 1 }, d.me)) throw new Error("หาแถวชื่อไม่เจอ");
   const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
@@ -226,6 +227,7 @@ async function readByTiles(b64, d, key, page) {
   const days = new Date(year, month, 0).getDate();
   const tiles = await page(`makeTiles(${+j.label}, ${days})`);
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
+  const workdays = j.workdays != null && +j.workdays > 0 && +j.workdays <= 31 ? +j.workdays : null;
   const ask = async (hint, model) => {
     const t = await claudeCall(model || CLAUDE_MODEL, tiles,
 `รูปนี้คือช่องตารางเวรของคนคนเดียว แยกเป็นวัน วันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง (1 ถึง ${days})
@@ -259,7 +261,7 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
     }
   }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, total, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, total, workdays, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
@@ -268,9 +270,10 @@ async function readRosterClaude(b64, d, key, grid, page) {
     const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
       const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
+      const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {};
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
       if (old) for (const [n, v] of Object.entries(old.people || {})) if (n !== d.me) people[n] = v;   // เวรเพื่อนเดิม (ถ้ามี)
-      return { year: tiles.year, month: tiles.month, people, totals, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
+      return { year: tiles.year, month: tiles.month, people, totals, work, method: "tiles", uncertain: tiles.uncertain, friendsLater: friends };
     }
   }
   return readRosterCrop(b64, d, key);
@@ -495,7 +498,9 @@ const APP_HTML = [
 ".tab i{font-size:24px}",
 ".tab.on{background:var(--tabOnBg);color:var(--tabOnFg);font-weight:700;box-shadow:var(--tabOnShadow)}",
 ".toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150px);opacity:0;visibility:hidden;pointer-events:none;background:var(--title);color:var(--body);border-radius:16px;padding:10px 16px;font-size:14px;font-weight:600;transition:transform .3s,opacity .3s,visibility 0s .3s;z-index:30;white-space:nowrap;display:flex;gap:6px;align-items:center}",
-".toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
+".toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s;pointer-events:auto}.restw{display:flex;gap:8px;align-items:flex-start;background:#FDEBD8;color:#7A3E12;border-radius:16px;padding:10px 12px;margin-top:8px;font-size:13.5px;font-weight:600}.restw span{font-weight:500;opacity:.85}",
+".swaprow{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.swaprow>.p{flex:none;width:auto;padding:0 10px;border-radius:12px;height:30px;line-height:30px;font-size:13px}",
+".toast .undo{margin-left:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:10px;padding:5px 10px}",
 ".loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 0;color:var(--sub)}",
 ".spin{font-size:44px;color:var(--accent);animation:sp 1.4s linear infinite}",
 "@keyframes sp{to{transform:rotate(360deg)}}",
@@ -791,6 +796,27 @@ const APP_HTML = [
 "  }",
 "  return list.sort((a,b)=>a.st-b.st);",
 "}",
+"/* ===== \u0e40\u0e15\u0e37\u0e2d\u0e19\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19: \u0e04\u0e27\u0e1a 16 \u0e0a\u0e21.+ / \u0e1e\u0e31\u0e01\u0e44\u0e21\u0e48\u0e16\u0e36\u0e07 8 \u0e0a\u0e21. / \u0e17\u0e33\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19 6 \u0e27\u0e31\u0e19+ ===== */",
+"function restIssues(){",
+"  const L = allMyShifts(), out = [], fd = d => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}.`;",
+"  const blocks = [];",
+"  for (const x of L){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }",
+"  blocks.forEach((b,i) => {",
+"    const h = (b.en - b.st)/36e5;",
+"    if (h >= 16) out.push({d:b.st, kind:\"long\", t:`${fd(b.st)} \u0e17\u0e33\u0e15\u0e48\u0e2d\u0e40\u0e19\u0e37\u0e48\u0e2d\u0e07 ${h} \u0e0a\u0e21. (${b.cs.map(c=>SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\"\u2192\")})`});",
+"    const nx = blocks[i+1];",
+"    if (nx){ const g = (nx.st - b.en)/36e5; if (g > 0 && g < 8) out.push({d:nx.st, kind:\"rest\", t:`${fd(nx.st)} \u0e1e\u0e31\u0e01\u0e41\u0e04\u0e48 ${g} \u0e0a\u0e21. \u0e01\u0e48\u0e2d\u0e19${SH[nx.cs[0]].n}`}); }",
+"  });",
+"  const days = [...new Set(L.map(x=>new Date(x.st.getFullYear(),x.st.getMonth(),x.st.getDate()).getTime()))].sort((a,b)=>a-b);",
+"  let s0 = 0;",
+"  for (let i=1; i<=days.length; i++){",
+"    if (i < days.length && days[i]-days[i-1] === 864e5) continue;",
+"    const n = i - s0; if (n >= 6) out.push({d:new Date(days[s0]), kind:\"run\", t:`${fd(new Date(days[s0]))}\u2013${fd(new Date(days[i-1]))} \u0e17\u0e33\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19 ${n} \u0e27\u0e31\u0e19\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2b\u0e22\u0e38\u0e14`});",
+"    s0 = i;",
+"  }",
+"  return out.sort((a,b)=>a.d-b.d);",
+"}",
+"const sameDay = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();",
 "const dayDiff = (a,b) => Math.round((new Date(b.getFullYear(),b.getMonth(),b.getDate()) - new Date(a.getFullYear(),a.getMonth(),a.getDate()))/864e5);",
 "function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math.floor(m%1440/60), mm = m%60;",
 "  return d ? `${d} \u0e27\u0e31\u0e19 ${h} \u0e0a\u0e21.` : h ? `${h} \u0e0a\u0e21. ${mm} \u0e19\u0e32\u0e17\u0e35` : `${mm} \u0e19\u0e32\u0e17\u0e35`; }",
@@ -845,6 +871,13 @@ const APP_HTML = [
 "    return `<div class=\"srow ${SH[c].c}\">${cute(SH[c].k,40)}<div><p class=\"nm\">${SH[c].n}</p><p class=\"tm\">${SH[c].t}</p>${mates.length?`<p class=\"mates\">\u0e2d\u0e22\u0e39\u0e48\u0e14\u0e49\u0e27\u0e22\u0e01\u0e31\u0e19: ${mates.join(\", \")}</p>`:\"\"}</div></div>`;",
 "  }).join(\"\");",
 "  if (!s.length) rows = `<div class=\"srow o\">${cute(\"off\",38)}<div><p class=\"nm\">\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14</p><p class=\"tm\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e43\u0e2b\u0e49\u0e40\u0e15\u0e47\u0e21\u0e17\u0e35\u0e48\u0e19\u0e30</p></div></div>`;",
+"  const warn = restIssues().filter(w => w.kind !== \"run\" && sameDay(w.d, dt));",
+"  if (warn.length) rows += `<div class=\"restw\">${ic(\"warn\")}<div>${warn.map(w=>esc(w.t)).join(\"<br>\")}<br><span>\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e43\u0e2b\u0e49\u0e1e\u0e2d \u0e14\u0e37\u0e48\u0e21\u0e19\u0e49\u0e33\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</span></div></div>`;",
+"  const offN = md && s.length ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && !sortS(v[d]).length && Object.values(v).some(x=>sortS(x).length)).map(([n])=>n) : [];",
+"  window.__swap = {d, offN};",
+"  if (s.length && md && Object.keys(md.people).length > 1) rows += `<p class=\"h3\" style=\"margin-top:14px\">\u0e02\u0e2d\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23</p>",
+"    <p class=\"hello\" style=\"margin:2px 0 8px\">\u0e04\u0e19\u0e17\u0e35\u0e48\u0e2b\u0e22\u0e38\u0e14\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 \u0e41\u0e15\u0e30\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e2a\u0e48\u0e07\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e02\u0e2d\u0e41\u0e25\u0e01</p>",
+"    ${s.map(c=>`<div class=\"swaprow\"><span class=\"p ${SH[c].c}\">${SH[c].n}</span><div class=\"fchips\" style=\"flex-wrap:wrap\">${offN.map((n,i)=>`<button class=\"fchip\" onclick=\"askSwap('${c}',${i})\">${esc(first(n))}</button>`).join(\"\") || `<span class=\"note\">\u0e44\u0e21\u0e48\u0e21\u0e35\u0e43\u0e04\u0e23\u0e2b\u0e22\u0e38\u0e14\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49</span>`}</div></div>`).join(\"\")}`;",
 "  $(\"sheet\").innerHTML = `<div class=\"grab\"></div>",
 "    <h2 class=\"big\" style=\"font-size:22px\">${DOWF[dt.getDay()]} ${d} ${MONTHS[viewM]}</h2>",
 "    <p class=\"hello\" style=\"margin-bottom:12px\">${isToday(d)?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":`${MONTHS[viewM]} ${viewY+543}`}</p>${rows}",
@@ -855,6 +888,10 @@ const APP_HTML = [
 "    <div class=\"qchips\">${[\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\",\"OT\",\"\u0e25\u0e32\",\"\u0e19\u0e31\u0e14\u0e2b\u0e21\u0e2d\",\"\u0e27\u0e31\u0e19\u0e40\u0e01\u0e34\u0e14\",\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\"].map(q=>`<button class=\"qchip\" onclick=\"addQuick('${q}')\">+ ${q}</button>`).join(\"\")}</div>",
 "    <button class=\"btn main\" style=\"width:100%;margin-top:8px\" onclick=\"saveDay(${d})\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>`;",
 "  openSheet();",
+"}",
+"function askSwap(c, i){",
+"  const {d, offN} = window.__swap, n = offN[i];",
+"  send(\"shareText\", `\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e48\u0e30 ${first(n)} \u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 ${d} ${MONTHS[viewM]} \u0e27\u0e48\u0e32\u0e07\u0e44\u0e2b\u0e21\u0e04\u0e30 \u0e02\u0e2d\u0e41\u0e25\u0e01${SH[c].n} (${SH[c].t}) \u0e2b\u0e19\u0e48\u0e2d\u0e22\u0e44\u0e14\u0e49\u0e44\u0e2b\u0e21\u0e04\u0e30`);",
 "}",
 "function addQuick(q){ const t = $(\"noteText\"); t.value = (t.value.trim() ? t.value.trim() + \" \u00b7 \" : \"\") + q + \" \"; t.focus(); }",
 "function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,\"\") : editSet + c; el.classList.toggle(\"on\"); }",
@@ -888,12 +925,16 @@ const APP_HTML = [
 "  $(\"sumLegend\").innerHTML = [\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<span class=\"chip ${SH[c].c}\">${ic(SH[c].i)}${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")} ${k.c[c]} \u00b7 ${Math.round(pct(c))}%</span>`).join(\"\");",
 "  let run=0, best=0, weOff=0;",
 "  for (let d=1; d<=days; d++){ const off = !sortS(me[d]).length; run = off ? run+1 : 0; best = Math.max(best, run); const w=(f+d-1)%7; if (off && (w===0||w===6)) weOff++; }",
-"  const tot = md.totals ? md.totals[DATA.me] : null;",
+"  const tot = md.totals ? md.totals[DATA.me] : null, work = md.work ? md.work[DATA.me] : null, over = work != null ? k.total - work : null;",
+"  const rest = restIssues().filter(w => w.d.getFullYear()===viewY && w.d.getMonth()===viewM);",
 "  $(\"sumList\").innerHTML = `<p class=\"h3\" style=\"margin-bottom:4px\">\u0e40\u0e01\u0e23\u0e47\u0e14\u0e19\u0e48\u0e32\u0e23\u0e39\u0e49</p>",
 "    <div class=\"li\"><span>${ic(\"beach\")}\u0e2b\u0e22\u0e38\u0e14\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19\u0e19\u0e32\u0e19\u0e2a\u0e38\u0e14</span><b>${best} \u0e27\u0e31\u0e19</b></div>",
 "    <div class=\"li\"><span>${ic(\"party\")}\u0e40\u0e2a\u0e32\u0e23\u0e4c-\u0e2d\u0e32\u0e17\u0e34\u0e15\u0e22\u0e4c\u0e17\u0e35\u0e48\u0e44\u0e14\u0e49\u0e2b\u0e22\u0e38\u0e14</span><b>${weOff} \u0e27\u0e31\u0e19</b></div>",
 "    <div class=\"li\"><span>${ic(\"moon\")}\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\u0e17\u0e31\u0e49\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19</span><b>${k.c[\"\u0e14\"]} \u0e04\u0e37\u0e19</b></div>",
-"    ${tot!=null?`<div class=\"li\"><span>${ic(\"list\")}\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" \u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${tot} ${tot===k.total?\"\u0e15\u0e23\u0e07\":\"\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\"}</b></div>`:\"\"}`;",
+"    ${tot!=null?`<div class=\"li\"><span>${ic(\"list\")}\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" \u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${tot} ${tot===k.total?\"\u0e15\u0e23\u0e07\":\"\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\"}</b></div>`:\"\"}",
+"    ${work!=null?`<div class=\"li\"><span>${ic(\"work\")}\u0e27\u0e31\u0e19\u0e17\u0e33\u0e07\u0e32\u0e19\u0e15\u0e32\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${work} \u0e27\u0e31\u0e19</b></div>",
+"    <div class=\"li\"><span>${ic(\"timer\")}\u0e40\u0e27\u0e23\u0e40\u0e01\u0e34\u0e19 (OT)</span><b>${over>0?`${over} \u0e40\u0e27\u0e23 \u00b7 ${over*8} \u0e0a\u0e21.`:\"\u0e44\u0e21\u0e48\u0e21\u0e35\"}</b></div>`:\"\"}",
+"    ${rest.length?`<p class=\"h3\" style=\"margin:14px 0 4px\">\u0e04\u0e27\u0e23\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19</p>${rest.map(w=>`<div class=\"li\"><span>${ic(\"warn\")}${esc(w.t)}</span></div>`).join(\"\")}`:\"\"}`;",
 "}",
 "",
 "/* ===== \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 ===== */",
@@ -1017,7 +1058,7 @@ const APP_HTML = [
 "function confirmParsed(){",
 "  const r = PARSED, k = `${r.year}-${String(r.month).padStart(2,\"0\")}`;",
 "  const prev = DATA.months[k] ? JSON.parse(JSON.stringify(DATA.months[k])) : null;",
-"  DATA.months[k] = {people:r.people, totals:r.totals||{}};",
+"  DATA.months[k] = {people:r.people, totals:r.totals||{}, work:r.work||{}};",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
 "  viewY = r.year; viewM = r.month-1; closeSheet(); renderAll();",
 "  if (prev) toastUndo(\"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e17\u0e31\u0e1a\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e40\u0e14\u0e34\u0e21\u0e41\u0e25\u0e49\u0e27\", () => { DATA.months[k] = prev; send(\"restoreMonth\", {key:k, month:prev}); renderAll(); toast(\"\u0e04\u0e37\u0e19\u0e04\u0e48\u0e32\u0e40\u0e14\u0e34\u0e21\u0e41\u0e25\u0e49\u0e27\"); });",
@@ -1107,7 +1148,7 @@ const APP_HTML = [
 "  const q = new URLSearchParams(location.search);",
 "  DATA = {preview:true, today:\"2026-12-03\", time:\"13:00\", me, hasKey:{gemini:true, claude:false},",
 "    settings:{notify:60, calendar:true, ai:\"gemini\", theme:{style:q.get(\"s\")||\"glass\", palette:q.get(\"p\")||\"sakura\"}},",
-"    months:{\"2026-12\":{people, totals:{[me]:30}}}, notes:{\"2026-12-03\":\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\u0e27\u0e2d\u0e23\u0e4c\u0e14 13:00 (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\",\"2026-12-08\":\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\u0e01\u0e31\u0e1a\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e40\u0e2d (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\"}};",
+"    months:{\"2026-12\":{people, totals:{[me]:30}, work:{[me]:19}}}, notes:{\"2026-12-03\":\"\u0e1b\u0e23\u0e30\u0e0a\u0e38\u0e21\u0e27\u0e2d\u0e23\u0e4c\u0e14 13:00 (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\",\"2026-12-08\":\"\u0e41\u0e25\u0e01\u0e40\u0e27\u0e23\u0e01\u0e31\u0e1a\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 \u0e40\u0e2d (\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07)\"}};",
 "}",
 "initView(); renderAll();",
 "</script>",
@@ -1155,6 +1196,8 @@ async function runApp() {
         for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); }
       });
+    } else if (m.type === "shareText") {
+      await ShareSheet.present([String(m.payload)]);
     } else if (m.type === "share") {
       const img = Image.fromData(Data.fromBase64String(m.payload));
       await ShareSheet.present([img]);
