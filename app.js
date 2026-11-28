@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 60";
+const APP_VERSION = "28 พ.ย. 69 · 61";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -738,6 +738,7 @@ const APP_HTML = [
 "  <div style=\"margin-bottom:14px\"><p class=\"hello\" id=\"hello\"></p><h1 class=\"big\">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e09\u0e31\u0e19</h1></div>",
 "  <div class=\"card hero\" id=\"hero\"></div>",
 "  <div class=\"card\" id=\"todayNote\" style=\"display:none\"></div>",
+"  <div class=\"card\" id=\"brkNote\" style=\"display:none\"></div>",
 "  <div class=\"card\" id=\"careCard\" style=\"display:none\"></div>",
 "  <div class=\"card\" id=\"calCard\">",
 "    <div class=\"cal-h\"><button class=\"nb\" onclick=\"moveMonth(-1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\"><i data-i=\"l\"></i></button><span class=\"t\" id=\"calTitle\"></span><button class=\"nb\" onclick=\"moveMonth(1)\" aria-label=\"\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b\"><i data-i=\"r\"></i></button></div>",
@@ -760,7 +761,7 @@ const APP_HTML = [
 "  <div class=\"grid2\" id=\"sumStats\" style=\"margin-bottom:14px\"></div>",
 "  <div class=\"card\"><p class=\"h3\" style=\"margin-bottom:10px\">\u0e2a\u0e31\u0e14\u0e2a\u0e48\u0e27\u0e19\u0e40\u0e27\u0e23</p><div class=\"bar\" id=\"sumBar\"></div><div class=\"chips\" id=\"sumLegend\"></div></div>",
 "  <div class=\"card\" id=\"sumList\"></div>",
-"  <button class=\"btn\" id=\"sumShare\" style=\"width:100%;margin-bottom:14px\" onclick=\"shareMonth()\"><i data-i=\"share\"></i>\u0e41\u0e0a\u0e23\u0e4c\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b (\u0e2a\u0e48\u0e07 LINE \u0e44\u0e14\u0e49)</button>",
+"  <button class=\"btn\" id=\"sumShare\" style=\"width:100%;margin-bottom:14px\" onclick=\"SUMMODE==='y'?shareYear():shareMonth()\"><i data-i=\"share\"></i><span>\u0e41\u0e0a\u0e23\u0e4c\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b (\u0e2a\u0e48\u0e07 LINE \u0e44\u0e14\u0e49)</span></button>",
 "</section>",
 "",
 "<section class=\"page\" id=\"p-fr\">",
@@ -781,6 +782,7 @@ const APP_HTML = [
 "  <div class=\"card\">",
 "    <p class=\"lbl\">\u0e2a\u0e44\u0e15\u0e25\u0e4c</p><div class=\"styles\" id=\"styles\"></div>",
 "    <p class=\"lbl\" style=\"margin-top:14px\">\u0e42\u0e17\u0e19\u0e2a\u0e35</p><div class=\"swg\" id=\"swatches\"></div>",
+"    <div class=\"set\" style=\"margin-top:10px\"><span class=\"l\"><i data-i=\"moon\"></i>\u0e18\u0e35\u0e21\u0e21\u0e37\u0e14\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34\u0e15\u0e2d\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01</span><div class=\"sw\" id=\"setAutoDark\" onclick=\"this.classList.toggle('on');saveSettings();applyTheme()\"></div></div>",
 "  </div>",
 "  <div class=\"card\">",
 "    <div class=\"set\"><span class=\"l\"><i data-i=\"bell\"></i>\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e02\u0e36\u0e49\u0e19\u0e40\u0e27\u0e23</span>",
@@ -1174,7 +1176,8 @@ const APP_HTML = [
 "};",
 "function applyTheme(){",
 "  const t = DATA.settings.theme || {style:\"glass\", palette:\"sakura\"};",
-"  const s = STYLES[t.style] || STYLES.glass, p = PALETTES[t.palette] || PALETTES.sakura;",
+"  const nightNow = DATA.settings.autoDark !== false && allMyShifts().some(x => x.c === \"\u0e14\" && x.st <= now() && x.en > now());   // \u0e2d\u0e22\u0e39\u0e48\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01 \u2192 \u0e18\u0e35\u0e21\u0e21\u0e37\u0e14 \u0e44\u0e21\u0e48\u0e41\u0e2a\u0e1a\u0e15\u0e32",
+"  const s = nightNow && ![\"dark\",\"satin\"].includes(t.style) ? STYLES.dark : STYLES[t.style] || STYLES.glass, p = PALETTES[t.palette] || PALETTES.sakura;",
 "  ICON_SET = s.icons;",
 "  $(\"themeVars\").textContent = `:root{--font:'${s.font}','Sukhumvit Set',system-ui,sans-serif;${s.v(p)}}` + (s.extra||\"\");",
 "  const pos = [\"left:-90px;top:-60px\",\"right:-80px;top:220px\",\"left:-60px;top:560px\",\"right:-50px;bottom:-40px\"], sz = [300,260,280,220];",
@@ -1304,6 +1307,10 @@ const APP_HTML = [
 "    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${nm(nxt)}</p>${rp(nxt)}<p class=\"time\">${tm(nxt)}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;",
 "  } else h = `<div><p class=\"when\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e19\u0e49\u0e32</p><p class=\"what\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</p><p class=\"time\">\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p></div><div class=\"orb\">${cute(\"off\",44)}</div>`;",
 "  $(\"hero\").innerHTML = h;",
+"  const lb = longBreaks().find(r => r.en >= new Date(n.getFullYear(), n.getMonth(), n.getDate())), bn = $(\"brkNote\");   // \u0e19\u0e31\u0e1a\u0e16\u0e2d\u0e22\u0e2b\u0e25\u0e31\u0e07\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e22\u0e32\u0e27",
+"  bn.style.display = lb ? \"\" : \"none\";",
+"  if (lb){ const dd = dayDiff(n, lb.st), f = dt => `${dt.getDate()} ${MSH[dt.getMonth()]}`;",
+"    bn.innerHTML = `<div class=\"notecard\">${cute(\"off\",30)}<div><p class=\"h3\" style=\"font-size:15px\">${dd <= 0 ? `\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2b\u0e22\u0e38\u0e14\u0e22\u0e32\u0e27 \u0e40\u0e2b\u0e25\u0e37\u0e2d\u0e2d\u0e35\u0e01 ${dayDiff(n, lb.en)+1} \u0e27\u0e31\u0e19` : `\u0e2d\u0e35\u0e01 ${dd} \u0e27\u0e31\u0e19\u0e44\u0e14\u0e49\u0e2b\u0e22\u0e38\u0e14\u0e22\u0e32\u0e27 ${lb.n} \u0e27\u0e31\u0e19`} \ud83c\udf89</p><p class=\"t\">${f(lb.st)} \u2013 ${f(lb.en)}</p></div></div>`; }",
 "  const t = noteOf(n), nb = $(\"todayNote\");",
 "  nb.style.display = t ? \"\" : \"none\";",
 "  if (t) nb.innerHTML = `<div class=\"notecard\">${cute(\"note\",30)}<div><p class=\"h3\" style=\"font-size:14px\">\u0e42\u0e19\u0e49\u0e15\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49</p><p class=\"t\">${esc(t)}</p></div></div>`;",
@@ -1537,8 +1544,8 @@ const APP_HTML = [
 "let SUMMODE = \"m\";",
 "function setSumMode(m){ SUMMODE = m; renderSum(); window.scrollTo(0,0); }",
 "function sumMove(n){ if (SUMMODE === \"y\"){ viewY += n; selDay = null; renderAll(); } else moveMonth(n); }",
-"function renderYear(){",
-"  const y = viewY, per = [], tr = trades().filter(t=>t.date.startsWith(y+\"-\"));",
+"function yearStats(y){        // \u0e43\u0e0a\u0e49\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e19\u0e49\u0e32\u0e2a\u0e23\u0e38\u0e1b\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35\u0e41\u0e25\u0e30\u0e23\u0e39\u0e1b\u0e41\u0e0a\u0e23\u0e4c\u0e2a\u0e23\u0e38\u0e1b\u0e1b\u0e35",
+"  const per = [], rc = {ic:0, mb:0, md:0};",
 "  let tot = {\"\u0e0a\":0,\"\u0e1a\":0,\"\u0e14\":0}, ot = 0, hs = 0, months = 0;",
 "  for (let m=0; m<12; m++){",
 "    const md = DATA.months[key(y,m)], me = md ? (md.people[DATA.me]||{}) : null;",
@@ -1548,11 +1555,19 @@ const APP_HTML = [
 "    for (const c of [\"\u0e0a\",\"\u0e1a\",\"\u0e14\"]) tot[c] += k.c[c];",
 "    const wk = md.work ? md.work[DATA.me] : null; if (wk != null && k.total > wk) ot += k.total - wk;",
 "    for (let d=1; d<=days; d++) if (holOf(y, m, d)) hs += sortS(me[d]).length;",
+"    for (const r of Object.values((md.roles||{})[DATA.me]||{}).flat()) if (r in rc) rc[r]++;",
 "    per.push(k);",
 "  }",
 "  const blocks = []; for (const x of allMyShifts()){ if (x.st.getFullYear() !== y) continue; const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()) b.en = x.en; else blocks.push({st:x.st, en:x.en}); }",
 "  const long = blocks.filter(b => b.en - b.st >= 16*36e5).length, total = tot[\"\u0e0a\"]+tot[\"\u0e1a\"]+tot[\"\u0e14\"];",
-"  $(\"sumTitle\").textContent = `\u0e1b\u0e35 ${y+543}`; $(\"sumH\").textContent = \"\u0e2a\u0e23\u0e38\u0e1b\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35\"; $(\"sumShare\").style.display = \"none\";",
+"  const hv = per.reduce((a, k, m) => k && (!a || k.total > a.k.total) ? {k, m} : a, null);",
+"  return {per, tot, ot, hs, months, long, total, hv, rc, off: per.reduce((a,k)=>a+(k?k.off:0),0)};",
+"}",
+"const RLN = {ic:\"In charge\", mb:\"member\", md:\"med\"}, RLC = {ic:\"#2F7BE0\", mb:\"#E8742A\", md:\"#23A05A\"};",
+"const roleLines = rc => rc.ic + rc.mb + rc.md ? `<p class=\"h3\" style=\"margin:14px 0 4px\">\u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48</p>` + [\"ic\",\"mb\",\"md\"].map(r=>`<div class=\"li\"><span><b style=\"color:${RLC[r]}\">\u25cf</b> ${RLN[r]}</span><b>${rc[r]} \u0e40\u0e27\u0e23</b></div>`).join(\"\") : \"\";",
+"function renderYear(){",
+"  const y = viewY, tr = trades().filter(t=>t.date.startsWith(y+\"-\")), {per, tot, ot, hs, months, long, total, hv, rc, off} = yearStats(y);",
+"  $(\"sumTitle\").textContent = `\u0e1b\u0e35 ${y+543}`; $(\"sumH\").textContent = \"\u0e2a\u0e23\u0e38\u0e1b\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35\"; $(\"sumShare\").style.display = months ? \"\" : \"none\"; $(\"sumShare\").lastChild.textContent = \"\u0e41\u0e0a\u0e23\u0e4c\u0e2a\u0e23\u0e38\u0e1b\u0e1b\u0e35\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b\";",
 "  if (!months){ $(\"sumStats\").innerHTML = \"\"; $(\"sumBar\").parentNode.style.display = \"none\"; $(\"sumList\").innerHTML = `<p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07\u0e02\u0e2d\u0e07\u0e1b\u0e35\u0e19\u0e35\u0e49</p>`; return; }",
 "  $(\"sumStats\").innerHTML = `",
 "    <div class=\"stat\" style=\"background:var(--tint);color:var(--title)\"><p class=\"k\">${ic(\"work\")}\u0e40\u0e27\u0e23\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35</p><p class=\"v\">${total}</p></div>",
@@ -1565,21 +1580,21 @@ const APP_HTML = [
 "    <div class=\"ych\">${per.map(k => k ? `<div class=\"b\" style=\"height:${k.total/mx*100}%\">${[\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<span style=\"flex:${k.c[c]};background:var(--${SH[c].c}Fg)\"></span>`).join(\"\")}</div>` : `<div class=\"b\" style=\"height:2px;background:var(--line)\"></div>`).join(\"\")}</div>",
 "    <div class=\"ylb\">${MSH.map(m=>`<span>${m.replace(/\\./g,\"\")}</span>`).join(\"\")}</div>",
 "    <div class=\"chips\" id=\"sumLegend\">${[\"\u0e0a\",\"\u0e1a\",\"\u0e14\"].map(c=>`<span class=\"chip ${SH[c].c}\">${ic(SH[c].i)}${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")} ${tot[c]}</span>`).join(\"\")}</div>`;",
-"  const hv = per.reduce((a, k, m) => k && (!a || k.total > a.k.total) ? {k, m} : a, null);",
 "  const buy = tr.filter(t=>t.type===\"buy\"), sell = tr.filter(t=>t.type===\"sell\"), net = buy.reduce((a,t)=>a+(+t.price||0),0) - sell.reduce((a,t)=>a+(+t.price||0),0);",
 "  $(\"sumList\").innerHTML = `<p class=\"h3\" style=\"margin-bottom:4px\">\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e1b\u0e35 ${y+543}</p>",
 "    <div class=\"li\"><span>${ic(\"cal\")}\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e17\u0e35\u0e48\u0e21\u0e35\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${months} \u0e40\u0e14\u0e37\u0e2d\u0e19</b></div>",
 "    ${hv?`<div class=\"li\"><span>${ic(\"work\")}\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e17\u0e35\u0e48\u0e2b\u0e19\u0e31\u0e01\u0e2a\u0e38\u0e14</span><b>${MONTHS[hv.m]} \u00b7 ${hv.k.total} \u0e40\u0e27\u0e23</b></div>`:\"\"}",
 "    <div class=\"li\"><span>${ic(\"double\")}\u0e04\u0e27\u0e1a 16 \u0e0a\u0e21.\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b</span><b>${long} \u0e04\u0e23\u0e31\u0e49\u0e07</b></div>",
 "    <div class=\"li\"><span>${ic(\"moon\")}\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35</span><b>${tot[\"\u0e14\"]} \u0e04\u0e37\u0e19</b></div>",
-"    <div class=\"li\"><span>${ic(\"off\")}\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e27\u0e21</span><b>${per.reduce((a,k)=>a+(k?k.off:0),0)} \u0e27\u0e31\u0e19</b></div>",
+"    <div class=\"li\"><span>${ic(\"off\")}\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e27\u0e21</span><b>${off} \u0e27\u0e31\u0e19</b></div>",
+"    ${roleLines(rc)}",
 "    ${leaveList(y, null)}",
 "    ${tr.length?`<div class=\"li\"><span>${ic(\"work\")}\u0e0b\u0e37\u0e49\u0e2d\u0e40\u0e27\u0e23 / \u0e02\u0e32\u0e22\u0e40\u0e27\u0e23</span><b>${buy.length} / ${sell.length}</b></div><div class=\"li\"><span>${ic(\"check\")}\u0e40\u0e07\u0e34\u0e19\u0e0b\u0e37\u0e49\u0e2d-\u0e02\u0e32\u0e22\u0e2a\u0e38\u0e17\u0e18\u0e34</span><b>${net>=0?\"+\":\"\u2212\"}${baht(Math.abs(net))}</b></div>`:\"\"}`;",
 "}",
 "function renderSum(){",
 "  $(\"segM\").classList.toggle(\"on\", SUMMODE===\"m\"); $(\"segY\").classList.toggle(\"on\", SUMMODE===\"y\");",
 "  if (SUMMODE === \"y\") return renderYear();",
-"  $(\"sumH\").textContent = \"\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\"; $(\"sumShare\").style.display = \"\";",
+"  $(\"sumH\").textContent = \"\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\"; $(\"sumShare\").style.display = \"\"; $(\"sumShare\").lastChild.textContent = \"\u0e41\u0e0a\u0e23\u0e4c\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b (\u0e2a\u0e48\u0e07 LINE \u0e44\u0e14\u0e49)\";",
 "  restoreSumBar();",
 "  const md = monthData(), me = mine(), days = daysIn(), f = firstDow();",
 "  $(\"sumTitle\").textContent = `${MONTHS[viewM]} ${viewY+543}`;",
@@ -1604,6 +1619,7 @@ const APP_HTML = [
 "    ${tot!=null?`<div class=\"li\"><span>${ic(\"list\")}\u0e0a\u0e48\u0e2d\u0e07 \"\u0e17\u0e33\u0e07\u0e32\u0e19\u0e08\u0e23\u0e34\u0e07\" \u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07${vd?` (\u0e23\u0e27\u0e21 v ${vd} \u0e27\u0e31\u0e19)`:\"\"}</span><b>${tot} ${tot===k.total+vd?\"\u0e15\u0e23\u0e07\":\"\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\"}</b></div>`:\"\"}",
 "    ${work!=null?`<div class=\"li\"><span>${ic(\"work\")}\u0e27\u0e31\u0e19\u0e17\u0e33\u0e07\u0e32\u0e19\u0e15\u0e32\u0e21\u0e15\u0e32\u0e23\u0e32\u0e07</span><b>${work} \u0e27\u0e31\u0e19</b></div>",
 "    <div class=\"li\"><span>${ic(\"timer\")}\u0e40\u0e27\u0e23\u0e40\u0e01\u0e34\u0e19 (OT)</span><b>${over>0?`${over} \u0e40\u0e27\u0e23 \u00b7 ${over*8} \u0e0a\u0e21.`:\"\u0e44\u0e21\u0e48\u0e21\u0e35\"}</b></div>`:\"\"}",
+"    ${roleLines(Object.values((md.roles||{})[DATA.me]||{}).flat().reduce((a,r)=>(r in a && a[r]++, a), {ic:0, mb:0, md:0}))}",
 "    ${breakList()}",
 "    ${leaveList(viewY, viewM)}",
 "    ${holList(me, days)}",
@@ -1686,12 +1702,14 @@ const APP_HTML = [
 "  $(\"setAI\").value = \"claude\";",
 "  document.querySelectorAll(\".ci[data-c]\").forEach(el => { if (!el.innerHTML) el.innerHTML = cute(el.dataset.c, 26); });",
 "  const c = careS();",
+"  $(\"setAutoDark\").classList.toggle(\"on\", DATA.settings.autoDark !== false);",
 "  for (const [id, k] of [[\"cWater\",\"water\"],[\"cMeal\",\"meal\"],[\"cNight\",\"night\"],[\"cCoffee\",\"coffee\"],[\"cSleep\",\"sleep\"]]) $(id).classList.toggle(\"on\", !!c[k]);",
 "  $(\"cWaterH\").value = String(c.waterH);",
 "}",
 "const careS = () => Object.assign({water:true, waterH:2, meal:true, night:true, coffee:false, sleep:true}, DATA.settings.care || {});",
 "function saveSettings(){",
 "  DATA.settings.notify = +$(\"setNotify\").value;",
+"  DATA.settings.autoDark = $(\"setAutoDark\").classList.contains(\"on\");",
 "  DATA.settings.calendar = $(\"setCal\").classList.contains(\"on\");",
 "  DATA.settings.eve = $(\"setEve\").classList.contains(\"on\");",
 "  DATA.settings.ai = $(\"setAI\").value;",
@@ -1913,6 +1931,34 @@ const APP_HTML = [
 "const mixHex = (a, b, t) => { const p = s => [1,3,5].map(i=>parseInt(s.substr(i,2),16)); const x = p(a), y = p(b); return \"#\" + x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,\"0\")).join(\"\"); };",
 "const svgImg = k => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = \"data:image/svg+xml;charset=utf-8,\" + encodeURIComponent(CUTE[k].replace(\"<svg \", '<svg width=\"256\" height=\"256\" ')); });",
 "const ROLE_HEX = {ic:\"#2F7BE0\", mb:\"#E8742A\", md:\"#23A05A\"};",
+"async function shareYear(){      // \u0e23\u0e39\u0e1b\u0e2a\u0e23\u0e38\u0e1b\u0e1b\u0e35: \u0e15\u0e31\u0e27\u0e40\u0e25\u0e02\u0e40\u0e14\u0e48\u0e19 \u0e46 \u0e19\u0e48\u0e32\u0e23\u0e31\u0e01 \u0e46 \u0e44\u0e27\u0e49\u0e41\u0e0a\u0e23\u0e4c",
+"  try { await Promise.all([\"500\",\"700\"].map(w=>document.fonts.load(`${w} 30px Mali`, \"\u0e01\u0e020123\"))); } catch(e){}",
+"  const IM = {}; for (const k of [\"sun\",\"sunset\",\"moon\"]) IM[k] = await svgImg(k);",
+"  const y = viewY, S = yearStats(y), t = DATA.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;",
+"  const W = 1080, H = 1350, cv = document.createElement(\"canvas\"); cv.width = W; cv.height = H; const x = cv.getContext(\"2d\");",
+"  const font = (s,w=600) => `${w} ${s}px Mali, \"Sukhumvit Set\", sans-serif`, draw = (k, cx, cy, s) => { if (IM[k]) x.drawImage(IM[k], cx - s/2, cy - s/2, s, s); };",
+"  const g = x.createLinearGradient(0, 0, W*0.6, H); g.addColorStop(0, mixHex(p.body, \"#FFD6E6\", .35)); g.addColorStop(1, mixHex(p.blobs[1], \"#FFFFFF\", .72)); x.fillStyle = g; x.fillRect(0, 0, W, H);",
+"  const blob = (cx, cy, r, c, a) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, al(c, a)); rg.addColorStop(1, al(c, 0)); x.fillStyle = rg; x.fillRect(cx-r, cy-r, r*2, r*2); };",
+"  blob(W*0.95, 40, 480, p.blobs[0], .55); blob(40, H-40, 480, p.blobs[1], .5);",
+"  const card = (cx, cy, w, h, fill) => { x.fillStyle = \"rgba(0,0,0,.05)\"; rr(x, cx, cy+4, w, h, 34); x.fill(); x.fillStyle = fill; rr(x, cx, cy, w, h, 34); x.fill(); x.strokeStyle = \"#FFFFFF\"; x.lineWidth = 3; rr(x, cx, cy, w, h, 34); x.stroke(); };",
+"  x.textAlign = \"center\"; draw(\"sun\", 140, 120, 104); draw(\"moon\", W-140, 126, 100);",
+"  x.fillStyle = p.title; x.font = font(64,700); x.fillText(`\u0e1b\u0e35 ${y+543} \u0e02\u0e2d\u0e07${first(DATA.me)}`, W/2, 130);",
+"  x.fillStyle = p.sub; x.font = font(36,500); x.fillText(\"\u0e2a\u0e23\u0e38\u0e1b\u0e40\u0e27\u0e23\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35\", W/2, 190);",
+"  card(60, 240, W-120, 230, \"rgba(255,255,255,.9)\");",
+"  x.fillStyle = p.title; x.font = font(150,700); x.fillText(S.total, W/2 - 150, 410); x.font = font(38,600); x.fillStyle = p.sub; x.fillText(\"\u0e40\u0e27\u0e23\u0e17\u0e31\u0e49\u0e07\u0e1b\u0e35\", W/2 - 150, 452);",
+"  x.fillStyle = p.title; x.font = font(110,700); x.fillText((S.total*8).toLocaleString(\"th-TH\"), W/2 + 200, 395); x.font = font(38,600); x.fillStyle = p.sub; x.fillText(\"\u0e0a\u0e31\u0e48\u0e27\u0e42\u0e21\u0e07\", W/2 + 200, 452);",
+"  const tiles = [[\"sun\",\"#C6EFD6\",\"#1F5A3B\",S.tot[\"\u0e0a\"],\"\u0e40\u0e27\u0e23\u0e40\u0e0a\u0e49\u0e32\"],[\"sunset\",\"#D2E2FF\",\"#24427E\",S.tot[\"\u0e1a\"],\"\u0e40\u0e27\u0e23\u0e1a\u0e48\u0e32\u0e22\"],[\"moon\",\"#E3D7FF\",\"#4A2F8C\",S.tot[\"\u0e14\"],\"\u0e04\u0e37\u0e19\u0e40\u0e27\u0e23\u0e14\u0e36\u0e01\"]];",
+"  tiles.forEach(([k, bg, ink, v, l], i) => { const cx = 60 + i*330; card(cx, 500, 300, 250, bg); draw(k, cx+150, 575, 96); x.fillStyle = ink; x.font = font(72,700); x.fillText(v, cx+150, 690); x.font = font(32,600); x.fillText(l, cx+150, 732); });",
+"  const R = [[\"ic\",\"In charge\"],[\"mb\",\"member\"],[\"md\",\"med\"]].filter(([r]) => S.rc[r]);",
+"  let yy = 790;",
+"  if (R.length){ card(60, yy, W-120, 130, \"rgba(255,255,255,.9)\"); const w = (W-120)/R.length;",
+"    R.forEach(([r, l], i) => { x.fillStyle = RLC[r]; x.font = font(56,700); x.fillText(S.rc[r], 60 + w*i + w/2, yy+68); x.font = font(28,600); x.fillText(l, 60 + w*i + w/2, yy+108); }); yy += 160; }",
+"  card(60, yy, W-120, 250, \"rgba(255,255,255,.9)\"); x.textAlign = \"left\"; x.font = font(34,600);",
+"  const L = [S.hv ? `\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e17\u0e35\u0e48\u0e2b\u0e19\u0e31\u0e01\u0e2a\u0e38\u0e14  ${MONTHS[S.hv.m]} \u00b7 ${S.hv.k.total} \u0e40\u0e27\u0e23` : \"\", `\u0e04\u0e27\u0e1a 16 \u0e0a\u0e21.\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b  ${S.long} \u0e04\u0e23\u0e31\u0e49\u0e07`, `\u0e40\u0e27\u0e23\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e32\u0e0a\u0e01\u0e32\u0e23  ${S.hs} \u0e40\u0e27\u0e23`, `\u0e27\u0e31\u0e19\u0e2b\u0e22\u0e38\u0e14\u0e23\u0e27\u0e21  ${S.off} \u0e27\u0e31\u0e19`].filter(Boolean);",
+"  L.forEach((l, i) => { x.fillStyle = p.accent; x.beginPath(); x.arc(112, yy + 50 + i*54, 8, 0, 7); x.fill(); x.fillStyle = p.title; x.fillText(l, 134, yy + 62 + i*54); });",
+"  x.textAlign = \"center\"; x.fillStyle = p.sub; x.font = font(30,500); x.fillText(\"\u0e40\u0e01\u0e48\u0e07\u0e21\u0e32\u0e01\u0e40\u0e25\u0e22\u0e1b\u0e35\u0e19\u0e35\u0e49 \ud83d\udc97\", W/2, H - 50);",
+"  send(\"share\", cv.toDataURL(\"image/png\").split(\",\")[1]);",
+"}",
 "async function shareMonth(){",
 "  try { await Promise.all([\"400\",\"500\",\"600\",\"700\"].map(w=>document.fonts.load(`${w} 30px Mali`, \"\u0e01\u0e020123\"))); } catch(e){}",
 "  const IM = {}; for (const k of [\"sun\",\"sunset\",\"moon\",\"off\",\"note\"]) IM[k] = await svgImg(k);",
@@ -2208,8 +2254,10 @@ const hexToRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, n >
 const mixHex = (a, b, t) => { const x = hexToRgb(a), y = hexToRgb(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
 const CA = (h, a = 1) => new Color(h, a);
 
-function wTheme(d) {
-  const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
+function wTheme(d, now) {
+  const t0 = d.settings.theme || {}, p = PALETTES[t0.palette] || PALETTES.sakura;
+  const nightNow = now && d.settings.autoDark !== false && allMyShifts(d).some(x => x.c === "ด" && x.st <= now && x.en > now);   // อยู่เวรดึก → วิดเจ็ตธีมมืด
+  const t = nightNow && !["dark", "satin"].includes(t0.style) ? Object.assign({}, t0, { style: "dark" }) : t0;
   const L = { "ช": ["#D9F4E3", "#1F5A3B"], "บ": ["#DFEAFF", "#24427E"], "ด": ["#ECE4FF", "#4A2F8C"] };
   if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
   if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
@@ -2422,7 +2470,7 @@ function drawSmall(d, now, I, T, sz) {
 }
 
 async function drawnWidget(d, now, family) {
-  const I = await loadIcons(), T = wTheme(d), sz = widgetSize(family); ROLE_C = T.dark ? ROLE_D : ROLE_L;
+  const I = await loadIcons(), T = wTheme(d, now), sz = widgetSize(family); ROLE_C = T.dark ? ROLE_D : ROLE_L;
   const w = new ListWidget(); w.setPadding(0, 0, 0, 0);
   w.backgroundImage = family === "small" ? drawSmall(d, now, I, T, sz) : family === "medium" ? drawMedium(d, now, I, T, sz) : drawLarge(d, now, I, T, sz);
   const next = new Date(now.getTime() + 15 * 6e4); w.refreshAfterDate = next;

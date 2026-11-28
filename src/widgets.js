@@ -35,8 +35,10 @@ const hexToRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, n >
 const mixHex = (a, b, t) => { const x = hexToRgb(a), y = hexToRgb(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
 const CA = (h, a = 1) => new Color(h, a);
 
-function wTheme(d) {
-  const t = d.settings.theme || {}, p = PALETTES[t.palette] || PALETTES.sakura;
+function wTheme(d, now) {
+  const t0 = d.settings.theme || {}, p = PALETTES[t0.palette] || PALETTES.sakura;
+  const nightNow = now && d.settings.autoDark !== false && allMyShifts(d).some(x => x.c === "ด" && x.st <= now && x.en > now);   // อยู่เวรดึก → วิดเจ็ตธีมมืด
+  const t = nightNow && !["dark", "satin"].includes(t0.style) ? Object.assign({}, t0, { style: "dark" }) : t0;
   const L = { "ช": ["#D9F4E3", "#1F5A3B"], "บ": ["#DFEAFF", "#24427E"], "ด": ["#ECE4FF", "#4A2F8C"] };
   if (t.style === "nude") return { dark: false, g1: "#FBF1EC", g2: "#F3DADB", b1: "#F2CCD1", b2: "#EED9C4", title: "#5A2E3E", sub: "#9A7680", text: "#5A3A44", accent: "#C98A94", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.7, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
   if (t.style === "pearl") return { dark: false, g1: "#FBEAF5", g2: "#E6E8FF", b1: "#FFD1EA", b2: "#D3D9FF", title: "#43345A", sub: "#8C79B8", text: "#43345A", accent: "#B07BE6", onAccent: "#FFFFFF", card: "#FFFFFF", cardA: 0.62, offA: 0.88, pastA: 0.32, past: "#FFFFFF", shift: L };
@@ -249,7 +251,7 @@ function drawSmall(d, now, I, T, sz) {
 }
 
 async function drawnWidget(d, now, family) {
-  const I = await loadIcons(), T = wTheme(d), sz = widgetSize(family); ROLE_C = T.dark ? ROLE_D : ROLE_L;
+  const I = await loadIcons(), T = wTheme(d, now), sz = widgetSize(family); ROLE_C = T.dark ? ROLE_D : ROLE_L;
   const w = new ListWidget(); w.setPadding(0, 0, 0, 0);
   w.backgroundImage = family === "small" ? drawSmall(d, now, I, T, sz) : family === "medium" ? drawMedium(d, now, I, T, sz) : drawLarge(d, now, I, T, sz);
   const next = new Date(now.getTime() + 15 * 6e4); w.refreshAfterDate = next;
