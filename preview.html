@@ -532,7 +532,7 @@ window.halfColor = function(k, days){
 // รูปตัวอย่าง (legend) + รูปตัวที่ต้องตรวจ แต่ละตัวขยายใหญ่ มีเลขกำกับ
 window.glyphSheet = function(k, items, legend){
   const S = 110, gap = 12, lab = 34;
-  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(k, it.d, it.half); return darkenInk(gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw))); };
+  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(it.k || k, it.d, it.half); /* it.k = แถวอื่น (เวรเพื่อน) */ return darkenInk(gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw))); };
   const draw = (rows) => {
     const per = 8, hh = Math.round(S * 0.95), H = rows.reduce((a, r) => a + Math.ceil(r.items.length / per) * (hh + lab + gap) + 40, gap), W = per * (S + gap) + gap + 10;
     const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);

@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 61";
+const APP_VERSION = "28 พ.ย. 69 · 62";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -239,6 +239,24 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบ JSON อย�
   return { days, total, count: Object.values(days).join("").length, match, seen };
 }
 // ---- แบบแม่นที่สุด: แอปหาเส้นตารางเอง → ตัดช่องแต่ละวันขยายใหญ่พร้อมเลขวัน ----
+async function askTiles(tiles, days, key, hint, model) {   // อ่านช่องเวรจากรูปช่องที่ตัดแล้ว (แถวเดียว) 1 รอบ
+  const t = await claudeCallN(model || CLAUDE_MODEL, tiles,
+`${tiles.length > 1 ? `รูปที่ 1 คือวันที่ 1-16 รูปที่ 2 คือวันที่ 17-${days}` : `รูปนี้คือวันที่ 1-${days}`} เป็นช่องตารางเวรของคนคนเดียว แยกวันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง
+แต่ละช่องมี 2 บรรทัด (บน กับ ล่าง) อ่านทีละบรรทัด
+ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, v, ลา, กิจ, EN, D, E, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
+ระวัง ช กับ บ: ตัว ช สูงกว่าและแคบกว่า มีหางขาขวาชี้ขึ้นเหนือหัว และมีหยักเล็กๆ ที่หัวซ้าย ส่วน บ เตี้ยกว่า กว้างกว่า หัวกลมเรียบ ไม่มีหาง
+ข้อความที่มีคำว่า "ไม่" นำหน้า เช่น "ไม่ ด" "ไม่ ช" แปลว่าขอไม่ขึ้นเวรนั้น ไม่ใช่เวร และคำว่า "วันเกิด" ก็ไม่ใช่เวร
+ถ้าบรรทัดไหนมีตัว v ให้ใส่ v
+${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=บน/ล่าง คั่นด้วยเว้นวรรค ใช้ - ถ้าบรรทัดนั้นไม่มีเวร เช่น
+1=ด/ช 2=-/บ 3=-/- 4=-/v 5=ช/-`, key, 12000);
+  const out = {}, seen = new Set(), vd = new Set();
+  for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvVxX\-]*)(?:\s*\/\s*([ชบดvVxX\-]*))?/g)) {
+    const dd = +x[1], cells = (x[2] || "") + (x[3] || ""); seen.add(dd); if (dd < 1 || dd > days) continue;
+    if (/v/i.test(cells)) vd.add(dd);
+    const s = sortS(cells).filter((c, i, a) => a.indexOf(c) === i).join(""); if (s) out[dd] = s; }
+  return { days: out, count: Object.values(out).join("").length, full: seen.has(days), v: vd.size };
+}
+
 async function readByTiles(b64, d, key, page) {
   const progress = s => page(`onProgress(${JSON.stringify(s)})`).catch(() => {});
   progress("กำลังหาแถวของคุณในตาราง…");
@@ -249,7 +267,8 @@ async function readByTiles(b64, d, key, page) {
 2) จากหัวตารางในรูปที่ 1 เป็นเดือนอะไร ปี พ.ศ. อะไร
 3) ในรูปที่ 1 แถวของคนนี้ ช่อง "ทำงานจริง" เขียนเลขอะไร
 4) ในรูปที่ 1 แถวของคนนี้ ช่อง "วันทำงาน" เขียนเลขอะไร (เอาเลขตัวหลัก ไม่เอาเลขในวงเล็บ ถ้าไม่มีช่องนี้ใส่ null)
-ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28,"workdays":19}`, key, 6000);
+5) ชื่อของทุกแถวในรูปที่ 2 ตามเลขกำกับ (แถวที่ไม่ใช่ชื่อคน เช่น หัวตาราง ไม่ต้องใส่)
+ตอบ JSON อย่างเดียว: {"label":11,"name_seen":"ชื่อที่เห็น","year_be":2569,"month":11,"total":28,"workdays":19,"rows":[{"label":2,"name":"ชื่อ นามสกุล"}]}`, key, 8000);
   const j = jsonOf(t);
   if (!(+j.label >= 1) || !findMe({ [String(j.name_seen || "")]: 1 }, d.me)) throw new Error("หาแถวชื่อไม่เจอ");
   const year = +j.year_be > 2400 ? +j.year_be - 543 : +j.year_be, month = +j.month;
@@ -262,23 +281,7 @@ async function readByTiles(b64, d, key, page) {
   if (!Array.isArray(tiles) || !tiles.length) tiles = [await page(`makeTiles(${+j.label}, ${days})`)];
   const total = j.total != null && !isNaN(+j.total) ? +j.total : null;
   const workdays = j.workdays != null && +j.workdays > 0 && +j.workdays <= 31 ? +j.workdays : null;
-  const ask = async (hint, model) => {
-    const t = await claudeCallN(model || CLAUDE_MODEL, tiles,
-`${tiles.length > 1 ? `รูปที่ 1 คือวันที่ 1-16 รูปที่ 2 คือวันที่ 17-${days}` : `รูปนี้คือวันที่ 1-${days}`} เป็นช่องตารางเวรของคนคนเดียว แยกวันละ 1 ช่อง มีเลขวันที่สีชมพูอยู่เหนือแต่ละช่อง
-แต่ละช่องมี 2 บรรทัด (บน กับ ล่าง) อ่านทีละบรรทัด
-ช = เวรเช้า, บ = เวรบ่าย, ด = เวรดึก ส่วน x, v, ลา, กิจ, EN, D, E, ตัวเลข หรือช่องว่าง ไม่ใช่เวร (สีพื้นไม่มีความหมาย ดูแค่ตัวอักษร)
-ระวัง ช กับ บ: ตัว ช สูงกว่าและแคบกว่า มีหางขาขวาชี้ขึ้นเหนือหัว และมีหยักเล็กๆ ที่หัวซ้าย ส่วน บ เตี้ยกว่า กว้างกว่า หัวกลมเรียบ ไม่มีหาง
-ข้อความที่มีคำว่า "ไม่" นำหน้า เช่น "ไม่ ด" "ไม่ ช" แปลว่าขอไม่ขึ้นเวรนั้น ไม่ใช่เวร และคำว่า "วันเกิด" ก็ไม่ใช่เวร
-ถ้าบรรทัดไหนมีตัว v ให้ใส่ v
-${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรทัดเดียว ไม่ต้องอธิบาย ครบทุกวัน รูปแบบ วันที่=บน/ล่าง คั่นด้วยเว้นวรรค ใช้ - ถ้าบรรทัดนั้นไม่มีเวร เช่น
-1=ด/ช 2=-/บ 3=-/- 4=-/v 5=ช/-`, key, 12000);
-    const out = {}, seen = new Set(), vd = new Set();
-    for (const x of t.matchAll(/(\d{1,2})\s*=\s*([ชบดvVxX\-]*)(?:\s*\/\s*([ชบดvVxX\-]*))?/g)) {
-      const dd = +x[1], cells = (x[2] || "") + (x[3] || ""); seen.add(dd); if (dd < 1 || dd > days) continue;
-      if (/v/i.test(cells)) vd.add(dd);
-      const s = sortS(cells).filter((c, i, a) => a.indexOf(c) === i).join(""); if (s) out[dd] = s; }
-    return { days: out, count: Object.values(out).join("").length, full: seen.has(days), v: vd.size };
-  };
+  const ask = (hint, model) => askTiles(tiles, days, key, hint, model);
   const askFull = async (hint, model) => {     // คำตอบไม่ครบถึงวันสุดท้าย → ถามใหม่ 1 ครั้ง
     const r = await ask(hint, model); if (r.full) return r;
     const r2 = await ask((hint ? hint + " " : "") + `ต้องตอบให้ครบถึงวันที่ ${days}`, model); return r2.full || r2.count >= r.count ? r2 : r;
@@ -290,7 +293,7 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
   let diff = []; for (let dd = 1; dd <= days; dd++) if (val(r1, dd) !== val(r2, dd)) diff.push(dd);
   const checks = { label: +j.label, cols, days, diff: diff.slice(), tie: false, majority: [], glyphChecked: 0, glyphChanged: [], name: String(j.name_seen || "") };
   const cnt = o => Object.values(o).join("").length;
-  let final = Object.assign({}, r1.days), uncertain = [];
+  let final = Object.assign({}, r1.days), uncertain = [], myLegend = null;
   const vdays = Math.max(r1.v || 0, r2.v || 0);     // ช่อง v นับรวมใน "ทำงานจริง" ด้วย
   if (diff.length || (total != null && r1.count + vdays !== total)) {
     progress("ตรวจซ้ำวันที่อ่านไม่ตรงกัน…"); checks.tie = true;
@@ -313,6 +316,7 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
     const agree = g => val(r1, g.d) === val(r2, g.d) && !uncertain.includes(g.d), legend = {};
     for (const c of ["ช", "บ", "ด"]) legend[c] = glyphs.filter(g => g.c === c && agree(g)).slice(0, 6);
     const exm = new Set(Object.values(legend).flat()), items = glyphs.filter(g => !exm.has(g));
+    myLegend = Object.fromEntries(Object.entries(legend).map(([c, a]) => [c, a.map(g => ({ d: g.d, half: g.half }))]));   // ใช้ตรวจเวรเพื่อนต่อ
     if (items.length && legend["ช"].length && legend["บ"].length) {
       const [L, Q] = JSON.parse(await page(`glyphSheet(${+j.label}, ${JSON.stringify(items.map(g => ({ d: g.d, half: g.half })))}, ${JSON.stringify(Object.fromEntries(Object.entries(legend).map(([c, a]) => [c, a.map(g => ({ d: g.d, half: g.half }))])))})`));
       const t = await claudeCallN(CLAUDE_STRONG, [L, Q],
@@ -342,14 +346,57 @@ ${hint ? "หมายเหตุ: " + hint + "\n" : ""}ตอบบรรท�
       if (r.some(Boolean)) roles[dd] = r.map(x => x || ""); }
   } catch (e) { console.log("roles: " + e); }
   const my = { days: final, count: cnt(final) };
-  return { year, month, days: my.days, roles, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b) };
+  return { year, month, days: my.days, roles, total, workdays, vdays, checks, count: my.count, uncertain: [...new Set(uncertain)].sort((a, b) => a - b), rows: Array.isArray(j.rows) ? j.rows : [], label: +j.label, nDays: days, legend: myLegend };
+}
+// เวรเพื่อน: ใช้ตาราง (grid) เดียวกับแถวเรา ตัดช่องทีละแถวแล้วอ่าน 1 รอบ/แถว → วันตรงกับชื่อเสมอ (แทนการอ่านทั้งตารางรวดเดียว)
+async function readFriendsTiles(rows, myLabel, days, d, key, page, whole, legend) {
+  const R = rows.filter(r => +r.label >= 1 && +r.label !== myLabel && String(r.name || "").trim() && !findMe({ [r.name]: 1 }, d.me));
+  if (!R.length) throw new Error("ไม่เจอชื่อเพื่อนในตาราง");
+  const jobs = [];
+  for (const r of R) { const t = JSON.parse(await page(`makeTiles2(${+r.label}, ${days})`)); if (Array.isArray(t) && t.length) jobs.push({ name: String(r.name).trim(), t }); }
+  const people = {};
+  for (let i = 0; i < jobs.length; i += 3)       // ทีละ 3 แถวพร้อมกัน
+    await Promise.all(jobs.slice(i, i + 3).map(async j => { try { people[j.name] = (await askTiles(j.t, days, key)).days; } catch (e) { console.log("friend " + j.name + ": " + e); } }));
+  if (!Object.keys(people).length) throw new Error("อ่านเวรเพื่อนไม่ได้");
+  // อ่านซ้ำอีกวิธี (ทั้งตาราง) วันไหนสองวิธีไม่ตรงกัน → ตัดตัวอักษรมาเทียบกับตัวอย่างจากแถวเรา (ที่ตรวจแล้ว)
+  try {
+    const W = (await whole).people || {}, nm = n => n.replace(/^(นางสาว|นาง|นาย|น\.ส\.)\s*/, "").replace(/\s+/g, "");
+    const items = [];
+    for (const r of R) { const n = String(r.name).trim(), A = people[n]; if (!A) continue;
+      const wk = Object.keys(W).find(k => nm(k) === nm(n)); if (!wk) continue;
+      const dis = []; for (let dd = 1; dd <= days; dd++) if ((A[dd] || "") !== (W[wk][dd] || "")) dis.push(dd);
+      if (!dis.length) continue;
+      const ink = JSON.parse(await page(`halfInk(${+r.label}, ${days})`));
+      for (const dd of dis) for (const half of ["top", "bot"]) if ((ink[dd] || {})[half]) items.push({ k: +r.label, d: dd, half, n }); }
+    console.log(`friends check: ${items.length} ตัวที่สองวิธีอ่านไม่ตรงกัน`);
+    if (items.length && legend && legend["ช"] && legend["ช"].length && legend["บ"] && legend["บ"].length) {
+      const ans = {};
+      for (let i = 0; i < items.length; i += 40) {
+        const part = items.slice(i, i + 40), [L, Q] = JSON.parse(await page(`glyphSheet(${myLabel}, ${JSON.stringify(part.map(g => ({ k: g.k, d: g.d, half: g.half })))}, ${JSON.stringify(legend)})`));
+        const t = await claudeCallN(CLAUDE_STRONG, [L, Q],
+`รูปที่ 1 คือตัวอย่างตัวอักษรจากตารางเดียวกัน (ฟอนต์และขนาดเดียวกัน) แยกเป็นตัว ช, ตัว บ, ตัว ด
+รูปที่ 2 คือตัวอักษรที่ต้องตรวจ มีเลขกำกับ #1, #2, ...
+เทียบรูปร่างกับตัวอย่างทีละตัว (ไม่ต้องดูสีพื้น) แล้วบอกว่าแต่ละตัวคือ ช, บ, ด หรือ x (กากบาท/ว่าง/ข้อความอื่นที่ไม่ใช่เวร)
+ระวัง ช กับ บ: ช สูงกว่าและแคบกว่า มีหางขาขวาชี้ขึ้น หัวซ้ายมีหยัก ส่วน บ เตี้ยกว่า กว้างกว่า หัวเรียบ
+ตอบบรรทัดเดียว ไม่ต้องอธิบาย เช่น #1=ช #2=บ #3=ด #4=x`, key, 10000);
+        for (const x of t.matchAll(/#(\d+)\s*=\s*([ชบดxX])/g)) { const g = part[+x[1] - 1]; if (g) ans[g.n + "|" + g.d + g.half] = x[2].toLowerCase(); }
+      }
+      for (const g of items) if (g.half === "top" || !items.some(h => h.n === g.n && h.d === g.d && h.half === "top")) {   // ประกอบวันใหม่ บน→ล่าง
+        const v = ["top", "bot"].map(h => ans[g.n + "|" + g.d + h]).filter(a => a && a !== "x");
+        if (["top", "bot"].some(h => ans[g.n + "|" + g.d + h])) { const s = [...new Set(v)].join(""); if (s !== (people[g.n][g.d] || "")) console.log(`friend fix ${g.n} ${g.d}: ${people[g.n][g.d] || "-"} → ${s || "-"}`); if (s) people[g.n][g.d] = s; else delete people[g.n][g.d]; }
+      }
+    }
+  } catch (e) { console.log("friends check: " + e); }
+  return people;
 }
 
 async function readRosterClaude(b64, d, key, grid, page) {
   if (grid && page) {
-    const friends = askClaude(b64, key).then(t => parseRoster(t, d.me)).catch(e => ({ err: e }));   // เวรเพื่อน: อ่านเบื้องหลัง ไม่ต้องรอ
     const tiles = await readByTiles(b64, d, key, page).catch(e => ({ err: e }));
     if (!tiles.err) {
+      const whole = () => askClaude(b64, key).then(t => parseRoster(t, d.me));   // วิธีเดิม: อ่านทั้งตารางรวดเดียว (สำรอง)
+      const wholeP = whole().catch(e => ({ err: e }));   // อ่านทั้งตารางคู่ขนาน ใช้เทียบ/สำรอง
+      const friends = (tiles.rows.length ? readFriendsTiles(tiles.rows, tiles.label, tiles.nDays, d, key, page, wholeP, tiles.legend).then(people => ({ year: tiles.year, month: tiles.month, people })).catch(() => wholeP) : wholeP).catch(e => ({ err: e }));   // เวรเพื่อน: อ่านเบื้องหลัง ไม่ต้องรอ
       const people = { [d.me]: tiles.days }, totals = tiles.total != null ? { [d.me]: tiles.total } : {};
       const work = tiles.workdays != null ? { [d.me]: tiles.workdays } : {}, vdays = tiles.vdays ? { [d.me]: tiles.vdays } : {}, roles = { [d.me]: tiles.roles || {} };
       const old = d.months[`${tiles.year}-${pad(tiles.month)}`];
@@ -1069,7 +1116,7 @@ const APP_HTML = [
 "// \u0e23\u0e39\u0e1b\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07 (legend) + \u0e23\u0e39\u0e1b\u0e15\u0e31\u0e27\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e15\u0e23\u0e27\u0e08 \u0e41\u0e15\u0e48\u0e25\u0e30\u0e15\u0e31\u0e27\u0e02\u0e22\u0e32\u0e22\u0e43\u0e2b\u0e0d\u0e48 \u0e21\u0e35\u0e40\u0e25\u0e02\u0e01\u0e33\u0e01\u0e31\u0e1a",
 "window.glyphSheet = function(k, items, legend){",
 "  const S = 110, gap = 12, lab = 34;",
-"  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(k, it.d, it.half); return darkenInk(gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw))); };",
+"  const cell = (it) => { const [sx, sy, sw, sh] = halfBox(it.k || k, it.d, it.half); /* it.k = \u0e41\u0e16\u0e27\u0e2d\u0e37\u0e48\u0e19 (\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19) */ return darkenInk(gridCrop(sx, sy, sw, sh, S, Math.round(S * sh / sw))); };",
 "  const draw = (rows) => {",
 "    const per = 8, hh = Math.round(S * 0.95), H = rows.reduce((a, r) => a + Math.ceil(r.items.length / per) * (hh + lab + gap) + 40, gap), W = per * (S + gap) + gap + 10;",
 "    const c = document.createElement(\"canvas\"); c.width = W; c.height = H; const x = c.getContext(\"2d\"); x.fillStyle = \"#fff\"; x.fillRect(0, 0, W, H);",
