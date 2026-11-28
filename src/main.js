@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 62";
+const APP_VERSION = "28 พ.ย. 69 · 63";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -36,6 +36,7 @@ const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const fm = FileManager.local();
 const FILE = fm.joinPath(fm.documentsDirectory(), "shiftapp-data.json");
 const OLD_FILE = fm.joinPath(fm.documentsDirectory(), "shifts.json");
+const GAME_FILE = fm.joinPath(fm.documentsDirectory(), "shiftapp-game.json");   // ข้อมูลเกมนก แยกจากข้อมูลเวร
 
 function loadData() {
   let d;
@@ -574,6 +575,7 @@ async function cacheAssets(style) { for (const k of assetKeys(style)) if (!fm.fi
 
 // ---------------- หน้าแอป ----------------
 const APP_HTML = /*__HTML__*/"";
+const GAME_HTML = /*__GAME__*/"";
 
 async function runApp() {
   const fromBackup = await restoreIfEmpty();
@@ -593,7 +595,12 @@ async function runApp() {
   const pendingFriends = {}, restored = {};
 
   async function handle(m) {
-    if (m.type === "saveMonth") {
+    if (m.type === "openGame") {
+      let s = {}; try { if (fm.fileExists(GAME_FILE)) s = JSON.parse(fm.readString(GAME_FILE)); } catch (e) { console.log("game: " + e); }
+      await call(`openGame(${js(GAME_HTML)}, ${js(s)})`); return;
+    } else if (m.type === "saveGame") {
+      fm.writeString(GAME_FILE, String(m.payload)); return;
+    } else if (m.type === "saveMonth") {
       d.months[m.payload.key] = m.payload.month; delete restored[m.payload.key];
       if (pendingFriends[m.payload.key]) { for (const [n, v] of Object.entries(pendingFriends[m.payload.key])) if (n !== d.me) d.months[m.payload.key].people[n] = v; delete pendingFriends[m.payload.key]; }
       saveData(d); await syncAll(d);

@@ -17,6 +17,7 @@ button{font:inherit;cursor:pointer;color:inherit}
 .blob{position:absolute;border-radius:50%;opacity:.85}
 .page{display:none;animation:fade .25s ease}
 .page.on{display:block}
+#gameFrame{display:block;width:100%;height:calc(100vh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom));border:0;border-radius:24px;background:#fbeef5}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .card{background:var(--card);border:var(--cardBorder);box-shadow:var(--cardShadow);border-radius:var(--r);padding:16px;margin-bottom:14px}
 .hello{font-size:16px;font-weight:500;color:var(--sub)}
@@ -284,11 +285,14 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
   <p class="note" id="verNote"></p>
 </section>
 
+<section class="page" id="p-game"><div id="gameBox"><p class="note">กำลังเปิดเกม…</p></div></section>
+
 <nav class="tabs">
   <button class="tab on" data-p="p-cal"><i data-i="cal"></i>ปฏิทิน</button>
   <button class="tab" data-p="p-sum"><i data-i="sum"></i>สรุป</button>
   <button class="tab" data-p="p-fr"><i data-i="fr"></i>เพื่อน</button>
   <button class="tab" data-p="p-set"><i data-i="set"></i>ตั้งค่า</button>
+  <button class="tab" data-p="p-game"><i data-i="game"></i>เกม</button>
 </nav>
 <div class="mask" id="mask" onclick="closeSheet()"></div>
 <div class="sheet" id="sheet"></div>
@@ -300,7 +304,7 @@ let DATA = /*__DATA__*/null;
 /*__PALETTES__*/
 
 /* ===== ไอคอน ===== */
-const ICON_NAMES = {sun:["sun","sun"],sunset:["sun-horizon","sunset-2"],moon:["moon-stars","moon"],off:["coffee","zzz"],alarm:["alarm","alarm"],
+const ICON_NAMES = {game:["game-controller","device-gamepad-2"],sun:["sun","sun"],sunset:["sun-horizon","sunset-2"],moon:["moon-stars","moon"],off:["coffee","zzz"],alarm:["alarm","alarm"],
  l:["caret-left","chevron-left"],r:["caret-right","chevron-right"],cal:["calendar-heart","calendar"],sum:["chart-pie-slice","chart-donut"],fr:["users-three","users"],set:["gear-six","settings"],
  camera:["camera","camera"],share:["share-network","share"],bell:["bell-ringing","bell"],calsync:["calendar-plus","calendar-plus"],ai:["sparkle","sparkles"],user:["user-circle","user-circle"],
  key:["key","key"],edit:["pencil-simple","pencil"],work:["briefcase","briefcase"],timer:["timer","clock-hour-4"],double:["stack","stack-2"],beach:["umbrella","beach"],party:["confetti","confetti"],
@@ -1215,7 +1219,15 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===b));
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id===b.dataset.p));
   window.scrollTo(0,0);
+  if (b.dataset.p === "p-game" && !window.__gameOn) { window.__gameOn = 1; send("openGame"); }
 });
+/* ===== เกม (เลี้ยงนก + มินิเกม) อยู่ใน iframe แยก ข้อมูลเกมเก็บเป็นไฟล์ผ่าน main ===== */
+window.openGame = (html, state) => {
+  const f = document.createElement("iframe"); f.id = "gameFrame";
+  f.srcdoc = html.replace("</head>", "<script>window.__SAVE=" + JSON.stringify(state && typeof state === "object" ? state : {}) + "<\/script></head>");
+  $("gameBox").innerHTML = ""; $("gameBox").appendChild(f);
+};
+window.__gameSave = s => send("saveGame", s);
 function renderAll(){
   applyTheme();
   const h = now().getHours();
