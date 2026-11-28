@@ -56,7 +56,7 @@ canvas{display:block;width:100%;touch-action:none}
 .scene{position:relative;height:340px;border-radius:26px;overflow:hidden;box-shadow:0 6px 20px #b48fb533;background:#f4dcd8;touch-action:manipulation}
 .bgs{position:absolute;inset:0}.bgs svg{width:100%;height:100%;display:block}
 .cover{position:absolute;inset:0;background:linear-gradient(#1c1840d9,#2c2457d9);opacity:0;pointer-events:none;transition:opacity .8s;z-index:3}.scene.night .cover{opacity:1}
-.bird{position:absolute;bottom:76px;width:140px;height:182px;margin-left:-70px;z-index:2;transition:left 1s ease-in-out,opacity .4s;cursor:pointer;-webkit-touch-callout:none}
+.bird{touch-action:none;position:absolute;bottom:76px;width:140px;height:182px;margin-left:-70px;z-index:2;transition:left 1s ease-in-out,opacity .4s;cursor:pointer;-webkit-touch-callout:none}
 .bird.out{opacity:0;pointer-events:none}
 .bsvg{position:absolute;inset:0;transform-origin:50% 92%;animation:bob 2.6s ease-in-out infinite}
 .bird[data-k=s] .bsvg{animation-delay:-1.1s}
@@ -454,11 +454,11 @@ function reward(c){quest('game');const e=ECO.get();if(e.plays>=PLAY_CAP){setTime
  c=Math.max(1,Math.min(15,c|0));e.plays++;e.coin+=c;ECO.set(e);setTimeout(()=>alertish('+'+c+'🪙 (ได้เหรียญอีก '+(PLAY_CAP-e.plays)+' รอบวันนี้)'),2000)}
 /* sound: tiny synth chirps, no files */
 let AC=null;
-function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type='ambient'}catch(e){}
  try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state!=='running')AC.resume();const b=AC.createBuffer(1,1,22050),s=AC.createBufferSource();s.buffer=b;s.connect(AC.destination);s.start(0)}catch(e){}}
-['touchend','pointerdown','click'].forEach(ev=>addEventListener(ev,unlockAudio,{capture:true,passive:true}));
+['touchend','pointerdown'].forEach(ev=>addEventListener(ev,function u(){unlockAudio();setTimeout(()=>{try{AC&&AC.suspend()}catch(e){}},300);removeEventListener(ev,u,true)},{capture:true,passive:true}));
 function chirp(k,kind){if(!ECO.get().snd)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
- const t0=AC.currentTime,tone=(f1,f2,st,dur,type,vol)=>{const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f1,t0+st);o.frequency.exponentialRampToValueAtTime(f2,t0+st+dur);
+ clearTimeout(chirp.t);chirp.t=setTimeout(()=>{try{AC.suspend()}catch(e){}},2500);const t0=AC.currentTime,tone=(f1,f2,st,dur,type,vol)=>{const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f1,t0+st);o.frequency.exponentialRampToValueAtTime(f2,t0+st+dur);
   g.gain.setValueAtTime(0,t0+st);g.gain.linearRampToValueAtTime(vol,t0+st+.015);g.gain.exponentialRampToValueAtTime(.001,t0+st+dur);o.connect(g).connect(AC.destination);o.start(t0+st);o.stop(t0+st+dur+.02)};
  if(kind==='song'){[1800,2200,2600,2200,3000].forEach((f,i)=>tone(f,f*1.1,i*.18,.16,'sine',.12));return}
  if(k==='c'){tone(2200,3000,0,.09,'sine',.13);tone(2600,1900,.12,.1,'sine',.11);if(kind==='talk')tone(2000,2500,.26,.08,'sine',.1)}
@@ -495,7 +495,7 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
  const hint=t=>{const h=$('#bHint');h.textContent=t;h.classList.add('on');clearTimeout(hint.t);hint.t=setTimeout(()=>h.classList.remove('on'),2200)};
  const place=()=>['c','s'].forEach(k=>{EL[k].style.left=X[k]+'%'});
  const moveTo=(k,nx)=>{EL[k].classList.toggle('flip',nx>X[k]);X[k]=nx;place();act(k,'b-walk',1000)};
- const drawBird=k=>{const d=b(k),el=EL[k];el.querySelector('.bsvg').innerHTML=BIRD(k,mood(k),'m'+k);el.querySelector('.tag').textContent=d.name+(d.sick?' 🤒':'');
+ const drawBird=k=>{const d=b(k),el=EL[k],mo=mood(k);if(el._mo!==mo){el._mo=mo;el.querySelector('.bsvg').innerHTML=BIRD(k,mo,'m'+k)}el.querySelector('.tag').textContent=d.name+(d.sick?' 🤒':'');
   el.classList.toggle('sel',k===cur);el.classList.toggle('ill',!!d.sick);el.classList.toggle('out',mode==='walk'&&k!==cur)};
  const draw=()=>{const d=b(),lv=LV(d),e=ECO.get();
   ecoBar($('#rEco'),draw);
@@ -550,11 +550,23 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
  function petOn(k){petK=k;petStart=NOW();EL[k].classList.add('petting');drawBird(k);fx(k,['💗','💕']);petFx=setInterval(()=>fx(k,['💗']),600);say(k,k==='c'?'หงอนตั้งเลย 💛':'ชอบ ๆ ตรงนั้นแหละ','talk')}
  function petOff(force){if(!petK)return;const k=petK,long=force||NOW()-petStart>700;clearInterval(petFx);EL[k].classList.remove('petting');petK=null;drawBird(k);
   if(long){if(spend(1)){gain(k,'j',18,3);b(k).cd.pet=NOW();quest('pet');draw()}else hint('พลังหมด')}}
+ /* tap = the bird reacts to you, a different reaction each time */
+ const react=k=>{const d=b(k);if(mode==='night'){act(k,'b-fluff',1500);say(k,'z z z… (งัวเงีย)',null);return}
+  if(d.sick){act(k,'b-tilt',1500);say(k,'ไม่ค่อยสบาย…',null);return}
+  ['b-'].forEach(()=>EL[k].className=EL[k].className.replace(/\b(b-|t-)\S+/g,''));
+  const w=BDEF[k].words.slice(0,d.learn),R=[
+   ()=>{act(k,'b-hop',600);say(k,w[Math.random()*w.length|0])},
+   ()=>{act(k,'b-tilt',1500);say(k,k==='c'?'หืม? 🤔':'ฮะ? อะไรเหรอ')},
+   ()=>{act(k,'b-flap',1200);say(k,k==='c'?'จิ๊บ ๆ ๆ!':'แคร๊ก แคร๊ก!')},
+   ()=>{act(k,k==='c'?'crest':'b-dance',1800);act(k,'b-hop',600);fx(k,['💛','💕']);say(k,k==='c'?'ดีใจที่มาหา 💛':'เล่นกัน ๆ!')},
+   ()=>{act(k,'b-fluff',1400);say(k,k==='c'?'(พองขนตัวกลม)':'(ขยับปีกไปมา)',null);chirp(k,'talk')},
+   ()=>{const o=k==='c'?'s':'c';moveTo(k,Math.max(14,Math.min(86,X[k]+(X[o]>X[k]?8:-8))));setTimeout(()=>say(k,k==='c'?'ฮาคุ~ มาเล่นกัน':'ฮารุ! ดูนี่',null),900)}];
+  let i;do{i=Math.random()*R.length|0}while(i===react.last&&R.length>1);react.last=i;R[i]();
+  if(!d.cd.tap||NOW()-d.cd.tap>6e4){d.cd.tap=NOW();gain(k,'j',2,1)}draw()};
  ['c','s'].forEach(k=>{const el=EL[k];
-  el.onpointerdown=ev=>{ev.preventDefault();if(mode==='walk'&&k!==cur)return;const was=cur===k;cur=k;ST.set('bCur',k);if(!was)draw();
+  el.onpointerdown=ev=>{ev.preventDefault();try{el.setPointerCapture(ev.pointerId)}catch(e){}if(mode==='walk'&&k!==cur)return;const was=cur===k;cur=k;ST.set('bCur',k);if(!was)draw();
    clearTimeout(petT);petT=setTimeout(()=>{petT=null;const r=asleep()||(b(k).cd.pet&&NOW()-b(k).cd.pet<10*6e4?'เพิ่งเกาไป อีก '+mm(b(k).cd.pet+10*6e4-NOW()):'')||enOK(1);if(r){hint(r);return}petOn(k)},550)};
-  el.onpointerup=el.onpointerleave=el.onpointercancel=ev=>{if(petT){clearTimeout(petT);petT=null;if(ev.type==='pointerup'){const d=b(k);if(mode==='night'){say(k,'z z z',null);return}act(k,'b-hop',600);
-    if(!d.cd.tap||NOW()-d.cd.tap>6e4){d.cd.tap=NOW();gain(k,'j',2,1)}say(k,BDEF[k].words[Math.random()*d.learn|0]);draw()}}else if(petK===k)petOff(false)};
+  el.onpointerup=el.onpointerleave=el.onpointercancel=ev=>{if(petT){clearTimeout(petT);petT=null;if(ev.type==='pointerup')react(k)}else if(petK===k)petOff(false)};
   el.oncontextmenu=e=>e.preventDefault()});
  /* tap scene objects */
  $('#bBg').onclick=ev=>{const g=ev.target.closest('[data-act]');if(!g)return;const i={feed:0,water:1}[g.dataset.act];$('#bActs button[data-n="'+i+'"]').click()};
