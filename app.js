@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 57";
+const APP_VERSION = "28 พ.ย. 69 · 58";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -696,6 +696,10 @@ const APP_HTML = [
 ".sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}",
 ".editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}",
 ".seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}",
+".rrow{display:flex;align-items:center;gap:5px;margin-bottom:6px}.rrow span{width:34px;font-size:13px;font-weight:700;color:var(--title)}",
+".rb{flex:1;border:1.5px solid var(--line);background:none;border-radius:11px;padding:6px 0;font:inherit;font-size:11.5px;font-weight:600;color:var(--sub)}",
+".rb.on.r0{background:var(--line);color:var(--title)}.rb.on.ric{background:#2F7BE0;border-color:#2F7BE0;color:#fff}.rb.on.rmb{background:#E8742A;border-color:#E8742A;color:#fff}.rb.on.rmd{background:#23A05A;border-color:#23A05A;color:#fff}",
+".rb.ric{color:#2F7BE0}.rb.rmb{color:#E8742A}.rb.rmd{color:#23A05A}",
 ".trail{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-top:8px}.trail input{width:18px;height:18px;margin:0;accent-color:var(--accent)}",
 "body.lock{position:fixed;left:0;right:0;overflow:hidden}.sheet{overscroll-behavior:contain}",
 "html{touch-action:manipulation}*{-webkit-tap-highlight-color:transparent}",
@@ -1360,6 +1364,7 @@ const APP_HTML = [
 "  selDay = d; renderCal(); LEAVE_SEL = leaveOf(new Date(viewY, viewM, d)) || \"\";",
 "  const md = monthData(), s = sortS(mine()[d]), dt = new Date(viewY, viewM, d), seq = seqInfo(viewY, viewM+1, d, s.join(\"\"));",
 "  editSet = s.join(\"\");",
+"  const rl0 = ((md && md.roles && md.roles[DATA.me]) || {})[d] || []; EDROLE = {}; s.forEach((c, i) => { if (rl0[i]) EDROLE[c] = rl0[i]; });",
 "  const tOf = c => { const x = seq.L.find(z=>z.c===c), e = new Date(x.st.getTime()+8*3600e3), eh = hm(e); return `${x.st.getDate()!==d?\"24:00\":hm(x.st)} \u2013 ${eh===\"00:00\"?\"24:00\":eh}${e.getDate()!==d && eh!==\"00:00\"?\" (\u0e40\u0e0a\u0e49\u0e32\u0e27\u0e31\u0e19\u0e16\u0e31\u0e14\u0e44\u0e1b)\":\"\"}`; };",
 "  let rows = (seq && s.length > 1 ? `<div class=\"seqh\">${ic(\"timer\")}<b>${seq.name}</b><span>${seq.time}${seq.cont?\" \u00b7 \u0e17\u0e33\u0e15\u0e48\u0e2d\u0e40\u0e19\u0e37\u0e48\u0e2d\u0e07\":\"\"}</span></div>` : \"\") + s.map(c=>{",
 "    const mates = md ? Object.entries(md.people).filter(([n,v])=>n!==DATA.me && (v[d]||\"\").includes(c)).map(([n])=>first(n)) : [];",
@@ -1381,6 +1386,7 @@ const APP_HTML = [
 "    <div class=\"lvb\">${LEAVES.map(t=>`<button class=\"${leaveOf(dt)===t?\"on\":\"\"}\" onclick=\"pickLeave(this,'${t}')\">\u0e25\u0e32${t}</button>`).join(\"\")}</div>",
 "    <details class=\"editd\"${s.length?\"\":\" open\"}><summary>${ic(\"edit\")}\u0e41\u0e01\u0e49\u0e40\u0e27\u0e23\u0e40\u0e2d\u0e07 <span>(\u0e43\u0e0a\u0e49\u0e40\u0e21\u0e37\u0e48\u0e2d\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2d\u0e48\u0e32\u0e19\u0e1c\u0e34\u0e14 \u0e2b\u0e23\u0e37\u0e2d\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19\u0e40\u0e27\u0e23)</span></summary>",
 "    <div class=\"tog\">${[\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].map(c=>`<button class=\"c${SH[c].c} ${editSet.includes(c)?\"on\":\"\"}\" onclick=\"togEdit('${c}',this)\">${cute(SH[c].k,24)} ${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")}</button>`).join(\"\")}</div>",
+"    <div id=\"roleEd\">${roleEdHTML()}</div>",
 "    <label class=\"trail\"><input type=\"checkbox\" id=\"trailN\" ${s.length>1&&s[s.length-1]===\"\u0e14\"?\"checked\":\"\"}> \u0e14\u0e36\u0e01\u0e15\u0e48\u0e2d\u0e17\u0e49\u0e32\u0e22 (\u0e40\u0e02\u0e49\u0e32\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07\u0e04\u0e37\u0e19\u0e2b\u0e25\u0e31\u0e07\u0e40\u0e27\u0e23\u0e2d\u0e37\u0e48\u0e19 \u0e40\u0e0a\u0e48\u0e19 \u0e1a\u0e48\u0e32\u0e22 \u2192 \u0e14\u0e36\u0e01)</label>",
 "    </details>",
 "    <button class=\"btn main\" style=\"width:100%;margin-top:8px\" onclick=\"saveDay(${d})\">${ic(\"check\")}\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01</button>`;",
@@ -1480,7 +1486,14 @@ const APP_HTML = [
 "}",
 "function togPaid(id){ const t = trades().find(x=>x.id===id); if (!t) return; t.paid = !t.paid; send(\"saveTrades\", trades()); renderAll(); if (selDay) openDay(selDay); }",
 "function addQuick(q){ const t = $(\"noteText\"); t.value = (t.value.trim() ? t.value.trim() + \" \u00b7 \" : \"\") + q + \" \"; t.focus(); }",
-"function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,\"\") : editSet + c; el.classList.toggle(\"on\"); }",
+"function togEdit(c, el){ editSet = editSet.includes(c) ? editSet.replace(c,\"\") : editSet + c; el.classList.toggle(\"on\"); $(\"roleEd\").innerHTML = roleEdHTML(); }",
+"let EDROLE = {};       // \u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e2d\u0e07\u0e15\u0e2d\u0e19\u0e41\u0e01\u0e49\u0e40\u0e27\u0e23: { \"\u0e1a\": \"mb\", ... }",
+"const ROLES = [[\"\",\"\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38\"],[\"ic\",\"In charge\"],[\"mb\",\"member\"],[\"md\",\"med\"]];",
+"function roleEdHTML(){",
+"  const L = [\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].filter(c => editSet.includes(c));",
+"  return L.length ? `<p class=\"lbl\" style=\"margin:2px 0 6px\">\u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48 (\u0e2a\u0e35\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07)</p>` + L.map(c => `<div class=\"rrow\"><span>${SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")}</span>${ROLES.map(([r, t]) => `<button class=\"rb r${r||\"0\"} ${(EDROLE[c]||\"\")===r?\"on\":\"\"}\" onclick=\"pickRole('${c}','${r}')\">${t}</button>`).join(\"\")}</div>`).join(\"\") : \"\";",
+"}",
+"function pickRole(c, r){ if (r) EDROLE[c] = r; else delete EDROLE[c]; $(\"roleEd\").innerHTML = roleEdHTML(); }",
 "let LEAVE_SEL;",
 "function pickLeave(el, t){ LEAVE_SEL = LEAVE_SEL === t ? \"\" : t; el.parentNode.querySelectorAll(\"button\").forEach(b => b.classList.toggle(\"on\", b === el && LEAVE_SEL === t)); }",
 "function saveDay(d){",
@@ -1489,7 +1502,9 @@ const APP_HTML = [
 "  const me = DATA.months[k].people[DATA.me] = DATA.months[k].people[DATA.me] || {};",
 "  let v = [\"\u0e14\",\"\u0e0a\",\"\u0e1a\"].filter(c=>editSet.includes(c));      // \u0e40\u0e23\u0e35\u0e22\u0e07\u0e15\u0e32\u0e21\u0e40\u0e27\u0e25\u0e32 \u0e14\u0e36\u0e01 00:00 \u0e01\u0e48\u0e2d\u0e19 \u0e40\u0e27\u0e49\u0e19\u0e41\u0e15\u0e48\u0e15\u0e34\u0e4a\u0e01 \"\u0e14\u0e36\u0e01\u0e15\u0e48\u0e2d\u0e17\u0e49\u0e32\u0e22\"",
 "  if ($(\"trailN\") && $(\"trailN\").checked && v.length > 1 && v[0] === \"\u0e14\") v = v.slice(1).concat(\"\u0e14\");",
-"  v = v.join(\"\"); if (v !== sortS(me[d]).join(\"\") && DATA.months[k].roles && DATA.months[k].roles[DATA.me]) delete DATA.months[k].roles[DATA.me][d];   // \u0e41\u0e01\u0e49\u0e40\u0e27\u0e23\u0e40\u0e2d\u0e07 \u2192 \u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48\u0e40\u0e14\u0e34\u0e21\u0e2d\u0e32\u0e08\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07",
+"  const R = ((DATA.months[k].roles = DATA.months[k].roles || {})[DATA.me] = DATA.months[k].roles[DATA.me] || {}), rr = v.map(c => EDROLE[c] || \"\");   // \u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48\u0e15\u0e32\u0e21\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01 \u0e40\u0e23\u0e35\u0e22\u0e07\u0e15\u0e32\u0e21\u0e15\u0e31\u0e27\u0e40\u0e27\u0e23",
+"  if (rr.some(Boolean)) R[d] = rr; else delete R[d];",
+"  v = v.join(\"\");",
 "  if (v) me[d] = v; else delete me[d];",
 "  send(\"saveMonth\", {key:k, month:DATA.months[k]});",
 "  const date = dk(new Date(viewY, viewM, d)), text = ($(\"noteText\") ? $(\"noteText\").value : \"\").trim();",
