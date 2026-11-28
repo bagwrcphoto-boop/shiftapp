@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 58";
+const APP_VERSION = "28 พ.ย. 69 · 59";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -763,7 +763,7 @@ const APP_HTML = [
 "",
 "<section class=\"page\" id=\"p-fr\">",
 "  <div style=\"margin-bottom:12px\"><p class=\"hello\" id=\"frTitle\"></p><h1 class=\"big\">\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e43\u0e19\u0e27\u0e2d\u0e23\u0e4c\u0e14</h1></div>",
-"  <div id=\"frPreview\"></div>",
+"  <div id=\"frPreview\"></div><div id=\"frStat\"></div>",
 "  <div class=\"strip\" id=\"strip\"></div>",
 "  <div id=\"whoList\"></div>",
 "  <div class=\"card\" id=\"togetherCard\">",
@@ -1642,11 +1642,14 @@ const APP_HTML = [
 "}",
 "",
 "/* ===== \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19 ===== */",
+"const FRSTAT = {};   // \u0e2a\u0e16\u0e32\u0e19\u0e30\u0e2d\u0e48\u0e32\u0e19\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e40\u0e1a\u0e37\u0e49\u0e2d\u0e07\u0e2b\u0e25\u0e31\u0e07 \u0e15\u0e48\u0e2d\u0e40\u0e14\u0e37\u0e2d\u0e19",
+"window.friendsDone = (k, n, err) => { FRSTAT[k] = {busy:false, n, err}; if (err) toastErr(\"\u0e2d\u0e48\u0e32\u0e19\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08: \" + err); else toast(`\u0e44\u0e14\u0e49\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e41\u0e25\u0e49\u0e27 ${n} \u0e04\u0e19`); renderFr(); };",
 "function renderFr(){",
-"  const md = monthData(), days = daysIn(), f = firstDow();",
+"  const md = monthData(), days = daysIn(), f = firstDow(), st = FRSTAT[key(viewY, viewM)];",
+"  $(\"frStat\").innerHTML = st && st.busy ? `<div class=\"msg\">${ic(\"timer\")}<span>\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e48\u0e32\u0e19\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e08\u0e32\u0e01\u0e23\u0e39\u0e1b (\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13 1\u20132 \u0e19\u0e32\u0e17\u0e35) \u0e2d\u0e22\u0e48\u0e32\u0e40\u0e1e\u0e34\u0e48\u0e07\u0e1b\u0e34\u0e14\u0e41\u0e2d\u0e1b\u0e19\u0e30</span></div>` : st && st.err ? `<div class=\"msg o\">${ic(\"warn\")}<span>\u0e2d\u0e48\u0e32\u0e19\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08: ${st.err}<br>\u0e25\u0e2d\u0e07\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e43\u0e2b\u0e21\u0e48 \u0e41\u0e25\u0e49\u0e27\u0e40\u0e1b\u0e34\u0e14\u0e41\u0e2d\u0e1b\u0e04\u0e49\u0e32\u0e07\u0e44\u0e27\u0e49\u0e08\u0e19\u0e02\u0e36\u0e49\u0e19\u0e27\u0e48\u0e32\u0e44\u0e14\u0e49\u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e41\u0e25\u0e49\u0e27</span></div>` : \"\";",
 "  $(\"frTitle\").textContent = `${MONTHS[viewM]} ${viewY+543}`;",
 "  $(\"frPreview\").innerHTML = DATA.preview ? `<p class=\"note\">* \u0e40\u0e27\u0e23\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e43\u0e19\u0e20\u0e32\u0e1e\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07</p>` : \"\";",
-"  if (!md || Object.keys(md.people).length<2){ $(\"strip\").innerHTML=\"\"; $(\"whoList\").innerHTML=`<div class=\"card\"><p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49<br>\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e43\u0e2b\u0e49 AI \u0e2d\u0e48\u0e32\u0e19\u0e17\u0e38\u0e01\u0e41\u0e16\u0e27</p></div>`; $(\"togetherCard\").style.display=\"none\"; return; }",
+"  if (!md || Object.keys(md.people).length<2){ $(\"strip\").innerHTML=\"\"; $(\"whoList\").innerHTML=`<div class=\"card\"><p class=\"note\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e2d\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e19\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e19\u0e35\u0e49<br>\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e40\u0e1b\u0e34\u0e14\u0e41\u0e2d\u0e1b\u0e04\u0e49\u0e32\u0e07\u0e44\u0e27\u0e49 1\u20132 \u0e19\u0e32\u0e17\u0e35 \u0e43\u0e2b\u0e49 AI \u0e2d\u0e48\u0e32\u0e19\u0e17\u0e38\u0e01\u0e41\u0e16\u0e27</p></div>`; $(\"togetherCard\").style.display=\"none\"; return; }",
 "  $(\"togetherCard\").style.display = \"\";",
 "  if (!frDay) frDay = isToday(now().getDate()) ? now().getDate() : 1;",
 "  let h = \"\";",
@@ -1784,7 +1787,7 @@ const APP_HTML = [
 "window.onParsed = function(r){",
 "  const close = `<button class=\"btn\" style=\"width:100%\" onclick=\"closeSheet()\">\u0e1b\u0e34\u0e14</button>`;",
 "  if (r.error){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e2d\u0e48\u0e32\u0e19\u0e23\u0e39\u0e1b\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08</p><div class=\"msg o\">${ic(\"warn\")}<span>${r.error}</span></div>${close}`; openSheet(); return; }",
-"  PARSED = r; PARSED.checked = PARSED.checked || [];",
+"  PARSED = r; PARSED.checked = PARSED.checked || []; FRSTAT[`${r.year}-${String(r.month).padStart(2,\"0\")}`] = {busy:true};",
 "  if (!r.people[DATA.me]){ $(\"sheet\").innerHTML = `<div class=\"grab\"></div><p class=\"big\" style=\"font-size:22px\">\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d\u0e0a\u0e37\u0e48\u0e2d \"${DATA.me}\"</p><div class=\"msg o\">${ic(\"warn\")}<span>\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49: ${Object.keys(r.people).join(\", \")}<br>\u0e41\u0e01\u0e49\u0e0a\u0e37\u0e48\u0e2d\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e15\u0e32\u0e23\u0e32\u0e07 \u0e41\u0e25\u0e49\u0e27\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e43\u0e2b\u0e21\u0e48</span></div>${close}`; openSheet(); return; }",
 "  renderResult();",
 "};",
@@ -2058,12 +2061,15 @@ async function runApp() {
       const later = r.friendsLater; delete r.friendsLater;
       await call(`onParsed(${js(r)})`);
       if (later) later.then(async all => {          // เวรเพื่อนอ่านเสร็จทีหลัง → เติมลงเดือนนั้น
-        if (!all || all.err || all.year !== r.year || all.month !== r.month) return;
-        if (restored[`${r.year}-${pad(r.month)}`]) return;
-        const k = `${r.year}-${pad(r.month)}`, mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
+        const k = `${r.year}-${pad(r.month)}`;
+        const fail = !all ? "ไม่มีผล" : all.err ? String(all.err.message || all.err) : (all.year !== r.year || all.month !== r.month) ? `อ่านได้เดือน ${all.month}/${all.year} ไม่ตรงกับตาราง` : "";
+        if (fail) { console.log("friends: " + fail); if (open) await call(`friendsDone(${js(k)}, 0, ${js(fail)})`); return; }   // แจ้งในแอป ไม่เงียบ
+        if (restored[k]) return;
+        const mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
         const target = d.months[k] ? d.months[k].people : mo;
-        for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
+        let n = 0; for (const [nm, v] of Object.entries(all.people)) if (nm !== d.me) { target[nm] = v; n++; }
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); await call(`window.reapplyTrades && reapplyTrades(${js(k)})`); }
+        if (open) await call(`friendsDone(${js(k)}, ${n}, "")`);
       });
     } else if (m.type === "testNoti") {          // ครั้งแรกที่ตั้งแจ้งเตือน iOS จะถามอนุญาตเอง
       const n = new Notification(); n.identifier = "shiftapp-test"; n.threadIdentifier = "shiftapp-test";

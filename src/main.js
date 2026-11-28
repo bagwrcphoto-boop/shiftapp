@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 58";
+const APP_VERSION = "28 พ.ย. 69 · 59";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -572,12 +572,15 @@ async function runApp() {
       const later = r.friendsLater; delete r.friendsLater;
       await call(`onParsed(${js(r)})`);
       if (later) later.then(async all => {          // เวรเพื่อนอ่านเสร็จทีหลัง → เติมลงเดือนนั้น
-        if (!all || all.err || all.year !== r.year || all.month !== r.month) return;
-        if (restored[`${r.year}-${pad(r.month)}`]) return;
-        const k = `${r.year}-${pad(r.month)}`, mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
+        const k = `${r.year}-${pad(r.month)}`;
+        const fail = !all ? "ไม่มีผล" : all.err ? String(all.err.message || all.err) : (all.year !== r.year || all.month !== r.month) ? `อ่านได้เดือน ${all.month}/${all.year} ไม่ตรงกับตาราง` : "";
+        if (fail) { console.log("friends: " + fail); if (open) await call(`friendsDone(${js(k)}, 0, ${js(fail)})`); return; }   // แจ้งในแอป ไม่เงียบ
+        if (restored[k]) return;
+        const mo = d.months[k] || (pendingFriends[k] = pendingFriends[k] || {});
         const target = d.months[k] ? d.months[k].people : mo;
-        for (const [n, v] of Object.entries(all.people)) if (n !== d.me) target[n] = v;
+        let n = 0; for (const [nm, v] of Object.entries(all.people)) if (nm !== d.me) { target[nm] = v; n++; }
         if (d.months[k]) { saveData(d); await call(`setData(${js(payload())})`); await call(`window.reapplyTrades && reapplyTrades(${js(k)})`); }
+        if (open) await call(`friendsDone(${js(k)}, ${n}, "")`);
       });
     } else if (m.type === "testNoti") {          // ครั้งแรกที่ตั้งแจ้งเตือน iOS จะถามอนุญาตเอง
       const n = new Notification(); n.identifier = "shiftapp-test"; n.threadIdentifier = "shiftapp-test";

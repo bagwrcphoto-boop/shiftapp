@@ -226,7 +226,7 @@ button,.d,.tab,.pchip,.fchip,.qchip,.sd{transition:transform .12s ease}button:ac
 
 <section class="page" id="p-fr">
   <div style="margin-bottom:12px"><p class="hello" id="frTitle"></p><h1 class="big">เวรเพื่อนในวอร์ด</h1></div>
-  <div id="frPreview"></div>
+  <div id="frPreview"></div><div id="frStat"></div>
   <div class="strip" id="strip"></div>
   <div id="whoList"></div>
   <div class="card" id="togetherCard">
@@ -1105,11 +1105,14 @@ function tradeSummary(){
 }
 
 /* ===== เพื่อน ===== */
+const FRSTAT = {};   // สถานะอ่านเวรเพื่อนเบื้องหลัง ต่อเดือน
+window.friendsDone = (k, n, err) => { FRSTAT[k] = {busy:false, n, err}; if (err) toastErr("อ่านเวรเพื่อนไม่สำเร็จ: " + err); else toast(`ได้เวรเพื่อนแล้ว ${n} คน`); renderFr(); };
 function renderFr(){
-  const md = monthData(), days = daysIn(), f = firstDow();
+  const md = monthData(), days = daysIn(), f = firstDow(), st = FRSTAT[key(viewY, viewM)];
+  $("frStat").innerHTML = st && st.busy ? `<div class="msg">${ic("timer")}<span>กำลังอ่านเวรเพื่อนจากรูป (ประมาณ 1–2 นาที) อย่าเพิ่งปิดแอปนะ</span></div>` : st && st.err ? `<div class="msg o">${ic("warn")}<span>อ่านเวรเพื่อนไม่สำเร็จ: ${st.err}<br>ลองอัปรูปตารางใหม่ แล้วเปิดแอปค้างไว้จนขึ้นว่าได้เวรเพื่อนแล้ว</span></div>` : "";
   $("frTitle").textContent = `${MONTHS[viewM]} ${viewY+543}`;
   $("frPreview").innerHTML = DATA.preview ? `<p class="note">* เวรเพื่อนในภาพนี้เป็นข้อมูลตัวอย่าง</p>` : "";
-  if (!md || Object.keys(md.people).length<2){ $("strip").innerHTML=""; $("whoList").innerHTML=`<div class="card"><p class="note">ยังไม่มีเวรของเพื่อนเดือนนี้<br>อัปรูปตารางเพื่อให้ AI อ่านทุกแถว</p></div>`; $("togetherCard").style.display="none"; return; }
+  if (!md || Object.keys(md.people).length<2){ $("strip").innerHTML=""; $("whoList").innerHTML=`<div class="card"><p class="note">ยังไม่มีเวรของเพื่อนเดือนนี้<br>อัปรูปตารางแล้วเปิดแอปค้างไว้ 1–2 นาที ให้ AI อ่านทุกแถว</p></div>`; $("togetherCard").style.display="none"; return; }
   $("togetherCard").style.display = "";
   if (!frDay) frDay = isToday(now().getDate()) ? now().getDate() : 1;
   let h = "";
@@ -1247,7 +1250,7 @@ let PARSED = null;
 window.onParsed = function(r){
   const close = `<button class="btn" style="width:100%" onclick="closeSheet()">ปิด</button>`;
   if (r.error){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">อ่านรูปไม่สำเร็จ</p><div class="msg o">${ic("warn")}<span>${r.error}</span></div>${close}`; openSheet(); return; }
-  PARSED = r; PARSED.checked = PARSED.checked || [];
+  PARSED = r; PARSED.checked = PARSED.checked || []; FRSTAT[`${r.year}-${String(r.month).padStart(2,"0")}`] = {busy:true};
   if (!r.people[DATA.me]){ $("sheet").innerHTML = `<div class="grab"></div><p class="big" style="font-size:22px">ไม่เจอชื่อ "${DATA.me}"</p><div class="msg o">${ic("warn")}<span>ชื่อที่อ่านได้: ${Object.keys(r.people).join(", ")}<br>แก้ชื่อในหน้าตั้งค่าให้ตรงกับตาราง แล้วอัปรูปใหม่</span></div>${close}`; openSheet(); return; }
   renderResult();
 };
