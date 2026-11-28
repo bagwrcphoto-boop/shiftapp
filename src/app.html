@@ -17,7 +17,8 @@ button{font:inherit;cursor:pointer;color:inherit}
 .blob{position:absolute;border-radius:50%;opacity:.85}
 .page{display:none;animation:fade .25s ease}
 .page.on{display:block}
-#gameFrame{display:block;width:100%;height:calc(100vh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom));border:0;border-radius:24px;background:#fbeef5}
+body.gaming{overflow:hidden;height:100vh}
+#gameFrame{display:block;width:100%;height:560px;border:0;border-radius:24px;background:#fbeef5}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .card{background:var(--card);border:var(--cardBorder);box-shadow:var(--cardShadow);border-radius:var(--r);padding:16px;margin-bottom:14px}
 .hello{font-size:16px;font-weight:500;color:var(--sub)}
@@ -1219,14 +1220,19 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===b));
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id===b.dataset.p));
   window.scrollTo(0,0);
-  if (b.dataset.p === "p-game" && !window.__gameOn) { window.__gameOn = 1; send("openGame"); }
+  document.body.classList.toggle("gaming", b.dataset.p === "p-game");
+  if (b.dataset.p === "p-game") { if (!window.__gameOn) { window.__gameOn = 1; send("openGame"); } else fitGame(); }
 });
 /* ===== เกม (เลี้ยงนก + มินิเกม) อยู่ใน iframe แยก ข้อมูลเกมเก็บเป็นไฟล์ผ่าน main ===== */
 window.openGame = (html, state) => {
   const f = document.createElement("iframe"); f.id = "gameFrame";
   f.srcdoc = html.replace("</head>", "<script>window.__SAVE=" + JSON.stringify(state && typeof state === "object" ? state : {}) + "<\/script></head>");
-  $("gameBox").innerHTML = ""; $("gameBox").appendChild(f);
+  $("gameBox").innerHTML = ""; $("gameBox").appendChild(f); fitGame();
 };
+function fitGame(){ const f = $("gameFrame"); if (!f || !f.offsetParent) return;   // พอดีจอ ไม่ต้องเลื่อนสองชั้น: สูงถึงขอบบนแถบแท็บ
+  const t = document.querySelector(".tabs").getBoundingClientRect().top, top = f.getBoundingClientRect().top + window.scrollY;
+  f.style.height = Math.max(420, Math.round(t - top - 10)) + "px"; }
+addEventListener("resize", fitGame);
 window.__gameSave = s => send("saveGame", s);
 function renderAll(){
   applyTheme();

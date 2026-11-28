@@ -157,6 +157,16 @@ canvas{display:block;width:100%;touch-action:none}
 .gtx{padding:10px 6px 4px;display:flex;flex-direction:column;gap:2px}.gtx b{font-size:20px}.gtx span{font-size:13px;color:#7a5a80}.gtx em{font-style:normal;font-size:13px;color:#c2477d;margin-top:2px}
 .eco.sm small{display:none}.eco.sm{gap:6px;white-space:nowrap}.eco.sm .shopb{padding:6px 10px}
 
+/* room fits one screen (also inside the shift app's iframe) */
+#room.on{display:flex;flex-direction:column;height:calc(100vh - 50px);min-height:500px}
+#room .rtop{margin-bottom:8px}
+#room .scene{flex:1 1 auto;height:auto;min-height:230px;max-height:340px}
+#room .bgs svg{position:absolute;left:0;right:0;bottom:0;height:340px;width:100%}
+#room .panel{margin-top:8px;padding:8px 10px}
+#room .nm input{font-size:17px;width:7em}#room .mood{margin:0 2px;font-size:12px}
+#room .mt{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px 8px;font-size:11.5px;margin-top:6px}
+#room .acts8{margin-top:8px;gap:6px}#room .acts8 button{min-height:58px;font-size:12px;padding:5px 1px}#room .acts8 .e{font-size:20px}#room .acts8 button small{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 </style></head><body><div class="wrap">
 
 <div class="page on" id="start">
@@ -195,14 +205,12 @@ canvas{display:block;width:100%;touch-action:none}
   <div class="bird" data-k="s"><div class="ring"></div><div class="bsvg"></div><div class="bub"></div><div class="tag"></div></div>
   <div class="fx" id="bFx"></div><div class="toy" id="bToy"></div><div class="poop" id="bPoop"></div><div class="hint" id="bHint"></div></div>
  <div class="panel">
-  <div class="nm"><input id="bName" maxlength="14" aria-label="ชื่อนก"><span class="lv" id="bLv"></span></div>
-  <div class="mood" id="bMood"></div>
+  <div class="nm"><div><input id="bName" maxlength="14" aria-label="ชื่อนก"><div class="mood" id="bMood"></div></div><span class="lv" id="bLv"></span></div>
   <div class="sick" id="bSick"></div>
   <div class="mt" id="bMt"></div>
  </div>
  <div class="acts8" id="bActs"></div>
- <div class="know" id="bKnow"></div>
- <p class="help">แตะนกเพื่อเลือกตัว · กดค้างที่นกเพื่อเกาหัว · แตะถ้วยเพื่อเติมอาหาร/น้ำ</p>
+ <div class="know" id="bKnow" hidden></div>
 </div>
 
 
@@ -446,6 +454,9 @@ function reward(c){quest('game');const e=ECO.get();if(e.plays>=PLAY_CAP){setTime
  c=Math.max(1,Math.min(15,c|0));e.plays++;e.coin+=c;ECO.set(e);setTimeout(()=>alertish('+'+c+'🪙 (ได้เหรียญอีก '+(PLAY_CAP-e.plays)+' รอบวันนี้)'),2000)}
 /* sound: tiny synth chirps, no files */
 let AC=null;
+function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+ try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state!=='running')AC.resume();const b=AC.createBuffer(1,1,22050),s=AC.createBufferSource();s.buffer=b;s.connect(AC.destination);s.start(0)}catch(e){}}
+['touchend','pointerdown','click'].forEach(ev=>addEventListener(ev,unlockAudio,{capture:true,passive:true}));
 function chirp(k,kind){if(!ECO.get().snd)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
  const t0=AC.currentTime,tone=(f1,f2,st,dur,type,vol)=>{const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f1,t0+st);o.frequency.exponentialRampToValueAtTime(f2,t0+st+dur);
   g.gain.setValueAtTime(0,t0+st);g.gain.linearRampToValueAtTime(vol,t0+st+.015);g.gain.exponentialRampToValueAtTime(.001,t0+st+dur);o.connect(g).connect(AC.destination);o.start(t0+st);o.stop(t0+st+dur+.02)};
@@ -524,7 +535,7 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
   {e:'🌾',n:'ให้อาหาร',why:()=>asleep()||(b().f>=90?'ยังอิ่มอยู่':enOK(1)),cost:()=>'⚡1',run:feed,free:1},
   {e:'💧',n:'เปลี่ยนน้ำ',why:()=>asleep()||(b().w>=90?'น้ำยังเต็ม':cd('w',30)||enOK(1)),cost:()=>'⚡1',run:()=>{gain(cur,'w',45);use('w');b().low=0;quest('water');bowl(cur,'💧');act(cur,'b-peck',1500);say(cur,'อึก ๆ')}},
   {e:'🚿',n:'อาบน้ำ',why:()=>asleep()||(b().cl>=85?'ยังสะอาด':cd('bath',180)||enOK(1)),cost:()=>'⚡1',run:()=>{gain(cur,'cl',45,3);use('bath');quest('bath');fx(cur,['💧'],'drop');act(cur,'b-flap',1300);const k=cur;setTimeout(()=>{act(k,'b-shake',900);act(k,'b-fluff',1600)},1100);setTimeout(()=>act(k,'b-preen',2000),2700);say(cur,'บรื๋ออ ~ สะบัด ๆ')}},
-  {e:'🤚',n:'เกาหัว',why:()=>asleep()||cd('pet',10)||enOK(1),cost:()=>'⚡1 · กดค้างที่นก',run:()=>{petOn(cur);setTimeout(()=>petOff(true),2000)}},
+  {e:'🤚',n:'เกาหัว',why:()=>asleep()||cd('pet',10)||enOK(1),cost:()=>'⚡1 · กดค้าง',run:()=>{petOn(cur);setTimeout(()=>petOff(true),2000)}},
   {e:'🔔',n:'เล่นของเล่น',why:()=>asleep()||cd('toy',15)||enOK(1),cost:()=>'⚡1 · '+ECO.get().toys.length+' ชิ้น',run:()=>{const e=ECO.get(),toy=e.toys[Math.random()*e.toys.length|0],T={bell:['กริ๊ง ๆ!',20],swing:['ไกวชิงช้า~ 🎠',30],mirror:['คุยกับเงาตัวเอง 🪞',25],ball:['คาบบอลมาให้!',25]}[toy];
     gain(cur,'j',T[1]);use('toy');quest('toy');const t=$('#bToy');t.classList.remove('sw');void t.offsetWidth;t.classList.add('sw');act(cur,cur==='s'?'b-dance':'b-tilt',2400);say(cur,T[0])}},
   {e:'🎓',n:'ฝึกนก',why:()=>asleep()||(b().tn>=5?'พรุ่งนี้ฝึกต่อ':''),cost:()=>'วันนี้อีก '+Math.max(0,5-(b().tn||0)),run:train,free:1},
@@ -593,6 +604,7 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
  const oldStop=STOP;STOP=()=>{clearInterval(idleT);clearInterval(blinkT);clearInterval(tickT);oldStop()};
  place();draw();
  $('#rBack').onclick=()=>go('home');
+ if(!ST.get('roomTip',0)){ST.set('roomTip',1);setTimeout(()=>alertish('แตะนก = เลือกตัว · กดค้างที่นก = เกาหัว · แตะถ้วย = เติมอาหาร/น้ำ'),1200)}
  setTimeout(()=>{say('c',BDEF.c.words[1],null);setTimeout(()=>say('s',BDEF.s.words[1],null),700)},500)};
 /* ---------- menu ---------- */
 function ecoBar(el,after){const e=ECO.get(),mm=ms=>{const m=Math.ceil(ms/6e4);return m>=60?Math.floor(m/60)+' ชม.':m+' นาที'};
