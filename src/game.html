@@ -167,6 +167,12 @@ canvas{display:block;width:100%;touch-action:none}
 #room .mt{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px 8px;font-size:11.5px;margin-top:6px}
 #room .acts8{margin-top:8px;gap:6px}#room .acts8 button{min-height:58px;font-size:12px;padding:5px 1px}#room .acts8 .e{font-size:20px}#room .acts8 button small{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+/* flying */
+.bird.flying{z-index:5}.bird.flying .bsvg{animation:fl1 .5s ease-in-out infinite}@keyframes fl1{0%,100%{transform:rotate(-12deg)}50%{transform:translateY(-7px) rotate(-9deg)}}
+.bird.flying.flip .bsvg{animation-name:fl2}@keyframes fl2{0%,100%{transform:rotate(12deg)}50%{transform:translateY(-7px) rotate(9deg)}}
+.bird.flying .wg{animation:flapF .17s ease-in-out infinite}@keyframes flapF{0%,100%{transform:rotate(12deg)}50%{transform:rotate(-82deg) scaleY(1.18)}}.bird.flying .lg{transform:translateY(-8px) scaleY(.6);transform-origin:50% 0}
+.bird.flying .tag,.bird.flying .ring{opacity:0}
+
 </style></head><body><div class="wrap">
 
 <div class="page on" id="start">
@@ -491,9 +497,19 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
  const say=(k,t,snd='talk')=>{const bb=EL[k].querySelector('.bub'),el=EL[k],ms=Math.min(1600,350+[...t].length*55);if(snd!==null&&!busy(k)){el.classList.remove('talk');void el.offsetWidth;el.style.setProperty('--tk',ms+'ms');el.classList.add('talk');clearTimeout(el._tk);el._tk=setTimeout(()=>el.classList.remove('talk'),ms)}clearTimeout(bubT[k]);bb.textContent=t;bb.classList.add('on');bubT[k]=setTimeout(()=>bb.classList.remove('on'),2000);if(snd)chirp(k,snd)};
  const fx=(k,chars,cls='')=>{for(let i=0;i<6;i++){const e=document.createElement('span');e.className=cls;e.textContent=chars[i%chars.length];e.style.left=(X[k]-12+Math.random()*24)+'%';e.style.top=(cls?18:30+Math.random()*15)+'%';e.style.animationDelay=(i*.08)+'s';$('#bFx').appendChild(e);setTimeout(()=>e.remove(),1600)}};
  const act=(k,c,ms=1800)=>{EL[k].classList.add(c);setTimeout(()=>EL[k].classList.remove(c),ms)};
- const busy=k=>/\b(b-|t-)/.test(EL[k].className)||EL[k].classList.contains('petting');
+ const busy=k=>/\b(b-|t-)/.test(EL[k].className)||EL[k].classList.contains('petting')||EL[k].classList.contains('flying');
  const hint=t=>{const h=$('#bHint');h.textContent=t;h.classList.add('on');clearTimeout(hint.t);hint.t=setTimeout(()=>h.classList.remove('on'),2200)};
- const place=()=>['c','s'].forEach(k=>{EL[k].style.left=X[k]+'%'});
+ const Y={c:76,s:76};const place=()=>['c','s'].forEach(k=>{if(EL[k].classList.contains('flying'))return;EL[k].style.left=X[k]+'%';EL[k].style.bottom=Y[k]+'px'});
+ /* flight: arc from where the bird is to (tx %, ty px from scene bottom); wings flap the whole way */
+ const SW=()=>SC.clientWidth,SH=()=>SC.clientHeight,PERCH=76;
+ const fly=(k,tx,ty,ms,cb)=>{const el=EL[k],x0=X[k],y0=Y[k],top=Math.max(y0,ty)+Math.min(110,Math.max(30,SH()-182-Math.max(y0,ty)-8));
+  el.classList.add('flying');el.classList.toggle('flip',tx>x0);el.style.transition='none';const t0=performance.now();
+  const step=t=>{let u=Math.min(1,(t-t0)/ms);const e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2,x=x0+(tx-x0)*e,y=(1-e)*(1-e)*y0+2*(1-e)*e*top+e*e*ty;
+   el.style.left=x+'%';el.style.bottom=y+'px';if(u<1)el._raf=requestAnimationFrame(step);else{X[k]=tx;Y[k]=ty;el.style.transition='';if(ty<=PERCH+1){el.classList.remove('flying');act(k,'b-hop',500)}cb&&cb()}};
+  cancelAnimationFrame(el._raf);el._raf=requestAnimationFrame(step)};
+ const landX=(k,x)=>{const o=k==='c'?'s':'c';x=Math.max(14,Math.min(86,x));if(Math.abs(x-X[o])<22)x=X[o]+(x<X[o]?-22:22);if(x<14||x>86)x=X[o]+(X[o]<50?24:-24);return x};
+ const flyAround=k=>{if(mode)return;const hi=Math.max(PERCH+40,SH()-182-14),mid=10+Math.random()*80;say(k,k==='c'?'บินเล่น~ 🪶':'วู้ฮู้ บินแล้ว!',null);chirp(k);
+  fly(k,mid,hi,1100,()=>fly(k,mid<50?78:22,hi-20,1300,()=>fly(k,landX(k,15+Math.random()*70),PERCH,1000)))};
  const moveTo=(k,nx)=>{EL[k].classList.toggle('flip',nx>X[k]);X[k]=nx;place();act(k,'b-walk',1000)};
  const drawBird=k=>{const d=b(k),el=EL[k],mo=mood(k);if(el._mo!==mo){el._mo=mo;el.querySelector('.bsvg').innerHTML=BIRD(k,mo,'m'+k)}el.querySelector('.tag').textContent=d.name+(d.sick?' 🤒':'');
   el.classList.toggle('sel',k===cur);el.classList.toggle('ill',!!d.sick);el.classList.toggle('out',mode==='walk'&&k!==cur)};
@@ -564,9 +580,15 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
   let i;do{i=Math.random()*R.length|0}while(i===react.last&&R.length>1);react.last=i;R[i]();
   if(!d.cd.tap||NOW()-d.cd.tap>6e4){d.cd.tap=NOW();gain(k,'j',2,1)}draw()};
  ['c','s'].forEach(k=>{const el=EL[k];
-  el.onpointerdown=ev=>{ev.preventDefault();try{el.setPointerCapture(ev.pointerId)}catch(e){}if(mode==='walk'&&k!==cur)return;const was=cur===k;cur=k;ST.set('bCur',k);if(!was)draw();
+  el.onpointerdown=ev=>{ev.preventDefault();try{el.setPointerCapture(ev.pointerId)}catch(e){}el._sx=ev.clientX;el._sy=ev.clientY;el._drag=0;if(mode==='walk'&&k!==cur)return;const was=cur===k;cur=k;ST.set('bCur',k);if(!was)draw();
    clearTimeout(petT);petT=setTimeout(()=>{petT=null;const r=asleep()||(b(k).cd.pet&&NOW()-b(k).cd.pet<10*6e4?'เพิ่งเกาไป อีก '+mm(b(k).cd.pet+10*6e4-NOW()):'')||enOK(1);if(r){hint(r);return}petOn(k)},550)};
-  el.onpointerup=el.onpointerleave=el.onpointercancel=ev=>{if(petT){clearTimeout(petT);petT=null;if(ev.type==='pointerup')react(k)}else if(petK===k)petOff(false)};
+  el.onpointermove=ev=>{if(el._sx==null||petK===k||mode==='night')return;
+   if(!el._drag){if(Math.hypot(ev.clientX-el._sx,ev.clientY-el._sy)<12)return;el._drag=1;clearTimeout(petT);petT=null;cancelAnimationFrame(el._raf);el.className=el.className.replace(/\b(b-|t-)\S+/g,'');el.classList.add('flying');el.style.transition='none';say(k,k==='c'?'บิน ๆ ~':'แคร๊ก! บินแล้ว',null);chirp(k)}
+   const r=SC.getBoundingClientRect(),x=Math.max(6,Math.min(94,(ev.clientX-r.left)/r.width*100)),y=Math.max(10,Math.min(SH()-170,r.bottom-ev.clientY-95));
+   el.classList.toggle('flip',x>X[k]+.3?true:x<X[k]-.3?false:el.classList.contains('flip'));X[k]=x;Y[k]=y;el.style.left=x+'%';el.style.bottom=y+'px'};
+  el.onpointerup=el.onpointerleave=el.onpointercancel=ev=>{if(el._drag){if(ev.type==='pointerleave')return;el._drag=0;el._sx=null;
+    fly(k,landX(k,X[k]),PERCH,Math.max(500,Math.min(1100,(Y[k]-PERCH)*5)),()=>{say(k,k==='c'?'ลงจอด! 💛':'บินสนุก!');if(!b(k).cd.fly||NOW()-b(k).cd.fly>2*6e4){b(k).cd.fly=NOW();gain(k,'j',4,1);draw()}});return}
+   el._sx=null;if(petT){clearTimeout(petT);petT=null;if(ev.type==='pointerup')react(k)}else if(petK===k)petOff(false)};
   el.oncontextmenu=e=>e.preventDefault()});
  /* tap scene objects */
  $('#bBg').onclick=ev=>{const g=ev.target.closest('[data-act]');if(!g)return;const i={feed:0,water:1}[g.dataset.act];$('#bActs button[data-n="'+i+'"]').click()};
@@ -601,9 +623,9 @@ INIT.room=()=>{let cur=ST.get('bCur','c'),mode='',modeT;const SC=$('#bScene'),EL
   const hr=new Date(NOW()).getHours();if((hr>=22||hr<5)&&r<.3){say(k,'หาว~ ง่วงแล้ว',null);act(k,'b-fluff',2200);if(Math.random()<.4)hint('ดึกแล้ว ปิดไฟให้นกนอนไหม 🌙');return}
   if(d.j<30&&r<.35){say(k,k==='s'?'แคร๊ก!! แคร๊ก!!':'จิ๊บ! จิ๊บ! (เรียกหา)');act(k,'b-tilt',1500);return}
   if((d.f<30||d.w<30)&&r<.35){say(k,k==='c'?'จิ๊บ ๆ หิว':'หิวแล้ว!');act(k,'b-peck',1200);return}
-  const opts=[['b-preen',d.cl<40?4:2],['walk',mode==='walk'?4:1.5],['b-tilt',2],['b-flap',.8],['b-fluff',1],['b-stretch',1],['talk',d.learn>1?1.5:.6],['crest',k==='c'?1.2:0],['b-dance',k==='s'&&d.j>60?1:0]];
+  const opts=[['b-preen',d.cl<40?4:2],['walk',mode==='walk'?4:1.5],['b-tilt',2],['b-flap',.8],['b-fluff',1],['b-stretch',1],['talk',d.learn>1?1.5:.6],['crest',k==='c'?1.2:0],['fly',mode?0:.9],['b-dance',k==='s'&&d.j>60?1:0]];
   let t=opts.reduce((a,o)=>a+o[1],0)*Math.random(),pick='b-tilt';for(const o of opts){t-=o[1];if(t<=0){pick=o[0];break}}
-  if(pick==='walk'){const base=mode==='walk'?50:BDEF[k].x;moveTo(k,Math.max(14,Math.min(86,base+(Math.random()*24-12))))}
+  if(pick==='fly')flyAround(k);else if(pick==='walk'){const base=mode==='walk'?50:BDEF[k].x;moveTo(k,Math.max(14,Math.min(86,base+(Math.random()*24-12))))}
   else if(pick==='talk')say(k,BDEF[k].words[Math.random()*d.learn|0]);else if(pick==='crest')act(k,'crest',1600);else act(k,pick,pick==='b-preen'?2200:1600)};
  let socUntil=0;const SOCIAL=()=>{if(mode||petK||NOW()<socUntil||b('c').sick||b('s').sick)return;socUntil=NOW()+6000;window.__soc=(window.__soc||0)+1;const r=Math.random();
   if(r<.5&&b('c').j>40&&b('s').j>40){X.c=41;X.s=59;EL.c.classList.add('flip');EL.s.classList.remove('flip');place();
