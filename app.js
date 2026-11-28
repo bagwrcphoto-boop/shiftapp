@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 59";
+const APP_VERSION = "28 พ.ย. 69 · 60";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -696,6 +696,8 @@ const APP_HTML = [
 ".sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}",
 ".editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}",
 ".seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}",
+".rpills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}.rpill{font-size:13px;font-weight:700;border-radius:20px;padding:3px 10px}",
+".rpill.ric{background:#E3EEFF;color:#2F7BE0}.rpill.rmb{background:#FFEBDD;color:#E8742A}.rpill.rmd{background:#E0F5E8;color:#23A05A}",
 ".rrow{display:flex;align-items:center;gap:5px;margin-bottom:6px}.rrow span{width:34px;font-size:13px;font-weight:700;color:var(--title)}",
 ".rb{flex:1;border:1.5px solid var(--line);background:none;border-radius:11px;padding:6px 0;font:inherit;font-size:11.5px;font-weight:600;color:var(--sub)}",
 ".rb.on.r0{background:var(--line);color:var(--title)}.rb.on.ric{background:#2F7BE0;border-color:#2F7BE0;color:#fff}.rb.on.rmb{background:#E8742A;border-color:#E8742A;color:#fff}.rb.on.rmd{background:#23A05A;border-color:#23A05A;color:#fff}",
@@ -1258,8 +1260,8 @@ const APP_HTML = [
 "function allMyShifts(){",
 "  const list = [];",
 "  for (const [k, md] of Object.entries(DATA.months)){",
-"    const [y,m] = k.split(\"-\").map(Number), me = md.people[DATA.me] || {};",
-"    for (const [d, s] of Object.entries(me)) for (const {c, st} of shiftStarts(y, m, d, s)) list.push({c, st, en:new Date(st.getTime()+8*3600e3)});",
+"    const [y,m] = k.split(\"-\").map(Number), me = md.people[DATA.me] || {}, R = (md.roles||{})[DATA.me] || {};",
+"    for (const [d, s] of Object.entries(me)) for (const {c, st} of shiftStarts(y, m, d, s)) list.push({c, st, en:new Date(st.getTime()+8*3600e3), r:(R[d]||[])[sortS(s).indexOf(c)]||\"\"});",
 "  }",
 "  return list.sort((a,b)=>a.st-b.st);",
 "}",
@@ -1289,15 +1291,17 @@ const APP_HTML = [
 "  return d ? `${d} \u0e27\u0e31\u0e19 ${h} \u0e0a\u0e21.` : h ? `${h} \u0e0a\u0e21. ${mm} \u0e19\u0e32\u0e17\u0e35` : `${mm} \u0e19\u0e32\u0e17\u0e35`; }",
 "function renderHero(){",
 "  const n = now(), blocks = [];     // \u0e40\u0e27\u0e23\u0e17\u0e35\u0e48\u0e15\u0e48\u0e2d\u0e01\u0e31\u0e19\u0e19\u0e31\u0e1a\u0e40\u0e1b\u0e47\u0e19\u0e01\u0e49\u0e2d\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27 \u0e40\u0e0a\u0e48\u0e19 \u0e1a\u0e48\u0e32\u0e22 \u2192 \u0e14\u0e36\u0e01 16:00 \u2013 08:00",
-"  for (const x of allMyShifts()){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }",
+"  for (const x of allMyShifts()){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); b.rs.push(x.r); } else blocks.push({st:x.st, en:x.en, cs:[x.c], rs:[x.r]}); }",
+"  const RN = {ic:\"In charge\", mb:\"member\", md:\"med\"};   // \u0e1b\u0e49\u0e32\u0e22\u0e2b\u0e19\u0e49\u0e32\u0e17\u0e35\u0e48\u0e2a\u0e35\u0e2d\u0e48\u0e2d\u0e19 \u0e43\u0e15\u0e49\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e27\u0e23 (\u0e41\u0e1a\u0e1a B)",
+"  const rp = b => { const L = b.cs.map((c, i) => b.rs[i] ? `<span class=\"rpill r${b.rs[i]}\">${b.cs.length > 1 ? SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\") + \" \u00b7 \" : \"\"}${RN[b.rs[i]]}</span>` : \"\").join(\"\"); return L ? `<div class=\"rpills\">${L}</div>` : \"\"; };",
 "  const cur = blocks.find(x=>x.st<=n && x.en>n), nxt = blocks.find(x=>x.st>n);",
 "  const nm = b => b.cs.length > 1 ? b.cs.map(c=>SH[c].n.replace(\"\u0e40\u0e27\u0e23\",\"\")).join(\" \u2192 \") : SH[b.cs[0]].n, tm = b => `${hm(b.st)} \u2013 ${hm(b.en)}${b.en.getDate()!==b.st.getDate()?\" (+1)\":\"\"}`;",
 "  const orb = b => b.cs.length > 1 ? `<div class=\"orb\">${cute(SH[b.cs[0]].k,34)}${cute(SH[b.cs[b.cs.length-1]].k,34)}</div>` : `<div class=\"orb\">${cute(SH[b.cs[0]].k,46)}</div>`;",
 "  let h;",
-"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${nm(cur)}</p><p class=\"time\">${tm(cur)}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div>${orb(cur)}`;",
+"  if (cur) h = `<div><p class=\"when\">\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48</p><p class=\"what\">${nm(cur)}</p>${rp(cur)}<p class=\"time\">${tm(cur)}</p><span class=\"cd\">${ic(\"timer\")}\u0e2d\u0e35\u0e01 ${dur(cur.en-n)} \u0e40\u0e25\u0e34\u0e01\u0e40\u0e27\u0e23</span></div>${orb(cur)}`;",
 "  else if (nxt){",
 "    const dd = dayDiff(n, nxt.st), when = dd===0?\"\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\":dd===1?\"\u0e1e\u0e23\u0e38\u0e48\u0e07\u0e19\u0e35\u0e49\":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MSH[nxt.st.getMonth()]}`;",
-"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${nm(nxt)}</p><p class=\"time\">${tm(nxt)}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;",
+"    h = `<div><p class=\"when\">\u0e40\u0e27\u0e23\u0e16\u0e31\u0e14\u0e44\u0e1b \u00b7 ${when}</p><p class=\"what\">${nm(nxt)}</p>${rp(nxt)}<p class=\"time\">${tm(nxt)}</p><span class=\"cd\">${ic(\"alarm\")}\u0e2d\u0e35\u0e01 ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;",
 "  } else h = `<div><p class=\"when\">\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e27\u0e23\u0e02\u0e49\u0e32\u0e07\u0e2b\u0e19\u0e49\u0e32</p><p class=\"what\">\u0e1e\u0e31\u0e01\u0e1c\u0e48\u0e2d\u0e19\u0e40\u0e22\u0e2d\u0e30\u0e46 \u0e19\u0e30</p><p class=\"time\">\u0e2d\u0e31\u0e1b\u0e23\u0e39\u0e1b\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e14\u0e37\u0e2d\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22</p></div><div class=\"orb\">${cute(\"off\",44)}</div>`;",
 "  $(\"hero\").innerHTML = h;",
 "  const t = noteOf(n), nb = $(\"todayNote\");",
@@ -2431,18 +2435,21 @@ function widgetLock(d, now, family) {
   const { cur, nxt } = nextShift(d, now), x = cur || nxt;
   const dd = x ? Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5) : 0;
   const nm = x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join("→") : SH[x.c].n) : "";   // เวรต่อกัน = ก้อนเดียว
+  const RN = { ic: "In charge", mb: "member", md: "med" }, rs = x ? (x.rs || []) : [], hasR = rs.some(Boolean);   // หน้าที่เป็นตัวหนังสือ (หน้าล็อกไม่มีสี)
+  const rTxt = sep => rs.map(r => RN[r] || "–").join(sep);
   if (family === "accessoryInline") {
-    txt(w, !x ? "ยังไม่มีเวร" : cur ? `อยู่${nm.startsWith("เวร") ? nm : "เวร" + nm} เลิก ${bEnd(x)}` : `${nm} ${dayLabel(dd, x.st)} ${hhmm(x.st)}`, Font.systemFont(12), Color.white());
+    txt(w, (!x ? "ยังไม่มีเวร" : cur ? `อยู่${nm.startsWith("เวร") ? nm : "เวร" + nm} เลิก ${bEnd(x)}` : `${nm} ${dayLabel(dd, x.st)} ${hhmm(x.st)}`) + (x && hasR ? ` · ${rTxt("/")}` : ""), Font.systemFont(12), Color.white());
   } else if (family === "accessoryCircular") {
     w.addAccessoryWidgetBackground = true;
     const s = w.addStack(); s.layoutVertically(); s.centerAlignContent();
     const a = s.addStack(); a.addSpacer(); txt(a, x ? x.cs.join("") : "-", F("Bold", x && x.cs.length > 1 ? 17 : 20), Color.white()); a.addSpacer();
-    const b = s.addStack(); b.addSpacer(); txt(b, !x ? "" : cur ? `ถึง ${bEnd(x).slice(0, 2)}` : dd === 0 ? hhmm(x.st) : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`, F("Medium", 10), Color.white()); b.addSpacer();
+    const b = s.addStack(); b.addSpacer(); txt(b, !x ? "" : hasR && x.cs.length === 1 ? x.rs[0].toUpperCase().replace("MD", "MED").replace("MB", "MB") : cur ? `ถึง ${bEnd(x).slice(0, 2)}` : dd === 0 ? hhmm(x.st) : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`, F("Medium", 10), Color.white()); b.addSpacer();
   } else {
     const r = w.addStack(); r.centerAlignContent();
     if (x) sym(r, SH[x.c].sym, 14, Color.white());
     r.addSpacer(4); txt(r, !x ? "เวรถัดไป" : cur ? "ตอนนี้" : `เวรถัดไป · ${dayLabel(dd, x.st)}`, F("Medium", 12), Color.white(), { lines: 1 });
-    txt(w, x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join(" → ") : SH[x.c].n) : "ยังไม่มีเวร", F("Bold", 16), Color.white(), { lines: 1, min: 0.7 });
+    txt(w, x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join(" → ") : (hasR ? `${SH_LABEL[x.c]} · ${RN[rs[0]]}` : SH[x.c].n)) : "ยังไม่มีเวร", F("Bold", 16), Color.white(), { lines: 1, min: 0.7 });
+    if (x && hasR && x.cs.length > 1) txt(w, rTxt(" · "), F("Medium", 12), Color.white(), { lines: 1, min: 0.7 });
     if (x) txt(w, cur ? `เลิก ${bEnd(x)} · ${untilText(x.en - now)}` : `${hhmm(x.st)}–${bEnd(x)} · ${untilText(x.st - now)}`, F("Medium", 13), Color.white(), { lines: 1, min: 0.7 });
   }
   w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);

@@ -159,6 +159,8 @@ body::before,body::after{content:'';position:fixed;left:0;right:0;z-index:9;poin
 .sheet input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text);margin-top:8px}
 .editd{margin-top:14px;border:1.5px solid var(--line);border-radius:16px;padding:10px 12px}.editd summary{font-weight:700;font-size:14.5px;color:var(--title);display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer}.editd summary::-webkit-details-marker{display:none}.editd summary span{font-weight:500;font-size:12px;color:var(--sub)}.editd[open] summary{margin-bottom:10px}
 .seqh{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:14px;color:var(--title);background:var(--tint);border-radius:14px;padding:9px 12px;margin-bottom:8px}.seqh span{color:var(--sub);font-size:13px}
+.rpills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}.rpill{font-size:13px;font-weight:700;border-radius:20px;padding:3px 10px}
+.rpill.ric{background:#E3EEFF;color:#2F7BE0}.rpill.rmb{background:#FFEBDD;color:#E8742A}.rpill.rmd{background:#E0F5E8;color:#23A05A}
 .rrow{display:flex;align-items:center;gap:5px;margin-bottom:6px}.rrow span{width:34px;font-size:13px;font-weight:700;color:var(--title)}
 .rb{flex:1;border:1.5px solid var(--line);background:none;border-radius:11px;padding:6px 0;font:inherit;font-size:11.5px;font-weight:600;color:var(--sub)}
 .rb.on.r0{background:var(--line);color:var(--title)}.rb.on.ric{background:#2F7BE0;border-color:#2F7BE0;color:#fff}.rb.on.rmb{background:#E8742A;border-color:#E8742A;color:#fff}.rb.on.rmd{background:#23A05A;border-color:#23A05A;color:#fff}
@@ -721,8 +723,8 @@ const firstDow = () => new Date(viewY, viewM, 1).getDay();
 function allMyShifts(){
   const list = [];
   for (const [k, md] of Object.entries(DATA.months)){
-    const [y,m] = k.split("-").map(Number), me = md.people[DATA.me] || {};
-    for (const [d, s] of Object.entries(me)) for (const {c, st} of shiftStarts(y, m, d, s)) list.push({c, st, en:new Date(st.getTime()+8*3600e3)});
+    const [y,m] = k.split("-").map(Number), me = md.people[DATA.me] || {}, R = (md.roles||{})[DATA.me] || {};
+    for (const [d, s] of Object.entries(me)) for (const {c, st} of shiftStarts(y, m, d, s)) list.push({c, st, en:new Date(st.getTime()+8*3600e3), r:(R[d]||[])[sortS(s).indexOf(c)]||""});
   }
   return list.sort((a,b)=>a.st-b.st);
 }
@@ -752,15 +754,17 @@ function dur(ms){ const m = Math.round(ms/6e4), d = Math.floor(m/1440), h = Math
   return d ? `${d} วัน ${h} ชม.` : h ? `${h} ชม. ${mm} นาที` : `${mm} นาที`; }
 function renderHero(){
   const n = now(), blocks = [];     // เวรที่ต่อกันนับเป็นก้อนเดียว เช่น บ่าย → ดึก 16:00 – 08:00
-  for (const x of allMyShifts()){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); } else blocks.push({st:x.st, en:x.en, cs:[x.c]}); }
+  for (const x of allMyShifts()){ const b = blocks[blocks.length-1]; if (b && x.st.getTime() === b.en.getTime()){ b.en = x.en; b.cs.push(x.c); b.rs.push(x.r); } else blocks.push({st:x.st, en:x.en, cs:[x.c], rs:[x.r]}); }
+  const RN = {ic:"In charge", mb:"member", md:"med"};   // ป้ายหน้าที่สีอ่อน ใต้ชื่อเวร (แบบ B)
+  const rp = b => { const L = b.cs.map((c, i) => b.rs[i] ? `<span class="rpill r${b.rs[i]}">${b.cs.length > 1 ? SH[c].n.replace("เวร","") + " · " : ""}${RN[b.rs[i]]}</span>` : "").join(""); return L ? `<div class="rpills">${L}</div>` : ""; };
   const cur = blocks.find(x=>x.st<=n && x.en>n), nxt = blocks.find(x=>x.st>n);
   const nm = b => b.cs.length > 1 ? b.cs.map(c=>SH[c].n.replace("เวร","")).join(" → ") : SH[b.cs[0]].n, tm = b => `${hm(b.st)} – ${hm(b.en)}${b.en.getDate()!==b.st.getDate()?" (+1)":""}`;
   const orb = b => b.cs.length > 1 ? `<div class="orb">${cute(SH[b.cs[0]].k,34)}${cute(SH[b.cs[b.cs.length-1]].k,34)}</div>` : `<div class="orb">${cute(SH[b.cs[0]].k,46)}</div>`;
   let h;
-  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${nm(cur)}</p><p class="time">${tm(cur)}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div>${orb(cur)}`;
+  if (cur) h = `<div><p class="when">ตอนนี้กำลังอยู่</p><p class="what">${nm(cur)}</p>${rp(cur)}<p class="time">${tm(cur)}</p><span class="cd">${ic("timer")}อีก ${dur(cur.en-n)} เลิกเวร</span></div>${orb(cur)}`;
   else if (nxt){
     const dd = dayDiff(n, nxt.st), when = dd===0?"วันนี้":dd===1?"พรุ่งนี้":`${DOWF[nxt.st.getDay()]} ${nxt.st.getDate()} ${MSH[nxt.st.getMonth()]}`;
-    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${nm(nxt)}</p><p class="time">${tm(nxt)}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;
+    h = `<div><p class="when">เวรถัดไป · ${when}</p><p class="what">${nm(nxt)}</p>${rp(nxt)}<p class="time">${tm(nxt)}</p><span class="cd">${ic("alarm")}อีก ${dur(nxt.st-n)}</span></div>${orb(nxt)}`;
   } else h = `<div><p class="when">ยังไม่มีเวรข้างหน้า</p><p class="what">พักผ่อนเยอะๆ นะ</p><p class="time">อัปรูปตารางเดือนใหม่ได้เลย</p></div><div class="orb">${cute("off",44)}</div>`;
   $("hero").innerHTML = h;
   const t = noteOf(n), nb = $("todayNote");

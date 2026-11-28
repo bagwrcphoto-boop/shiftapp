@@ -10,7 +10,7 @@ const CFG = (typeof CONFIG !== "undefined" && CONFIG) ? CONFIG : {};
 const GEMINI_KEY = String(CFG.geminiKey || "");
 const CLAUDE_KEY = String(CFG.claudeKey || "");
 
-const APP_VERSION = "28 พ.ย. 69 · 59";
+const APP_VERSION = "28 พ.ย. 69 · 60";
 const GEMINI_OFF = true;   // ปิด Gemini ชั่วคราว (อ่านตารางพลาด) ใช้ Claude อย่างเดียว
 const DEFAULT_NAME = String(CFG.name || "");
 const GEMINI_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"];
@@ -685,18 +685,21 @@ function widgetLock(d, now, family) {
   const { cur, nxt } = nextShift(d, now), x = cur || nxt;
   const dd = x ? Math.round((new Date(x.st.getFullYear(), x.st.getMonth(), x.st.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5) : 0;
   const nm = x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join("→") : SH[x.c].n) : "";   // เวรต่อกัน = ก้อนเดียว
+  const RN = { ic: "In charge", mb: "member", md: "med" }, rs = x ? (x.rs || []) : [], hasR = rs.some(Boolean);   // หน้าที่เป็นตัวหนังสือ (หน้าล็อกไม่มีสี)
+  const rTxt = sep => rs.map(r => RN[r] || "–").join(sep);
   if (family === "accessoryInline") {
-    txt(w, !x ? "ยังไม่มีเวร" : cur ? `อยู่${nm.startsWith("เวร") ? nm : "เวร" + nm} เลิก ${bEnd(x)}` : `${nm} ${dayLabel(dd, x.st)} ${hhmm(x.st)}`, Font.systemFont(12), Color.white());
+    txt(w, (!x ? "ยังไม่มีเวร" : cur ? `อยู่${nm.startsWith("เวร") ? nm : "เวร" + nm} เลิก ${bEnd(x)}` : `${nm} ${dayLabel(dd, x.st)} ${hhmm(x.st)}`) + (x && hasR ? ` · ${rTxt("/")}` : ""), Font.systemFont(12), Color.white());
   } else if (family === "accessoryCircular") {
     w.addAccessoryWidgetBackground = true;
     const s = w.addStack(); s.layoutVertically(); s.centerAlignContent();
     const a = s.addStack(); a.addSpacer(); txt(a, x ? x.cs.join("") : "-", F("Bold", x && x.cs.length > 1 ? 17 : 20), Color.white()); a.addSpacer();
-    const b = s.addStack(); b.addSpacer(); txt(b, !x ? "" : cur ? `ถึง ${bEnd(x).slice(0, 2)}` : dd === 0 ? hhmm(x.st) : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`, F("Medium", 10), Color.white()); b.addSpacer();
+    const b = s.addStack(); b.addSpacer(); txt(b, !x ? "" : hasR && x.cs.length === 1 ? x.rs[0].toUpperCase().replace("MD", "MED").replace("MB", "MB") : cur ? `ถึง ${bEnd(x).slice(0, 2)}` : dd === 0 ? hhmm(x.st) : dd === 1 ? "พรุ่งนี้" : `${x.st.getDate()}`, F("Medium", 10), Color.white()); b.addSpacer();
   } else {
     const r = w.addStack(); r.centerAlignContent();
     if (x) sym(r, SH[x.c].sym, 14, Color.white());
     r.addSpacer(4); txt(r, !x ? "เวรถัดไป" : cur ? "ตอนนี้" : `เวรถัดไป · ${dayLabel(dd, x.st)}`, F("Medium", 12), Color.white(), { lines: 1 });
-    txt(w, x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join(" → ") : SH[x.c].n) : "ยังไม่มีเวร", F("Bold", 16), Color.white(), { lines: 1, min: 0.7 });
+    txt(w, x ? (x.cs.length > 1 ? x.cs.map(c => SH_LABEL[c]).join(" → ") : (hasR ? `${SH_LABEL[x.c]} · ${RN[rs[0]]}` : SH[x.c].n)) : "ยังไม่มีเวร", F("Bold", 16), Color.white(), { lines: 1, min: 0.7 });
+    if (x && hasR && x.cs.length > 1) txt(w, rTxt(" · "), F("Medium", 12), Color.white(), { lines: 1, min: 0.7 });
     if (x) txt(w, cur ? `เลิก ${bEnd(x)} · ${untilText(x.en - now)}` : `${hhmm(x.st)}–${bEnd(x)} · ${untilText(x.st - now)}`, F("Medium", 13), Color.white(), { lines: 1, min: 0.7 });
   }
   w.refreshAfterDate = new Date(now.getTime() + 15 * 6e4);
